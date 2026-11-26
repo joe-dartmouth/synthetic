@@ -117,6 +117,32 @@ def recommended(count: int, covered: int, expected: int) -> int:
     return max(0, max(covered, expected) - count)
 
 
+def fused_shares(
+    train: pd.DataFrame,
+    cells: Sequence[Cell],
+    *,
+    name: str,
+    rows: Sequence[FieldMapping],
+    frame: FrameSpec,
+) -> dict[Cell, dict[str, float]]:
+    """Each of `cells`' fused concept shares, read as the direct sampler reads them.
+
+    `bko.gaps.shares.shares` of the cell's records against its label group's, observed under
+    `rows`.
+
+    Raises:
+        GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
+    """
+    observed = record_cells(train, rows, name=name, edges=frame.edges).each
+    groups = {
+        label: observe_records(
+            train.loc[train[frame.label].eq(label)], rows, name=f"{name}/{frame.label}={label}"
+        )
+        for label in sorted({int(cell[2]) for cell in cells})
+    }
+    return {cell: shares(observed[cell], groups[int(cell[2])]) for cell in cells}
+
+
 def asks(
     train: pd.DataFrame,
     cells: Sequence[Cell],
@@ -128,8 +154,7 @@ def asks(
 ) -> dict[Cell, Ask]:
     """Each of `cells`' counts under `rule`, a rule other than `QuotaRule.FILL_TO`.
 
-    The fused shares are read as the direct sampler reads them (`bko.gaps.shares.shares`): the
-    cell's records against its label group's, observed under `rows`.
+    The fused shares are `fused_shares`'.
 
     Raises:
         ValueError: If `rule` is `QuotaRule.FILL_TO`, whose count is the experiment's `fill_to`.
@@ -143,17 +168,11 @@ def asks(
         (str(band), str(sex), int(label)): int(count)
         for band, sex, label, count, _ in table.itertuples(index=False)
     }
-    observed = record_cells(train, rows, name=name, edges=frame.edges).each
-    groups = {
-        label: observe_records(
-            train.loc[train[frame.label].eq(label)], rows, name=f"{name}/{frame.label}={label}"
-        )
-        for label in sorted({int(cell[2]) for cell in cells})
-    }
+    fused = fused_shares(train, cells, name=name, rows=rows, frame=frame)
     found: dict[Cell, Ask] = {}
     for cell in cells:
         count = counts[cell]
-        covered = coverage(shares(observed[cell], groups[int(cell[2])]))
+        covered = coverage(fused[cell])
         expected = expected_size(cell, counts)
         if rule is QuotaRule.RECOMMENDED:
             asked = recommended(count, covered, expected)

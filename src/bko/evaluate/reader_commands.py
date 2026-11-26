@@ -1,7 +1,8 @@
 """The reader subcommands of `python -m bko.evaluate`: each reads a recorded run's files.
 
-`bko.evaluate.__main__` dispatches `shared`, `rows`, `panel`, `privacy`, `truth` and
-`contradictions` to the handlers here; each reads its run through `bko.evaluate.run_context`.
+`bko.evaluate.__main__` dispatches `shared`, `rows`, `panel`, `privacy`, `truth`,
+`representativeness` and `contradictions` to the handlers here; each reads its run through
+`bko.evaluate.run_context`.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from bko.evaluate.membership import privacy
 from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.panel import panel
 from bko.evaluate.provenance import log_versions
+from bko.evaluate.representativeness import representativeness
 from bko.evaluate.rows import creatable, store
 from bko.evaluate.rows_read import read_rows
 from bko.evaluate.run_context import named as named_run
@@ -118,6 +120,21 @@ def _truth(args: argparse.Namespace, context: Context) -> str:
     named = named_run(args.run, context)
     data = load(named.dataset, data_dir(args), named)
     return truth(
+        args.run,
+        args.stores,
+        experiment=named.experiment,
+        data=data,
+        runs=named.runs,
+        root=runs_root(args, context),
+    )
+
+
+def _representativeness(args: argparse.Namespace, context: Context) -> str:
+    """Read the run's fills against their cells' fused shares from its `--rows` stores."""
+    log_versions()
+    named = named_run(args.run, context)
+    data = load(named.dataset, data_dir(args), named)
+    return representativeness(
         args.run,
         args.stores,
         experiment=named.experiment,

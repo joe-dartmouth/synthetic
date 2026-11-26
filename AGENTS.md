@@ -79,6 +79,11 @@ import it (ADR `tooling/agent-config-single-home`).
   re-derived per holdout, with the fidelity measures a replica is scored by, leaving `real` out
   and refusing a run with no removal. `--rows` repeats, once per slice's store. It makes no API
   call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
+- `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/representativeness.csv && test ! -e runs/<run-id>/representativeness.log && uv run --no-sync python -m bko.evaluate representativeness <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/representativeness.csv 2> runs/<run-id>/representativeness.log </dev/null`:
+  read each arm's gap fill rows in each flagged cell of a run against the cell's fused concept
+  shares, with the cell's share of the arm's training set beside `real`'s and the arm's flagged
+  recall, refusing a run without `real`. `--rows` repeats, once per slice's store. It makes no
+  API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#evaluation) holds the guarded command).
 - `mkdir -p runs/<run-id>-syntheval && test ! -e runs/<run-id>-syntheval/syntheval.csv && test ! -e runs/<run-id>-syntheval/syntheval.log && uv run --no-sync python -m bko.evaluate syntheval <run> --folder runs/<run-id> --rows runs/<run-id>-rows/rows.jsonl > runs/<run-id>-syntheval/syntheval.csv 2> runs/<run-id>-syntheval/syntheval.log </dev/null`:
   score each replica fill of a run's `rows` store under SynthEval's metrics in the environment
   `make syntheval-env` builds outside the lock. It makes no API call

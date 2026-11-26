@@ -1404,6 +1404,33 @@ rows and sha256. `--runs-dir` and `--data-dir` read as `privacy`'s do. It exits 
 removes no cell, and 3 for a store that fails `privacy`'s store checks, a store of another run or
 whose `split` line the data does not reproduce included.
 
+**`representativeness`** reads each arm's gap fill of a run against the fused shares of the
+cells it fills (ADR [`research/share-based-quota`](adr/research/share-based-quota.md), E21's
+reading). It takes the run's `rows` stores as `privacy` does, one `--rows` per slice, binds them
+by the same checks, and makes no API call:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/representativeness.csv && test ! -e runs/<run-id>/representativeness.log && uv run --no-sync python -m bko.evaluate representativeness <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/representativeness.csv 2> runs/<run-id>/representativeness.log </dev/null
+
+Per holdout it re-derives the training split and its flagged cells, reads each cell's fused
+concept shares as the direct sampler draws them (`bko.gaps.quota.fused_shares`), and keeps each
+arm's added rows in the cell. The `representativeness.csv` columns are
+`holdout,arm,cell,rows,gap,concept,cell_share,real_share,recall`, one row per holdout, arm and
+flagged cell: `rows` the arm's added rows in the cell; `gap` the largest absolute difference
+between the share of those rows showing a mapped concept and its fused share, and `concept` that
+concept, both empty for an arm with no row in the cell; `cell_share` the cell's share of the
+arm's training set, the training split plus the fill; `real_share` the same for `real`, whose
+fill is the removed records; and `recall` the arm's regression recall on the flagged subgroups of
+its augmented training set, read from the store's folder's `scores.csv`, which on E6's cell is
+removed-cell recall. Its `representativeness.log` opens with the `versions commit=` line, then
+the data's fetch, cohort and `data` lines, then `representativeness run=%s stores=%d holdouts=%d
+root=%s`, one `representativeness store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`
+line per store, and per holdout one `representativeness holdout=%d arm=%s key=%s rows=%d
+gap=%.4f concept=%s cell_share=%.6f real_share=%.6f recall=%.4f` line per arm and flagged cell
+and `representativeness holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`. The last line is
+`representativeness lines=%d sha256=%s seconds=%.1f`, the CSV's rows and sha256. `--runs-dir`
+and `--data-dir` read as `privacy`'s do. It exits 2 for a run without `real` or a store whose
+folder holds no `scores.csv`, and 3 for a store that fails `privacy`'s store checks.
+
 **SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
 metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR
 [`research/syntheval-reading`](adr/research/syntheval-reading.md)), each fill against its
@@ -2361,6 +2388,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `privacy.log` | its stderr |
 | `truth.csv` | `python -m bko.evaluate truth`'s stdout |
 | `truth.log` | its stderr |
+| `representativeness.csv` | `python -m bko.evaluate representativeness`'s stdout |
+| `representativeness.log` | its stderr |
 | `syntheval.csv` | `python -m bko.evaluate syntheval`'s stdout |
 | `syntheval.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |
