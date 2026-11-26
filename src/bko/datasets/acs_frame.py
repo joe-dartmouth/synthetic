@@ -38,9 +38,13 @@ _DESCRIPTIONS: Final[Mapping[str, str]] = {
     LABEL: f"total person's income above ${THRESHOLD:,}, unadjusted",
 }
 
-_UNITS: Final[Mapping[str, str]] = {"age": "a", "WKHP": "h/wk"}
+_NUMERIC: Final = ("age", "WKHP")
+"""The numeric features, each with a range over the records; every other feature is coded."""
 
-_WIDTHS: Final[Mapping[str, int]] = {"OCCP": 4, "POBP": 3}
+_UNITS: Final[Mapping[str, str]] = {"age": "a", "WKHP": "h/wk"}
+"""Each numeric feature's unit."""
+
+_HELD_WIDTHS: Final[Mapping[str, int]] = {"OCCP": 4, "POBP": 3}
 """The fields coded by the codes the records hold, and the width the file writes each code at."""
 
 
@@ -55,24 +59,23 @@ def acs_frame(records: pd.DataFrame) -> FrameSpec:
         The ACS frame: numeric `age` and `WKHP`, every other feature coded, label income above
         `THRESHOLD`, age bands from 30, 45 and 60.
     """
-    numeric = tuple(_UNITS)
     held = {
         name: {int(code): f"{int(code):0{width}d}" for code in sorted(records[name].unique())}
-        for name, width in _WIDTHS.items()
+        for name, width in _HELD_WIDTHS.items()
     }
     return FrameSpec(
         name=ACS_NAME,
         features=FEATURES,
-        numeric=numeric,
+        numeric=_NUMERIC,
         fractional=(),
         fraction_digits=0,
-        categorical=tuple(name for name in FEATURES if name not in numeric),
+        categorical=tuple(name for name in FEATURES if name not in _NUMERIC),
         codebook={"sex": SEXES, **CODEBOOK, **held},
         descriptions=_DESCRIPTIONS,
         ranges=tuple(
             RangeConstraint(
                 field=name,
-                unit=unit,
+                unit=_UNITS[name],
                 low=int(records[name].min()),
                 high=int(records[name].max()),
                 source="acs-nd",
@@ -81,7 +84,7 @@ def acs_frame(records: pd.DataFrame) -> FrameSpec:
                     "is unseen, not impossible"
                 ),
             )
-            for name, unit in _UNITS.items()
+            for name in _NUMERIC
         ),
         label_codes=tuple(sorted(LABEL_CODES)),
         label_meanings={

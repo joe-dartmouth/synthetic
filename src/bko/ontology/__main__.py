@@ -25,8 +25,7 @@ text of that part, `bko.ontology.occupation_codes_low` or `_high`, to stdout, an
 empty until then. `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
 
 Exit codes: 0 every `check` row agrees, or `reproduce`, `elk`, `codes` or `occupations` wrote its
-report,
-whatever its statuses; 1 an unexpected error, with its traceback, including a fusion the
+report, whatever its statuses; 1 an unexpected error, with its traceback, including a fusion the
 converter should never have built; 2 the command could not run, including ROBOT failing or timing
 out; 3 a release or archive contradicts its pin, is not OBO the loader reads, or is OWL that names
 an import (stdout is empty); 4 a `check` row disagrees with its release (the report is written
@@ -37,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import dataclasses
 import hashlib
 import io
 import json
@@ -60,7 +60,7 @@ from bko.ontology import elk
 from bko.ontology.catalog import CATALOG, Catalogued
 from bko.ontology.check import check, prefixes
 from bko.ontology.codes import generate, render
-from bko.ontology.convert import converted
+from bko.ontology.convert import Convert, converted
 from bko.ontology.mapping import CHECKED_ROWS, MAPPED, RELEASES
 from bko.ontology.occupations import PARTS, Part, part, soc_classes
 from bko.ontology.occupations import generate as generate_occupations
@@ -132,9 +132,7 @@ def main(
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         context = Context() if context is None else context
         out = sys.stdout if out is None else out
-        if args.command == "occupations":
-            return _occupations(data_dir, context, out, which=args.part)
-        return _COMMANDS[args.command](data_dir, context, out)
+        return _COMMANDS[args.command](data_dir, context, out, args)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -204,6 +202,16 @@ def check_releases(context: Context) -> dict[str, Source]:
     return chosen
 
 
+def _convert(context: Context) -> Convert:
+    """`converted` with `context`'s Java, ROBOT jar and runner."""
+    return partial(
+        converted,
+        resolve_java=context.resolve_java,
+        robot=context.robot,
+        runner=context.robot_runner,
+    )
+
+
 class _NoJavaError(Exception):
     """No Java to convert an OWL-only release with."""
 
@@ -223,9 +231,7 @@ def _check_loaded(
         except UnavailableError as exc:
             raise _NoJavaError(str(exc)) from exc
 
-    convert = partial(
-        converted, resolve_java=resolve_java, robot=context.robot, runner=context.robot_runner
-    )
+    convert = _convert(dataclasses.replace(context, resolve_java=resolve_java))
     owl = {prefix for prefix, source in chosen.items() if source.filename.endswith(".owl")}
     loaded = load_releases(
         {prefix: source for prefix, source in chosen.items() if prefix not in owl},
@@ -247,7 +253,7 @@ def _check_loaded(
     return dict(sorted(loaded.items()))
 
 
-def _check(data_dir: Path, context: Context, out: TextIO) -> int:
+def _check(data_dir: Path, context: Context, out: TextIO, _args: argparse.Namespace) -> int:
     releases = _check_loaded(check_releases(context), data_dir, context)
     verdicts = check(context.rows, releases)
     writer = csv.writer(out, lineterminator="\n")
@@ -266,7 +272,7 @@ def _check(data_dir: Path, context: Context, out: TextIO) -> int:
     return 4 if disagree else 0
 
 
-def _codes(data_dir: Path, context: Context, out: TextIO) -> int:
+def _codes(data_dir: Path, context: Context, out: TextIO, _args: argparse.Namespace) -> int:
     releases = {"MONDO": context.releases["MONDO"]}
     mondo = load_releases(releases, data_dir, open_url=context.open_url)["MONDO"]
     source = context.diabetes
@@ -283,15 +289,10 @@ def _codes(data_dir: Path, context: Context, out: TextIO) -> int:
     return 0
 
 
-def _occupations(data_dir: Path, context: Context, out: TextIO, *, which: Part) -> int:
-    convert = partial(
-        converted,
-        resolve_java=context.resolve_java,
-        robot=context.robot,
-        runner=context.robot_runner,
-    )
+def _occupations(data_dir: Path, context: Context, out: TextIO, args: argparse.Namespace) -> int:
+    which: Part = args.part
     occo = load_releases(
-        {"OCCO": context.occo}, data_dir, open_url=context.open_url, convert=convert
+        {"OCCO": context.occo}, data_dir, open_url=context.open_url, convert=_convert(context)
     )["OCCO"]
     ensure(context.acs, data_dir, open_url=context.open_url)
     rows, _ = read_kept(data_dir, context.acs)
@@ -314,7 +315,7 @@ def _occupations(data_dir: Path, context: Context, out: TextIO, *, which: Part) 
     return 0
 
 
-def _reproduce(data_dir: Path, context: Context, out: TextIO) -> int:
+def _reproduce(data_dir: Path, context: Context, out: TextIO, _args: argparse.Namespace) -> int:
     ontologies = load_releases(context.paper_releases, data_dir, open_url=context.open_url)
     findings = reproduce(ontologies["MONDO"], ontologies["DOID"])
     writer = csv.writer(out, lineterminator="\n")
@@ -333,7 +334,7 @@ def _reproduce(data_dir: Path, context: Context, out: TextIO) -> int:
     return 0
 
 
-def _elk(data_dir: Path, context: Context, out: TextIO) -> int:
+def _elk(data_dir: Path, context: Context, out: TextIO, _args: argparse.Namespace) -> int:
     java, version = context.resolve_java()
     loaded = load_releases(context.releases, data_dir, open_url=context.open_url)
     owls = {
@@ -424,11 +425,12 @@ def _classify_and_compare(
     return comparison
 
 
-_COMMANDS: Final[Mapping[str, Callable[[Path, Context, TextIO], int]]] = {
+_COMMANDS: Final[Mapping[str, Callable[[Path, Context, TextIO, argparse.Namespace], int]]] = {
     "check": _check,
     "reproduce": _reproduce,
     "elk": _elk,
     "codes": _codes,
+    "occupations": _occupations,
 }
 
 

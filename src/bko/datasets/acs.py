@@ -12,10 +12,11 @@ the file codes them, and `LABEL`, 1 when the unadjusted `PINCP` is above `THRESH
 
 from __future__ import annotations
 
+import _csv
 import csv
 import io
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -232,14 +233,14 @@ CODEBOOK: Final[Mapping[str, Mapping[int, str]]] = MappingProxyType(
 """The 2024 data dictionary's codes and meanings of each coded feature it fixes, its N/A blank
 left out; `sex`, `OCCP` and `POBP` are coded apart."""
 
-_WIDTHS: Final[Mapping[str, int]] = MappingProxyType({"SCHL": 2})
+_PADDED: Final[Mapping[str, int]] = MappingProxyType({"SCHL": 2})
 """The columns whose codes the file writes zero-padded, and their width."""
 
 CODES: Final[Mapping[str, frozenset[str]]] = MappingProxyType(
     {
         "SEX": frozenset(SEX_CODES),
         **{
-            name: frozenset(f"{code:0{_WIDTHS.get(name, 1)}d}" for code in codes)
+            name: frozenset(f"{code:0{_PADDED.get(name, 1)}d}" for code in codes)
             for name, codes in CODEBOOK.items()
         },
     }
@@ -271,26 +272,30 @@ def parse_acs(text: str) -> pd.DataFrame:
             other than 286 fields.
     """
     reader = csv.reader(io.StringIO(text, newline=""))
-    try:
-        header = tuple(next(reader, ()))
-        read = [(reader.line_num, row) for row in reader]
-    except csv.Error as exc:
-        msg = f"{MEMBER} line {reader.line_num}: {exc}"
-        raise ContractError(msg) from exc
-    if header != HEADER:
+    read = _readable(reader)
+    if tuple(next(read, ())) != HEADER:
         msg = f"{MEMBER}: the header is not the published {len(HEADER)} names in order"
         raise ContractError(msg)
     wanted = [HEADER.index(name) for name in READ]
     lines: list[int] = []
     rows: list[list[str]] = []
-    for line, row in read:
+    for row in read:
         if len(row) != len(HEADER):
-            msg = f"{MEMBER} line {line}: {len(row)} fields, expected {len(HEADER)}"
+            msg = f"{MEMBER} line {reader.line_num}: {len(row)} fields, expected {len(HEADER)}"
             raise ContractError(msg)
-        lines.append(line)
+        lines.append(reader.line_num)
         rows.append([row[i] for i in wanted])
     index = pd.Index(lines, dtype="int64", name="line")
     return pd.DataFrame(rows, columns=list(READ), index=index, dtype=str)
+
+
+def _readable(reader: _csv.Reader) -> Iterator[list[str]]:
+    """`reader`'s rows, a line that is not readable CSV raising `ContractError` naming it."""
+    try:
+        yield from reader
+    except csv.Error as exc:
+        msg = f"{MEMBER} line {reader.line_num}: {exc}"
+        raise ContractError(msg) from exc
 
 
 def _refuse(rows: pd.DataFrame, name: str, fits: pd.Series, why: str) -> None:
@@ -403,6 +408,7 @@ def load_acs(data_dir: Path, *, sources: Sequence[Source]) -> pd.DataFrame:
         raise ValueError(msg)
     [source] = sources
     rows, counts = read_kept(data_dir, source)
+    # Called for its refusal alone: a file where one OCCP code carries two SOCP codes is refused.
     occupation_pairs(rows)
     records = frame_records(rows, counts)
     if records.empty:
