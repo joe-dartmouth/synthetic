@@ -76,13 +76,13 @@ class DrawSpec:
 
         Raises:
             ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false (pooled
-                reads rows through `pool` alone, so it keeps `mapped` true); if a limit
-                is below 1, or `microaggregate` below 2; if `hierarchy` is not a finite
-                non-negative float, or is set beside `closed`; if `tree` is set beside
-                `hierarchy` or `closed`; if a field of `_VARIANTS` is off its default without the
-                mapping table or at a presence other than shares; if `pool` is off its default at
-                a presence other than pooled; or if `donors` is false at a presence other than
-                logic.
+                reads rows through `pool` alone, so it keeps `mapped` true); if a limit is below
+                1; if `microaggregate` is not an int, a bool or a float among them, or is below
+                2; if `hierarchy` is not a finite non-negative float, or is set beside `closed`;
+                if `tree` is set beside `hierarchy` or `closed`; if a field of `_VARIANTS` is off
+                its default without the mapping table or at a presence other than shares; if
+                `pool` is off its default at a presence other than pooled; or if `donors` is
+                false at a presence other than logic.
         """
         if self.presence is Presence.POOLED and not self.mapped:
             msg = "presence pooled keeps mapped true: pool, not mapped, says which rows it reads"
@@ -94,8 +94,12 @@ class DrawSpec:
             if value is not None and value < 1:
                 msg = f"{name} {value} must be at least 1"
                 raise ValueError(msg)
-        if self.microaggregate is not None and self.microaggregate < 2:
-            msg = f"microaggregate {self.microaggregate} must be at least 2"
+        k = self.microaggregate
+        if k is not None and type(k) is not int:
+            msg = f"microaggregate {k!r} must be an int"
+            raise ValueError(msg)
+        if k is not None and k < 2:
+            msg = f"microaggregate {k} must be at least 2"
             raise ValueError(msg)
         pseudo = self.hierarchy
         if pseudo is not None and (

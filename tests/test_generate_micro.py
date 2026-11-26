@@ -233,13 +233,17 @@ def test_microaggregate_logs_only_when_set(caplog):
     assert not any(m.startswith("micro-field ") for m in caplog.messages)
 
 
-@pytest.mark.parametrize(
-    ("changes", "message"),
-    [
-        ({"microaggregate": 1}, "microaggregate 1 must be at least 2"),
-        ({"microaggregate": 3, "mapped": False}, "needs the mapping table and presence shares"),
-    ],
-)
-def test_microaggregate_below_2_is_refused(changes, message):
-    with pytest.raises(ValueError, match=message):
-        DrawSpec(**changes)
+def test_microaggregate_below_2_is_refused():
+    with pytest.raises(ValueError, match="microaggregate 1 must be at least 2"):
+        DrawSpec(microaggregate=1)
+
+
+@pytest.mark.parametrize("value", [True, 3.0])
+def test_microaggregate_other_than_an_int_is_refused(value):
+    with pytest.raises(ValueError, match=f"microaggregate {value!r} must be an int"):
+        DrawSpec(microaggregate=value)
+
+
+def test_microaggregate_without_the_mapping_table_is_refused():
+    with pytest.raises(ValueError, match="needs the mapping table and presence shares"):
+        DrawSpec(microaggregate=3, mapped=False)
