@@ -228,6 +228,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#synthetic-share-ablation), the synthetic-share ablation; a development result |
 
+## E19. Matched knowledge controls on the Diabetes 130 removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame and removal, does K's choice of which fields to pool (`bko-direct`) add removed-cell recall over a random choice of as many fields (`bko-pool-random`), and how do data-only models of the cell compare? |
+| Configuration | Design: ADR [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md) fixes K (the mapping table plus the pinned releases its rows name), each arm's draw, its declared-inputs table (Decision 14) and its audit table (Decision 15); ADR [`research/dataset-variants`](adr/research/dataset-variants.md) fixes `diabetes-supported`, `diabetes` on `age`, `sex`, the label and the 12 mapped fields. Frame, removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0, at E12's split, quota and seed. Runs, each cut into ten slices of consecutive holdouts as E6's are, at E6's settings: `e19-thin` and `e19-empty` on `diabetes`, slices `e19-thina` to `e19-thinj` and `e19-emptya` to `e19-emptyj`; `e19-supported-thin` and `e19-supported-empty` on `diabetes-supported`, slices `e19-supported-thina` to `e19-supported-thinj` and `e19-supported-emptya` to `e19-supported-emptyj`. Arms: `e19-thin` holds `none`, `real`, `bko-direct`, `bko-nomap`, `bko-donor`, `bko-pool-random`, `bko-pool-all`, `row-resample`, `marginals`, `eb-marginals`, `hb-marginals`, `label-bootstrap` and `prior-shift`; `e19-empty` holds `none`, `real`, `bko-direct`, `bko-nomap`, `marginals`, `hb-marginals`, `label-bootstrap` and `prior-shift`; both supported runs hold `none`, `real`, `bko-direct`, `bko-nomap`, `bko-logic`, `bko-kb`, `hb-marginals` and `label-bootstrap`. Candidate `bko-direct`, every other arm but `real` a comparator; no replica. Left out at full removal: `bko-donor`, `bko-pool-random` and `bko-pool-all`, which draw `bko-nomap`'s distribution when the cell holds no record, `row-resample`, which then draws `label-bootstrap`'s, and `eb-marginals`, which then draws `marginals`'. `bko-kb` runs only on `diabetes-supported`, since it refuses a frame with a free field. Reading: the [matched-control reading](RESEARCH.md#matched-control-reading): primary, `bko-direct` minus `bko-pool-random` on removed-cell recall at 0.985 on `diabetes`, claimed only when the regression's and the boosting model's 0.95 intervals both lie above 0, `equivalent` at the [control reading rule](RESEARCH.md#control-reading-rule)'s margin of 0.0480; every other contrast secondary and descriptive, a secondary claim Holm-adjusted within its fraction; no K contrast read at full removal, where `bko-direct` and `bko-nomap` draw one distribution (ADR [`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md), Consequences). No arm calls the API, so the spend ceiling kept from E6 is inert. Privacy reference arm: `real` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#matched-control-reading), the matched-control reading; an ablation |
+
 ## B1. Classical baselines
 
 | Field | Entry |

@@ -497,10 +497,15 @@ registered `candidate` stays `bko`.
 ### Ablations and comparators
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
-`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent` and
-`bko-skeleton`, and the guidance levels, are ablations: each changes one part of how the BKB
-guides generation. The row-adding methods (the comparison set, the classical synthesizers,
-TabDDPM, the Bayesian network and the label bootstrap) are comparators. The control `prior-shift`
+`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`,
+`bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and the guidance
+levels, are ablations: each changes one part of how the BKB guides generation. The retained-data
+methods `row-resample`, `marginals` and `eb-marginals` are ablations of the pooling itself, from
+`label-bootstrap` to one weight per cell fitted by empirical Bayes [`efron-1975`][efron-1975]
+(ADR [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). The
+row-adding methods (the comparison set, the classical synthesizers, TabDDPM, the Bayesian network,
+the label bootstrap and `hb-marginals`, a multilevel model of each column
+[`gelman-2006`][gelman-2006]) are comparators. The control `prior-shift`
 adds no rows: it scores `none`'s fit with each requested subgroup's test logits moved to the
 subgroup's prevalence after the gap request's fill (ADR
 [`research/prior-shift-comparator`](adr/research/prior-shift-comparator.md)).
@@ -545,6 +550,7 @@ not a test of it.
 | [E16](EVIDENCE.md#e16-conditional-is_a-draws-on-the-diabetes-130-removal) | Ablation |
 | [E17](EVIDENCE.md#e17-coherent-free-fields-on-the-diabetes-130-removal) | Ablation |
 | [E18](EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) | Development result |
+| [E19](EVIDENCE.md#e19-matched-knowledge-controls-on-the-diabetes-130-removal) | Ablation |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -658,6 +664,19 @@ the margin. The primary endpoint's choice reads the `prior-shift` contrast at E6
 with each interval at half the family's error rate (Bonferroni over the two looks), so taking
 either fraction keeps the family-wise error at its level.
 
+### Matched-control reading
+
+[E19](EVIDENCE.md#e19-matched-knowledge-controls-on-the-diabetes-130-removal) reads its arms (ADR
+[`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)) by one primary
+contrast: `bko-direct` minus `bko-pool-random` on removed-cell recall at the thin fraction, 0.985,
+on `diabetes`. The claim that K's choice of which fields to pool adds recall is made only when the
+regression's and the boosting model's 0.95 intervals both lie wholly above 0; `equivalent` uses the
+margin of the [control reading rule](#control-reading-rule), 0.0480, and the branches are read as
+that rule reads them. Every other E19 contrast is secondary and descriptive, and a secondary claim
+is Holm-adjusted within its fraction. No K contrast, one between two arms that differ in what they
+read of K, is read at full removal, where `bko-direct` and `bko-nomap` draw one distribution on E6's
+frame (ADR [`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md), Consequences).
+
 ### Variant inclusion rule
 
 A variant enters `bko-direct-2` when, on each development frame it
@@ -679,9 +698,11 @@ variants beyond each interval's own.
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/
 [cwe-nd]: https://cwe.mitre.org/about/termsofuse.html
 [dalpozzolo-2015]: https://doi.org/10.1109/SSCI.2015.33
+[efron-1975]: https://doi.org/10.1080/01621459.1975.10479864
 [fecho-2022]: https://doi.org/10.1111/cts.13301
 [fecho-2025]: https://doi.org/10.1111/cts.70284
 [gardner-2023]: https://arxiv.org/abs/2312.07577
+[gelman-2006]: https://doi.org/10.1017/cbo9780511790942
 [he-2008]: https://doi.org/10.1109/IJCNN.2008.4633969
 [hpo-2026]: https://github.com/obophenotype/human-phenotype-ontology/tree/920d4eb3608b50a2c19ddb10290224ab35a759c5/src/ontology
 [jackson-2019]: https://doi.org/10.1186/s12859-019-3002-3
