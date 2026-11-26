@@ -31,13 +31,15 @@ unit's `milestone` is `direct-method-research`, the
 | [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | ready | -- | direct-method-research |
 | [`datasets-nvd-frame`](datasets-nvd-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
 | [`datasets-vcdb-frame`](datasets-vcdb-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
+| [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) | ready | -- | direct-method-research |
 
 ### Published comparisons
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | ready | -- | direct-method-research |
-| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
+| [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) | ready | -- | direct-method-research |
+| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | blocked | evaluate-p1-partial-replicas | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | ready | -- | direct-method-research |
@@ -48,7 +50,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
 | [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
-| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-composite-dev-results | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-composite-dev-results, datasets-frame-rule-revisions | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
 ### Follow-ups
@@ -72,7 +74,9 @@ flowchart LR
     u7[evaluate-diabetes-control-results] --> u30[evaluate-confirmatory-registration]
     u8[evaluate-synthea-direct-results] --> u30
     u29 --> u30
+    u56[datasets-frame-rule-revisions] --> u30
     u30 --> u31[evaluate-confirmatory-results]
+    u54[evaluate-p1-partial-replicas] --> u55[evaluate-tableshift-results]
     u41[evaluate-crc-acs-benchmark] --> u42[evaluate-crc-acs-results]
     u31 --> u42
     u32[ontology-auto-mapping] --> u33[ontology-auto-mapping-results]
@@ -86,7 +90,10 @@ flowchart LR
   ([`experiments-index.md`](experiments-index.md#what-every-unit-relies-on)).
 - **No unit edits an existing `RUNS` entry, an existing dataset's field rows or `bko-direct`'s
   draw.** Old run folders are re-read under identity checks, and the draw is pinned by digests,
-  so a sampler change is a new arm name and a mapping change is a new dataset name.
+  so a sampler change is a new arm name and a mapping change is a new dataset name, unless no
+  `RUNS` entry reads the dataset: a frame no run folder reads changes under its own name.
+  `tests/test_unrun_frames.py` fails when a `RUNS` entry reads a dataset a unit edits under
+  that exception.
 - **A code unit lands its runs' names and Configuration; a results unit runs them.** A code unit
   adds the arm or reading, its named `RUNS` entries and the
   [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Configuration with status `not yet run`. A

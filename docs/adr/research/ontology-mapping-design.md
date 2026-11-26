@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -95,6 +95,26 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   when a cited guideline defines the concept by a cutoff on the field, or when the Cleveland
   protocol papers (Detrano 1985) define the field's finding. Every row records its limits. The
   resting blood pressure cutoff is 130 mm Hg.
+- **Cutoff sources**: a cutoff row's source is the work it read the cutoff in. Where the work
+  that defines the cutoff cannot be read, an open primary record that reproduces the definition,
+  an adapted table included, stands in: the row's source is that record, its limits name the
+  original, and the original stays `not-fetched` in
+  [`docs/literature.md`](../../literature.md). SUPPORT2's and PhysioNet 2012's SIRS and SOFA
+  rows read `bone-1992` and `vincent-1996` in `singer-2016`; NHANES's blood pressure rows read
+  `whelton-2018` in `muntner-2018`, and its cholesterol rows `ncep-2001` in `nhlbi-2001`. UCI
+  Heart Disease's field rows are the exception: `trestbps` cites `whelton-2018`, `chol`
+  `ncep-2001`, and `oldpeak` and `slope` `gibbons-2002`, each an original not fetched, since
+  run folders of `uci` are re-read under identity checks and its rows stay as they are.
+- **Concept matching**: a dataset item, a field, a state or a flag its documentation names, maps
+  to the nearest live term whose name or `EXACT` synonym names the item's condition or
+  impairment. ADR [`research/acs-frame`](acs-frame.md) Decision 5 maps four of ACS's six
+  disability items this way, and ADR [`research/nhamcs-frame`](nhamcs-frame.md) Decision 6
+  NHAMCS's chronic flags, with its order of releases and its rule for an item naming several
+  conditions. An item whose
+  only naming term is obsolete maps through that term's `replaced_by` to the live term; no
+  current row maps that way. A code row reads a code annotation instead, under the rules of ADRs
+  [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md) and
+  [`research/nhamcs-frame`](nhamcs-frame.md).
 - **Scope**: a concept is in scope when a row maps it or it is an `is_a` ancestor of a mapped
   concept in its release, reached through classes with the release's prefix. Every other concept is
   out of scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and the
@@ -200,6 +220,14 @@ kept in the row's limits. The `ca` and `thal` readings come from Detrano 1985
 [`detrano-1985b`](../../literature.md#clinical-definitions)) because it is the Cleveland group's
 own protocol.
 
+An open record that reproduces a definition stands in for an original behind a bot check or a
+paywall, because the cutoff is the definition's and the record shows it; the limits keep the
+original in view, and the registry says the original was not read. UCI's rows keep the
+originals they cite because changing a row of a dataset that run folders read would break their
+identity checks. A term's name or exact synonym is the release's own statement of what the term
+means, so matching on either asserts no more than the release does, and `replaced_by` is the
+release's own pointer from an obsolete term to the term that carries its meaning.
+
 The range bounds take the Dashboard first, because one concept-level table covers most fields.
 They take MIMIC-III where the Dashboard rejects a Cleveland record (its 50 to 500 mg/dL rejects a
 real cholesterol of 564), since a bound that rejects a real record is wrong for this frame. Age
@@ -259,6 +287,9 @@ term's `def:` whose xref is written `Pathbase: Curation`).
 | Pinning a converted OBO by its own sha256 | ROBOT's serialisation is not known to be byte-stable across JDKs; the OWL and the jar are pinned, and each load logs the OBO's digest | 2026-11-24 |
 | A second, tolerant OBO reader for converted files | A third reader beside pronto and `read_hierarchy`; a converted file pronto refuses is refused as any release is | 2026-11-24 |
 | The check loading only its own HP and MONDO releases | ACS's occupation rows name OccO, which only ACS's catalog entry pins | 2026-11-25 |
+| A cutoff row read only in its original work | Some originals cannot be read; see Rationale | 2026-11-26 |
+| Matching a dataset item to a live term's name alone | It leaves ACS's `DPHY` unmapped, which only an exact synonym names (ADR [`research/acs-frame`](acs-frame.md)) | 2026-11-26 |
+| Leaving out an item whose only naming term is obsolete | The release names the live successor in `replaced_by`; see Rationale | 2026-11-26 |
 
 ## Enforcement
 
