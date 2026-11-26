@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-16
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # The ontology mapping: pinned OBO releases read by pronto, and a typed table of sourced rows
 
@@ -95,6 +95,18 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   when a cited guideline defines the concept by a cutoff on the field, or when the Cleveland
   protocol papers (Detrano 1985) define the field's finding. Every row records its limits. The
   resting blood pressure cutoff is 130 mm Hg.
+- **Cutoff sources**: a cutoff row cites the work that defines the cutoff. Where that original
+  cannot be read, an open primary record that reproduces the definition verbatim stands in: the
+  row names the original as its source and says where the definition was read, and the original
+  stays `not-fetched` in [`docs/literature.md`](../../literature.md). SUPPORT2's and PhysioNet
+  2012's SIRS and SOFA rows cite `bone-1992` and `vincent-1996`, read in `singer-2016`, and
+  NHANES's blood pressure rows cite `whelton-2018`, read in `muntner-2018`.
+- **Concept matching**: a dataset item, a field, a state or a flag its documentation names, maps
+  to the nearest live term whose name or `EXACT` synonym names the item. An obsolete term that
+  names it is followed through its `replaced_by` to the live term. ACS's disability items (ADR
+  [`research/acs-frame`](acs-frame.md)) and NHAMCS's condition flags (ADR
+  [`research/nhamcs-frame`](nhamcs-frame.md)) map this way. A code row reads a code annotation
+  instead, as the Synthea code rows and the ICD-9 rows below do, and follows no `replaced_by`.
 - **Scope**: a concept is in scope when a row maps it or it is an `is_a` ancestor of a mapped
   concept in its release, reached through classes with the release's prefix. Every other concept is
   out of scope; `OUT_OF_SCOPE` records the near misses considered and why each was rejected, and the
@@ -259,6 +271,9 @@ term's `def:` whose xref is written `Pathbase: Curation`).
 | Pinning a converted OBO by its own sha256 | ROBOT's serialisation is not known to be byte-stable across JDKs; the OWL and the jar are pinned, and each load logs the OBO's digest | 2026-11-24 |
 | A second, tolerant OBO reader for converted files | A third reader beside pronto and `read_hierarchy`; a converted file pronto refuses is refused as any release is | 2026-11-24 |
 | The check loading only its own HP and MONDO releases | ACS's occupation rows name OccO, which only ACS's catalog entry pins | 2026-11-25 |
+| A cutoff row read only in its original work | SUPPORT2's and PhysioNet 2012's SIRS and SOFA originals could not be read, behind a bot check and a paywall; an open record that reproduces the definition verbatim gives the same cutoff and names the original | 2026-11-26 |
+| Matching a dataset item to a live term's name alone | It maps none of ACS's four disability items: no live HPO term is named for any of them (ADR [`research/acs-frame`](acs-frame.md)) | 2026-11-26 |
+| Leaving out an item whose named term is obsolete | The release names the live successor in `replaced_by`: the term named for ACS's walking difficulty, `HP:0002355`, is obsolete with `replaced_by: HP:0001288` | 2026-11-26 |
 
 ## Enforcement
 

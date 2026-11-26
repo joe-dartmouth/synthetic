@@ -44,8 +44,9 @@ shares.
     ontology loader reads them;
   - the shares of non-random incidents (`plus.sub_source`) and AI-encoded incidents;
   - a `python -m bko.gaps vcdb` subcommand.
-- The `Source` pin carries `agreement=None`. Whether a generated row is Adapted Material that
-  carries VCDB's share-alike condition is UNVERIFIED; the ADR records it as an open question.
+- The `Source` pin carries `agreement=None`. VCDB's share-alike condition is taken to bind, as
+  ADR `research/non-health-dataset-selection` records: any published fill derived from VCDB
+  carries CC BY-SA 4.0 and VCDB's attribution, and the frame's ADR says so.
 - A new ADR under `docs/adr/research/` that records the frame, the schema release and the commit.
 
 **Out.**

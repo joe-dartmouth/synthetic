@@ -31,13 +31,15 @@ unit's `milestone` is `direct-method-research`, the
 | [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | ready | -- | direct-method-research |
 | [`datasets-nvd-frame`](datasets-nvd-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
 | [`datasets-vcdb-frame`](datasets-vcdb-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
+| [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) | ready | -- | direct-method-research |
 
 ### Published comparisons
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | ready | -- | direct-method-research |
-| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
+| [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) | ready | -- | direct-method-research |
+| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | blocked | evaluate-p1-partial-replicas | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | ready | -- | direct-method-research |
@@ -73,6 +75,7 @@ flowchart LR
     u8[evaluate-synthea-direct-results] --> u30
     u29 --> u30
     u30 --> u31[evaluate-confirmatory-results]
+    u54[evaluate-p1-partial-replicas] --> u55[evaluate-tableshift-results]
     u41[evaluate-crc-acs-benchmark] --> u42[evaluate-crc-acs-results]
     u31 --> u42
     u32[ontology-auto-mapping] --> u33[ontology-auto-mapping-results]
