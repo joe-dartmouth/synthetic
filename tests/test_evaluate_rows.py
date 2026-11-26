@@ -660,7 +660,7 @@ def test_a_store_that_cannot_be_created_exits_2_before_the_data_loads(
     if where == "existing":
         path.write_text("kept\n", encoding="utf-8")
     loads: list[object] = []
-    monkeypatch.setattr("bko.evaluate.__main__.load", lambda *args: loads.append(args))
+    monkeypatch.setattr("bko.evaluate.reader_commands.load", lambda *args: loads.append(args))
     argv = ["rows", "--folder", str(folder), "--rows", str(path)]
     assert main(argv, context=rescorer(), out=io.StringIO()) == 2
     assert loads == []

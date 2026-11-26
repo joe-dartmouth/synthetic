@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import bko.evaluate.__main__ as main_module
+import bko.evaluate.reader_commands as reader_module
 import bko.evaluate.reference as reference_module
 from bko.datasets.split import split
 from bko.datasets.uci import UCI_FRAME
@@ -652,13 +652,13 @@ def test_a_run_with_a_donor_arm_and_no_releases_is_refused():
 def test_a_run_with_a_donor_arm_loads_its_releases_once(tmp_path, caplog, monkeypatch):
     store = _stored_direct(tmp_path, caplog)
     loaded: list[object] = []
-    real = main_module.load_scope
+    real = reader_module.load_scope
 
     def spying(*args: Any, **kwargs: Any) -> Any:
         loaded.append(args[0])
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(main_module, "load_scope", spying)
+    monkeypatch.setattr(reader_module, "load_scope", spying)
     assert _read(tmp_path, store)[0] == 0
     assert len(loaded) == 1
     assert loaded[0]
