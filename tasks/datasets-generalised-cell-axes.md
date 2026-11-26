@@ -56,6 +56,7 @@ cell machinery has to read them before any such frame loads.
 - A fixture frame with non-person axes fills a request.
 - `rows` on an existing run folder reproduces its store: `rows e10-pilot-thin` over `runs/e10-3`
   writes a `rows.jsonl` that `cmp` finds equal to `runs/e10-3-rows/rows.jsonl`.
-- `score --replay` of a paid run of record's `calls.jsonl` named in docs/EVIDENCE.md writes a `scores.csv` equal to that
-  run folder's `scores.csv`.
+- `score --replay` of E1's judged paid run, `score e1 --replay runs/e1-5/calls.jsonl`
+  ([E1](../docs/EVIDENCE.md#e1-uci-heart-disease-augmentation)), writes a `scores.csv` equal to
+  `runs/e1-5/scores.csv`.
 - `make check` passes.

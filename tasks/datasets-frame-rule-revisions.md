@@ -70,8 +70,11 @@ listings and contradiction censuses are readings over the training split, rerun 
   other readings, and a stay with no other reading of the variable is not measured. Each frame
   ADR lists the fields and each field's count of zeros, counted from the pinned archive by a
   command the ADR states.
-- Each loader logs, per listed field, the zeros it recoded as not measured, a field with none
-  logging 0, so a rule that changes nothing shows on the log: a
+- Three loaders write the new lines: SUPPORT2's writes `zeros` and `tertile` lines, PhysioNet
+  2012's `zeros` lines only and NHANES's `tertile` lines only, a `tertile` line written only
+  where the frame has a tertile field.
+- SUPPORT2's and PhysioNet 2012's loaders log, per listed field, the zeros they recoded as not
+  measured, a field with none logging 0, so a rule that changes nothing shows on the log: a
   `zeros dataset=%s field=%s readings=%d records=%d` line per listed field before each `cohort`
   line. The lists are `IMPLAUSIBLE_ZERO` per loader; SUPPORT2's zeros are masked to missing
   before coding, and PhysioNet 2012's are not appended in `parse_stay` and are counted in
@@ -79,20 +82,21 @@ listings and contradiction censuses are readings over the training split, rerun 
 - Tertiles over kept records: NHANES's `BMXBMI` over the records the frame keeps, its adults
   20 and over, SUPPORT2's `edu`, `sod`, `alb`, `ph`, `glucose`, `bun` and `urine` over its kept
   records once the zero rule has removed its zeros, and any other tertile field whose base
-  differs from the records its frame keeps, each re-derived by the ADR's command, which prints each field's base count beside its two
-  cuts, and its `TERTILES` entry and field description updated. `TERTILES` stay constants;
-  `support2.tertile_base(rows)` and `nhanes.tertile_base(components)` return each tertile
-  field's kept, zero-masked values, which the ADR commands, the pinned tests and the loader's log
-  lines read, and `bko.datasets.states.tertiles` is not edited. Each loader logs, per tertile
+  differs from the records its frame keeps, each re-derived by the ADR's command, which prints
+  each field's base count beside its two cuts, and its `TERTILES` entry and field description
+  updated. `TERTILES` stay constants; `support2.tertile_base(rows)` and
+  `nhanes.tertile_base(components)` return each tertile field's kept, zero-masked values, which
+  the ADR commands, the pinned tests and the loader's log lines read, and
+  `bko.datasets.states.tertiles` is not edited. SUPPORT2's and NHANES's loaders log, per tertile
   field, its cuts and the count of kept records measured in it, as
   `tertile dataset=%s field=%s low=%s high=%s base=%d` before each `cohort` line.
 - PhysioNet 2012's `map_min` as the minimum over `MAP` and `NIMAP` readings together: a
   `REDUCED` value names a tuple of variables, `map_min` reads `("MAP", "NIMAP")`, and
-  `FALLBACK` and `Stay.fell_back` are deleted. The
-  `map_from_nimap` count gives way to three counts on the `cohort` line: `map_min_nimap`, the
-  records whose minimum is a `NIMAP` reading with no `MAP` reading; `map_min_nimap_lower`, the
-  records holding both whose `NIMAP` minimum is the lower; and `map_unmeasured`, the records with
-  no `MAP` or `NIMAP` reading once zeros are removed, replacing `map_from_nimap=%d` in place.
+  `FALLBACK` and `Stay.fell_back` are deleted. The `map_from_nimap` count gives way to three
+  counts on the `cohort` line: `map_min_nimap`, the records whose minimum is a `NIMAP` reading
+  with no `MAP` reading; `map_min_nimap_lower`, the records holding both whose `NIMAP` minimum is
+  the lower; and `map_unmeasured`, the records with no `MAP` or `NIMAP` reading once zeros are
+  removed, replacing `map_from_nimap=%d` in place.
 - ADR edits, each with `updated` bumped and a Ruled Out row dated 2026-11-26 for the reading it
   replaces: `research/support2-frame` (zeros as measured; tertiles over the published file),
   `research/nhanes-frame` (tertiles over every record of BMX_L), `research/physionet2012-frame`

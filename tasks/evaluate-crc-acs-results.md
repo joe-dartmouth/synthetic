@@ -27,22 +27,19 @@ The CRC ACS reading runs only after the confirmatory ACS run is recorded
 
 - Run the named runs, write one `bko-direct` file per excerpt, and score each with SDNist in the
   environment the code unit builds.
-- The EVIDENCE entry's Runs, Result and Read against, beside the archive's published methods.
+- Re-score a fixed list of the archive's submissions under the code unit's own SDNist pin, rather
+  than reading the archive's published scores from another SDNist version, with the archive
+  pinned by its release tag and a sha256 measured at first fetch.
+- The EVIDENCE entry's Runs, Result and Read against, beside the re-scored submissions.
 
 **Out.**
 
-- Any change to the frame, the environment or a reading.
+- Any change to the frame or the environment.
 - Differential-privacy claims.
-
-**Findings from planning.**
-
-- It re-scores a fixed list of the archive's submissions under the code unit's own SDNist pin,
-  rather than reading the archive's published scores from another SDNist version.
-- It pins the archive by its release tag and a sha256 measured at first fetch.
 
 ## Acceptance
 
 - The entry's status is `complete`.
-- The entry's Read against compares with the archive's published methods' SDNist scores.
+- The entry's Read against compares with the re-scored archive submissions' SDNist scores.
 - Each written file's sha256 is recorded.
 - `make check` passes.
