@@ -1472,8 +1472,9 @@ inside `.venv`:
   quotes the last lines. Conversion needs a JDK, found as
   [ELK comparison](#elk-comparison) finds it. Exit 2 means no JDK or a ROBOT failure; exit 3 an
   OWL file that names an import, refused before ROBOT runs, or a converted file the loader
-  refuses. Every current dataset reads the HP and MONDO OBO releases, so no command converts one
-  (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)).
+  refuses. OccO, which ACS's occupation rows name, is the one OWL-only release; the `occupations`
+  command converts it (ADR
+  [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)).
 - **The generated code rows**: `bko.ontology.icd9_codes` maps each exact diagnosis code of the
   `diabetes-codes` cohort to the one MONDO concept that carries its xref under
   `source="MONDO:equivalentTo"` (ADR
@@ -1489,6 +1490,25 @@ inside `.venv`:
   line. `tests/test_ontology_icd9_codes_pinned.py` regenerates the rows from the pinned release
   and cohort under `--releases` and compares them with the committed ones; run it with the
   release tests after a re-pin.
+- **The generated occupation rows**: `bko.ontology.occupation_codes_low` and
+  `bko.ontology.occupation_codes_high` map each `OCCP` code of the ACS cohort to the Occupation
+  Ontology class its `SOCP` code reaches by SOC level, split at SOC major group 31 so each module
+  stays under the size cap (ADR [`research/acs-frame`](adr/research/acs-frame.md)). They are
+  written, never edited, each through a scratch file as above:
+
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology occupations --part low > scratchpad/occupation_codes_low.py && mv scratchpad/occupation_codes_low.py src/bko/ontology/occupation_codes_low.py
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology occupations --part high > scratchpad/occupation_codes_high.py && mv scratchpad/occupation_codes_high.py src/bko/ontology/occupation_codes_high.py
+
+  The command fetches OccO's OWL file and the ACS archive into the data root if absent, converts
+  the OWL to OBO with ROBOT (see OWL-only releases above; it needs a JDK), writes nothing to
+  stdout until the module text is complete, and logs one `occupations unmapped reason=...
+  codes=N` line per reason and a closing `occupations part=... rows=N of=M sha256=...` line.
+  `tests/test_ontology_occupation_codes_pinned.py` regenerates both parts from the pinned release
+  and archive under `--releases` and compares them with the committed ones:
+
+      uv run --no-sync pytest tests/test_ontology_occupation_codes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches or converts, so run the command first.
 
 ### ELK comparison
 

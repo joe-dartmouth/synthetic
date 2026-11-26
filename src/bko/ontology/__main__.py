@@ -1,4 +1,4 @@
-"""The ontology stage's command line: `python -m bko.ontology check`, `reproduce`, `elk`, `codes`.
+"""The ontology stage's command line: `check`, `reproduce`, `elk`, `codes` and `occupations`.
 
 `check` fetches the pinned release of each prefix its rows name into the data root if it is absent,
 from `RELEASES` or, for a prefix those lack, a catalog entry's release map (OccO for ACS), converts
@@ -14,10 +14,15 @@ tool, heap, timeout, timings, classified files and per-release counts go to stde
 `codes` fetches the pinned MONDO release and Diabetes 130 archive if they are absent, maps every
 diagnosis code the `diabetes-codes` cohort holds with `bko.ontology.codes.generate`, writes the
 module text of `bko.ontology.icd9_codes` to stdout, and logs a `codes unmapped` line per reason and
-a closing `codes rows=` line; stdout stays empty until the text is complete. `docs/DEVELOPMENT.md`
-(Ontologies, Fusion reproduction) is the usage home.
+a closing `codes rows=` line; stdout stays empty until the text is complete. `occupations --part
+low` or `--part high` fetches the pinned OccO release and ACS archive if they are absent, maps each
+kept `OCCP` code through its `SOCP` code with `bko.ontology.occupations.generate`, writes the module
+text of that part, `bko.ontology.occupation_codes_low` or `_high`, to stdout, and logs an
+`occupations unmapped` line per reason and a closing `occupations part=` line, stdout likewise
+empty until then. `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
 
-Exit codes: 0 every `check` row agrees, or `reproduce`, `elk` or `codes` wrote its report,
+Exit codes: 0 every `check` row agrees, or `reproduce`, `elk`, `codes` or `occupations` wrote its
+report,
 whatever its statuses; 1 an unexpected error, with its traceback, including a fusion the
 converter should never have built; 2 the command could not run, including ROBOT failing or timing
 out; 3 a release or archive contradicts its pin, is not OBO the loader reads, or is OWL that names
@@ -41,11 +46,12 @@ from pathlib import Path
 from typing import Final, TextIO
 
 from bko.core.logs import configure
+from bko.datasets.acs import occupation_pairs, read_kept
 from bko.datasets.diabetes import DIAGNOSES, load_diabetes
 from bko.datasets.diagnoses import code_text
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
-from bko.datasets.sources import DIABETES_130, ROBOT_JAR, Source
+from bko.datasets.sources import ACS_MA_2024, DIABETES_130, OCCO, ROBOT_JAR, Source
 from bko.datasets.synthea_run import default_java
 from bko.ontology import elk
 from bko.ontology.catalog import CATALOG, Catalogued
@@ -53,6 +59,9 @@ from bko.ontology.check import check, prefixes
 from bko.ontology.codes import generate, render
 from bko.ontology.convert import converted
 from bko.ontology.mapping import CHECKED_ROWS, MAPPED, RELEASES
+from bko.ontology.occupations import PARTS, Part, part
+from bko.ontology.occupations import generate as generate_occupations
+from bko.ontology.occupations import render as render_occupations
 from bko.ontology.releases import load_releases
 from bko.ontology.santos import PAPER_RELEASES, reproduce
 from bko.ontology.schema import CheckedRow
@@ -79,6 +88,8 @@ class Context:
         diabetes: The pinned Diabetes 130 archive whose diagnosis codes `codes` maps.
         catalog: The catalogued datasets, whose release maps `check` reads for a prefix
             `releases` lacks.
+        occo: The pinned Occupation Ontology release `occupations` maps into.
+        acs: The pinned ACS archive whose occupation codes `occupations` maps.
     """
 
     open_url: UrlOpener = open_https
@@ -92,6 +103,8 @@ class Context:
     concepts: frozenset[str] = MAPPED
     diabetes: Source = DIABETES_130
     catalog: Mapping[str, Catalogued] = CATALOG
+    occo: Source = OCCO
+    acs: Source = ACS_MA_2024
 
 
 def main(
@@ -116,6 +129,8 @@ def main(
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         context = Context() if context is None else context
         out = sys.stdout if out is None else out
+        if args.command == "occupations":
+            return _occupations(data_dir, context, out, which=args.part)
         return _COMMANDS[args.command](data_dir, context, out)
     except DatasetError as exc:
         # The message is the diagnosis; a traceback would read as a crash in the loader.
@@ -139,6 +154,7 @@ def _parser() -> argparse.ArgumentParser:
         ("reproduce", "rebuild Santos et al.'s MONDO/DO fusion example and compare it"),
         ("elk", "classify the OWL releases with ELK and compare their hierarchies (needs a JDK)"),
         ("codes", "generate bko.ontology.icd9_codes from MONDO and the Diabetes 130 archive"),
+        ("occupations", "generate one part of ACS's occupation rows from OccO and the archive"),
     ):
         command = commands.add_parser(name, help=purpose)
         command.add_argument(
@@ -147,6 +163,13 @@ def _parser() -> argparse.ArgumentParser:
             default=None,
             help="the data root; default: data/ at the repository root",
         )
+        if name == "occupations":
+            command.add_argument(
+                "--part",
+                choices=PARTS,
+                required=True,
+                help="low: SOC major groups below 31; high: 31 and up",
+            )
     return parser
 
 
@@ -218,6 +241,34 @@ def _codes(data_dir: Path, context: Context, out: TextIO) -> int:
         logger.info("codes unmapped reason=%s codes=%d", json.dumps(reason), count)
     digest = hashlib.sha256(text.encode()).hexdigest()
     logger.info("codes rows=%d sha256=%s release=%s", len(generated.rows), digest, mondo.version)
+    out.write(text)
+    return 0
+
+
+def _occupations(data_dir: Path, context: Context, out: TextIO, *, which: Part) -> int:
+    convert = partial(
+        converted,
+        resolve_java=context.resolve_java,
+        robot=context.robot,
+        runner=context.robot_runner,
+    )
+    occo = load_releases(
+        {"OCCO": context.occo}, data_dir, open_url=context.open_url, convert=convert
+    )["OCCO"]
+    ensure(context.acs, data_dir, open_url=context.open_url)
+    rows, _ = read_kept(data_dir, context.acs)
+    generated, unmapped = generate_occupations(occupation_pairs(rows), occo)
+    text = render_occupations([row for row in generated if part(row) == which], which)
+    for reason, count in unmapped.items():
+        logger.info("occupations unmapped reason=%s codes=%d", json.dumps(reason), count)
+    logger.info(
+        "occupations part=%s rows=%d of=%d sha256=%s release=%s",
+        which,
+        sum(part(row) == which for row in generated),
+        len(generated),
+        hashlib.sha256(text.encode()).hexdigest(),
+        occo.version,
+    )
     out.write(text)
     return 0
 

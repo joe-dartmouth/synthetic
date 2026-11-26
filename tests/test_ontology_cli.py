@@ -215,7 +215,7 @@ def test_the_module_entry_point_runs():
         timeout=300,
     )
     assert result.returncode == 0, result.stderr
-    assert "{check,reproduce,elk,codes}" in result.stdout
+    assert "{check,reproduce,elk,codes,occupations}" in result.stdout
 
 
 def _reproduce(

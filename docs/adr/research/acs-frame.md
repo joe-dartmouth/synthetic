@@ -168,8 +168,14 @@ no surveyed column beyond occupation is mapped; the income label is unadjusted.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/catalog.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/ontology/occupations.py`
+- Pinned by: `tests/test_ontology_occupation_codes.py::test_a_detailed_soc_code_maps_to_its_onet_00_class`,
+  `tests/test_ontology_occupation_codes.py::test_a_five_digit_aggregate_maps_to_its_broad_class`,
+  `tests/test_ontology_occupation_codes.py::test_a_shorter_aggregate_maps_to_its_minor_class`,
+  `tests/test_ontology_occupations.py::test_an_occupation_row_whose_soc_id_differs_fails_the_check`,
+  `tests/test_datasets_acs.py::test_each_folktables_filter_drops_its_rows`,
+  `tests/test_datasets_acs.py::test_occp_to_socp_must_be_a_function`,
+  `tests/test_ontology_occupation_codes_pinned.py` (with `--releases`)
 
 ## Reversal Conditions
 
