@@ -72,7 +72,9 @@ splits one call's rows across a field's values and never sets how many rows a ce
    and the fused shares, and the cell's share of the arm's training set beside `real`'s, with the
    arm's flagged recall from the run's scores.
 10. **Sweep.** E21 runs E12's `e12-thin` and `e12-empty` with `quota_rule` set to each of the six
-    rules other than `fill-to`, each cut into ten slices, its privacy reference arm `real`. Every
+    rules other than `fill-to`, each cut into ten slices, its privacy reference arm `real`. A run
+    name holds no digit after its entry, so the runs name `coverage-x2`, `coverage-x4` and
+    `coverage-x8` as `coverage-two`, `coverage-four` and `coverage-eight`. Every
     E12 arm is free, so the sweep makes no paid call. The fixed fill is read from E12's own runs
     with `compare --beside`.
 
@@ -125,8 +127,20 @@ reading isolates the rule. E6's own runs carry paid Messages arms; E12's arms ar
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/requests.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/gaps/quota.py` with the request in `src/bko/evaluate/requests.py`, the field in
+  `src/bko/evaluate/experiment.py`, the line in `src/bko/evaluate/provenance.py`, the assumed
+  value in `src/bko/evaluate/run_folder.py`, the reading in
+  `src/bko/evaluate/representativeness.py` and the runs in `src/bko/evaluate/runs_direct.py` and
+  `src/bko/evaluate/reference.py`
+- Pinned by: `tests/test_gaps_quota.py` (each count's hand fixtures, the multiples, a cell of no
+  record, the module's imports), `tests/test_evaluate_quota_rule.py` (the `experiment` line,
+  `test_an_older_experiment_line_reads_at_the_assumed_quota_rule`, the default request, the
+  refusals, the `quota-rule` line, `test_a_coverage_rule_run_scores_end_to_end` and the
+  `shared`, `trace` and `contradictions` readers), `tests/test_evaluate_representativeness.py`
+  (the gap, the cell share beside `real`'s, the store and run refusals),
+  `tests/test_evaluate_quota_runs.py` (E21's runs, their slices, no paid arm and the reference
+  arm), `tests/test_generate_direct.py` (`DRAW_DIGEST`) and `tests/test_evaluate_direct.py`
+  (`ADDED_DIGEST`), the fixed fill's draw unchanged
 
 ## Reversal Conditions
 

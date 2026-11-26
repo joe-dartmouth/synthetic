@@ -1244,11 +1244,13 @@ start or the supervisor cannot run.
   `real`, `bko-direct`, `bko-capped` and the candidate `bko-micro`, comparators `bko-direct`,
   `bko-capped` and `none`, no replica, the ceiling inert, `REFERENCE` `bko-capped`) and their
   slices `e20-thina` to `e20-thinj` and `e20-emptya` to `e20-emptyj`, sliced as E6's are;
-  `docs/EVIDENCE.md`, E20, describes them. `RUNS` holds the quota sweep, `e21-<rule>-thin` and
-  `e21-<rule>-empty` for each rule `coverage`, `coverage-x2`, `coverage-x4`, `coverage-x8`,
-  `expected-size` and `recommended` (`bko.evaluate.runs_direct.E21`: `E12_THIN` and `E12_EMPTY`
-  with `quota_rule` set to the rule, the ceiling inert, `REFERENCE` `real`) and their slices
-  `e21-<rule>-thina` to `e21-<rule>-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E21,
+  `docs/EVIDENCE.md`, E20, describes them. `RUNS` holds the quota sweep, `e21-<word>-thin` and
+  `e21-<word>-empty` for each word `coverage`, `coverage-two`, `coverage-four`,
+  `coverage-eight`, `expected-size` and `recommended`, naming the rules `coverage`,
+  `coverage-x2`, `coverage-x4`, `coverage-x8`, `expected-size` and `recommended`
+  (`bko.evaluate.runs_direct.E21` and `E21_NAMES`: `E12_THIN` and `E12_EMPTY` with `quota_rule`
+  set to the rule, the ceiling inert, `REFERENCE` `real`) and their slices `e21-<word>-thina`
+  to `e21-<word>-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E21,
   describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,

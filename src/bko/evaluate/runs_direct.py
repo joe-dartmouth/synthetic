@@ -4,8 +4,9 @@
 `bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, `E15_THIN` and `E15_EMPTY` `bko-tree`,
 `E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, `E17_THIN` and `E17_EMPTY`
 `bko-coherent`, `E18` the synthetic-share sweep, `E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN`
-and `E19_SUPPORTED_EMPTY` the matched knowledge controls, and `E20_THIN` and `E20_EMPTY`
-`bko-micro`. `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E20).
+and `E19_SUPPORTED_EMPTY` the matched knowledge controls, `E20_THIN` and `E20_EMPTY`
+`bko-micro`, and `E21` the quota sweep. `bko.evaluate.named_runs.RUNS` names them
+(`docs/EVIDENCE.md`, E12 to E21).
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from bko.evaluate.direct_arms import (
 from bko.evaluate.experiment import METHOD_ARMS, PRIOR_SHIFT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_run import BAYES_NET, E3
 from bko.evaluate.runs_diabetes import E6_CELL, E6_EMPTY, E6_THIN, E9_EMPTY, E9_THIN
+from bko.gaps.quota import QuotaRule
 
 
 CONTROL_ARMS: Final[tuple[str, ...]] = (
@@ -247,3 +249,29 @@ E20_THIN, E20_EMPTY = (
 """E20's runs: `E9_THIN` and `E9_EMPTY` with `bko-micro` in place of `bko-logic` as the candidate
 against `bko-direct`, `bko-capped` and `none`, and no replica, as E14's (ADR
 `research/microaggregated-donors`). No arm calls the API, so the ceiling is inert."""
+
+
+E21_NAMES: Final[Mapping[QuotaRule, str]] = MappingProxyType(
+    {
+        QuotaRule.COVERAGE: "coverage",
+        QuotaRule.COVERAGE_2: "coverage-two",
+        QuotaRule.COVERAGE_4: "coverage-four",
+        QuotaRule.COVERAGE_8: "coverage-eight",
+        QuotaRule.EXPECTED: "expected-size",
+        QuotaRule.RECOMMENDED: "recommended",
+    }
+)
+"""Each rule but `fill-to` by the word its E21 runs are named with: a run name holds no digit
+after its entry, so `coverage-x2` is `coverage-two`."""
+
+E21: Final[Mapping[str, Experiment]] = MappingProxyType(
+    {
+        f"{word}-{fraction}": replace(e12, quota_rule=rule)
+        for rule, word in E21_NAMES.items()
+        for fraction, e12 in (("thin", E12_THIN), ("empty", E12_EMPTY))
+    }
+)
+"""E21's runs, by `<word>-<fraction>`, `<word>` the rule's `E21_NAMES` entry: `E12_THIN` and
+`E12_EMPTY` with `quota_rule` set to each rule but `fill-to`, so each flagged cell is asked its
+rule's count (ADR `research/share-based-quota`). The fixed fill is E12's own runs. No arm calls
+the API, so the ceiling is inert."""
