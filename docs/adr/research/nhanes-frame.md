@@ -13,9 +13,9 @@ August 2021 to August 2023 as the general-population health dataset, and bounded
 outcome's size from the Medical Conditions codebook (MCQ_L,
 [`nhanes-2024`](../../literature.md#datasets)): among adults 20 and over, congestive heart failure
 (`MCQ160b`) 343 yes answers, coronary heart disease (`MCQ160c`) 402, heart attack (`MCQ160e`) 332
-and stroke (`MCQ160f`) 367, each of roughly 7,800 answers. The union of the four so holds between
-402 and 1,444 adults. That ADR also records the NCHS terms the files fall under
-([`nchs-nd`](../../literature.md#datasets)) and its reading of them.
+and stroke (`MCQ160f`) 367, each of roughly 7,800 answers. The adults with any of the four number at
+least the largest count, 402, and at most the sum of the four, 1,444. That ADR also records the NCHS
+terms the files fall under ([`nchs-nd`](../../literature.md#datasets)) and its reading of them.
 
 The survey publishes one SAS XPORT file per component, each row one respondent, joined on `SEQN`,
 the respondent sequence number. Each file is served from
@@ -42,15 +42,14 @@ Sepsis-3:
 
 - **Blood pressure.** The 2017 ACC/AHA guideline
   ([`whelton-2018`](../../literature.md#clinical-definitions)) sits behind a bot check at its
-  publisher on every route tried, a browser included, and Europe PMC lists no PubMed Central
-  copy. Muntner et al. ([`muntner-2018`](../../literature.md#clinical-definitions)), read from
-  PubMed Central on 2026-11-25, are seven of the guideline's writing committee, Whelton among
-  them; their Table 1,
-  "Blood pressure levels used to define hypertension, recommend antihypertensive medication, and
-  treatment goal according to the 2017 ACC/AHA guideline, the JNC7 guideline and the JNC8 panel
-  member report.", gives the 2017 ACC/AHA definition for the general population as systolic "≥
-  130" and diastolic "≥ 80" mm Hg. They read NHANES as this frame does: "For each participant,
-  blood pressure was measured three times following a standardized protocol and averaged."
+  publisher on every route tried, a browser included, and Europe PMC lists no PubMed Central copy.
+  Muntner et al. ([`muntner-2018`](../../literature.md#clinical-definitions)), read from PubMed
+  Central on 2026-11-25, reproduce its definition. Their Table 1, "Blood pressure levels used to
+  define hypertension, recommend antihypertensive medication, and treatment goal according to the
+  2017 ACC/AHA guideline, the JNC7 guideline and the JNC8 panel member report.", gives the 2017
+  ACC/AHA definition for the general population as systolic "≥ 130" and diastolic "≥ 80" mm Hg. They
+  read NHANES as this frame does: "For each participant, blood pressure was measured three times
+  following a standardized protocol and averaged."
 - **Glycated haemoglobin.** The ADA's Standards of Care
   ([`ada-2026`](../../literature.md#clinical-definitions)), read from PubMed Central on
   2026-11-25: Table 2.1 "A1C ≥6.5% (≥48 mmol/mol)" for diabetes, Table 2.2 "A1C 5.7–6.4% (39–47
@@ -162,11 +161,11 @@ Leaving out a record with no yes and an unknown answer keeps 0 meaning four noes
 don't-know as no would put an adult who may have one of the conditions among the negatives. A
 yes stands whatever the rest say, since one yes makes the union 1.
 
-Reading the guideline cutoffs in records written by the guideline's own committee, or published
-by the panel's institute, is the closest readable text to the originals. Averaging the readings
-present follows Muntner et al.'s reading of NHANES. One `LBXGH` row on both upper states keeps
-the row a finding, not a diagnosis: the ADA asks for two abnormal results before diabetes is
-diagnosed, and the file holds one.
+Reading the guideline cutoffs in a table that states them according to the 2017 ACC/AHA guideline,
+or in the executive summary the panel's institute publishes, is the closest readable text to the
+originals. Averaging the readings present follows Muntner et al.'s reading of NHANES. One `LBXGH`
+row on both upper states keeps the row a finding, not a diagnosis: the ADA asks for two abnormal
+results before diabetes is diagnosed, and the file holds one.
 
 ## Consequences
 
@@ -180,13 +179,13 @@ edges=frame.edges).train`, as this command does:
 Run at `31b8c6f`, the loader's `cohort` line reads `demographics=11933 with_conditions=11744
 adults=7809 any_yes=937 all_no=6832 left_out=40 records=7769 composite=937 measured_BPXOSY=5839
 measured_BPXODI=5839 measured_LBXGH=5744 measured_LBXTC=5476 measured_LBDHDD=5476
-measured_BMXBMI=5946`: 11,744 respondents hold a medical-conditions record, 7,809 of them are 20 and over, and 40 adults are left out with no yes and an unknown
-answer. The adult frame holds 7,769 records, 937 with the composite, inside the 402 to 1,444 the
-selection ADR bounds. The training split holds 6,215 records, 750 of them with the composite, a
-rate of 0.1207, digest `9b1553fa494ea6d9d10b6f2f115837714523cc10819c738efc6ceaad2c00163c`. The
-split is above the 5,000 records condition 5 asks. The readings below are recorded in the commit
-after the count's. These are commits of pull request #137, kept at `refs/pull/137/head` after its
-squash merge.
+measured_BMXBMI=5946`: 11,744 respondents hold a medical-conditions record, 7,809 of them are 20 and
+over, and 40 adults are left out with no yes and an unknown answer. The adult frame holds 7,769
+records, 937 with the composite, inside the 402 to 1,444 the selection ADR bounds. The training
+split holds 6,215 records, 750 of them with the composite, a rate of 0.1207, digest
+`9b1553fa494ea6d9d10b6f2f115837714523cc10819c738efc6ceaad2c00163c`. The split is above the 5,000
+records condition 5 asks. The readings below are recorded in the commit after the count's. These are
+commits of pull request #137, kept at `refs/pull/137/head` after its squash merge.
 
 **The readings, at `31b8c6f`, after the count.** `uv run --no-sync python -m bko.ontology check`
 exited 0 at `db2cc4f`, its log ending `checked 614 rows: 0 disagree`. The gap listing is run
@@ -210,7 +209,6 @@ alone) and its log sha256 `de0e62bdc35e7aeaac96cee9b322402f64a82d09532e681c699ad
 Both read the seven pinned files and HPO `hp/releases/2026-09-01`, and each log's `versions` line
 reads `dirty=false`. Each csv is byte for byte the one runs `d1-6` and `d2-6` wrote at `db2cc4f`
 from a tree holding one untracked file; [`EVIDENCE.md`](../../EVIDENCE.md) keeps their rows.
-`tests/test_datasets_nhanes_pinned.py` passes with `--releases`.
 
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
 lipids reach HPO through cutoffs read in their sources. **Accepted**: two of the three guideline

@@ -39,7 +39,7 @@ converting an OWL-only release writes beside its OWL ([Ontologies](#ontologies))
 as a hidden partial file renamed into place, and ROBOT's stderr, kept only when the conversion
 fails. Each
 download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, SUPPORT2, the ACS Massachusetts file,
-the seven NHANES component files, the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL
+the NHANES component files, the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL
 file, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
 fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A
@@ -163,23 +163,24 @@ root or to see the module's own code, run it directly:
 
   It reads and never fetches or converts, and an absent snapshot fails it; `gaps acs` fetches
   and converts.
-- **The NHANES frame**: `bko.datasets.nhanes` reads seven SAS XPORT component files of NHANES
-  August 2021 to August 2023 from their verified `nhanes-*` snapshots with `pandas.read_sas`,
-  never writing them elsewhere (ADR [`research/nhanes-frame`](adr/research/nhanes-frame.md)).
-  Each file's columns must be the published file's, and its `SEQN` values whole and unique.
+- **The NHANES frame**: `bko.datasets.nhanes` reads the NHANES component files, SAS XPORT, of August
+  2021 to August 2023 from their verified `nhanes-*` snapshots with `pandas.read_sas`, never writing
+  them elsewhere (ADR [`research/nhanes-frame`](adr/research/nhanes-frame.md)). Each file's columns
+  must be the published file's, its `SEQN` values whole and unique, and every other file's `SEQN`
+  values among the demographics'; a file `pandas.read_sas` warns may be corrupted is refused.
   Demographics and medical conditions join inner on `SEQN`, `record_id`; the exam and laboratory
-  files join left, so an adult who was only interviewed has every measurement not measured.
-  Adults of 20 and over are kept; the label is 1 when any of the heart-failure, coronary-disease,
-  heart-attack and stroke items is yes and 0 when all four are no, and any other adult is left
-  out, counted in the `cohort` line. `age` is as published, top-coded at 80. Blood pressure is the
-  mean of the readings present; it, glycohemoglobin, total and HDL cholesterol are coded at their
-  cited cutoffs and body mass index at the published file's tertiles.
-  `bko.datasets.nhanes_frame` builds its frame from the records, band edges 40 and 60, and
-  `bko.ontology.nhanes_rows` holds its field rows, so `score`, `gaps nhanes` and
-  `contradictions --dataset nhanes` read it through its catalog entry.
-  `tests/test_datasets_nhanes_pinned.py` checks each file's sha256, the adult frame, the
-  composite against the bounds ADR `research/confirmatory-dataset-selection` sets, the training
-  split and the tertile cutoffs; the gate skips it, and `--releases` runs it:
+  files join left, so an adult who was only interviewed has every measurement not measured. Adults
+  of 20 and over are kept; the label is 1 when any of the heart-failure, coronary-disease,
+  heart-attack and stroke items is yes and 0 when all four are no, and any other adult is left out,
+  counted in the `cohort` line with each coded field's measured records. `age` is as published,
+  top-coded at 80. Blood pressure is the mean of the readings present; it, glycohemoglobin, total
+  and HDL cholesterol are coded at their cited cutoffs and body mass index at the published file's
+  tertiles. `bko.datasets.nhanes_frame` builds its frame from the records, band edges 40 and 60, and
+  `bko.ontology.nhanes_rows` holds its field rows, so `score`, `gaps nhanes` and `contradictions
+  --dataset nhanes` read it through its catalog entry. `tests/test_datasets_nhanes_pinned.py` checks
+  each file's sha256, the fixture writer's layout against each file, the adult frame's, composite's
+  and training split's counts ADR `research/nhanes-frame` records and the tertile cutoffs; the gate
+  skips it, and `--releases` runs it:
 
       uv run --no-sync pytest tests/test_datasets_nhanes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 

@@ -2,15 +2,15 @@
 
 The survey is NHANES August 2021 to August 2023. `load_nhanes` reads seven SAS XPORT component
 files from their verified snapshots, each whole from its bytes by `pandas.read_sas`, never written
-elsewhere. Each file's columns must be the
-published file's in order, and its respondent sequence numbers, `SEQN`, whole and unique. The
-demographics and the medical-conditions file join inner on `SEQN`, the exam and laboratory files
-left, so an adult who was only interviewed stays a record with every measurement not measured.
-The cohort keeps adults of 20 and over, the universe the four items are asked of. `LABEL` is 1
-when any of the four items is 1 (yes), 0 when all four are 2 (no), and the record is left out
-otherwise. A record holds `age` as published (top-coded at 80), `sex`, and each lab or vital as a
-coded state (`bko.datasets.states.coded`). The four items and the survey weights never enter. ADR
-`research/nhanes-frame` records the frame.
+elsewhere; a warning that a file may be corrupted refuses it. Each file's columns must be the
+published file's in order, its respondent sequence numbers, `SEQN`, whole and unique, and every
+other file's `SEQN`s among the demographics'. The demographics and the medical-conditions file
+join inner on `SEQN`, the exam and laboratory files left, so an adult who was only interviewed
+stays a record with every measurement not measured. The cohort keeps adults of 20 and over, the
+universe the four items are asked of. `LABEL` is 1 when any of the four items is 1 (yes), 0 when
+all four are 2 (no), and the record is left out otherwise. A record holds `age` as published
+(top-coded at 80), `sex`, and each lab or vital as a coded state (`bko.datasets.states.coded`).
+The four items and the survey weights never enter. ADR `research/nhanes-frame` records the frame.
 """
 
 from __future__ import annotations
