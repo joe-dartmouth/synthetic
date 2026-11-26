@@ -86,7 +86,29 @@ Singer et al.'s reproduction:
 `wblc` is in thousands (the publisher's fill-in table gives "9 (thousands)"), so 12,000 and 4,000
 per cubic millimetre read 12 and 4. `edu`, `sod`, `alb`, `ph`, `glucose`, `bun` and `urine` are
 coded at the tertiles of their measured values over every record of the published file, each
-rounded to 2 decimals; they map nothing.
+rounded to 2 decimals; they map nothing. Each tertile is an "at or above" cutoff:
+
+| Field | Lower tertile | Upper tertile |
+|---|---|---|
+| `edu` | 11 | 12 |
+| `sod` | 135 | 140 |
+| `alb` | 2.5 | 3.3 |
+| `ph` | 7.4 | 7.45 |
+| `glucose` | 111 | 166.33 |
+| `bun` | 17 | 33 |
+| `urine` | 1430 | 2595 |
+
+This command derived them from the pinned archive in the data root, printing each field and its
+two tertiles:
+
+    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.states import tertiles; from bko.datasets.support2 import DECIMALS, MEMBER, TERTILES, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, *(round(c, DECIMALS) for c in tertiles(measured(raw[name])))) for name in TERTILES]' </dev/null
+
+A recorded 0 is a measured value, not a missing one: the published file holds 51 zeros in
+`meanbp`, 83 in `hrt`, 65 in `resp` and 10 in `wblc`, over its 9,105 rows. So a `meanbp` of 0
+shows Hypotension and a `wblc` of 0 shows Decreased total leukocyte count; an `hrt` or `resp` of
+0 shows nothing, being at most 90 or 20. This command counted them:
+
+    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.support2 import MEMBER, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, int((measured(raw[name]) == 0).sum())) for name in ("meanbp", "hrt", "resp", "wblc")]' </dev/null
 
 **4. The rows.** One `Codes` row per mapped state, labels the pinned releases' names:
 
@@ -123,18 +145,20 @@ written as "1.2–1.9" would otherwise put the file's `1.19995117`, a recorded 1
 Singer et al.'s reproduction is a consensus paper co-authored by SOFA's first author, and it
 quotes both tables as its sources give them; reading the cutoffs there is the closest readable
 text to the originals. Hypoxemia is the HPO term for an abnormally low blood oxygen level, which a
-PaO2/FiO2 below 400 reads as on room air; its row's limits say the ratio is not PaO2 alone.
+PaO2/FiO2 below 400 reads as on room air.
 
 ## Consequences
 
-**The order, by commit.** The rows were committed in `cb15592` (Add the SUPPORT2 loader, frame
-and mapping rows). At `14be75a`, before any gap listing or census, the training split was counted
-by a scratch script that runs `CATALOG["support2"].read` on the data root, then
-`split(records, seed=0, edges=frame.edges).train`: the cohort holds 9,104 records (9,105 rows,
-one dropped for a missing `scoma`, 2,359 in-hospital deaths); the training split holds 7,282
-records, 1,887 of them in-hospital deaths, an in-hospital death rate of 0.2591, digest
+**The order, by commit.** The rows are at `cb15592` (Add the SUPPORT2 loader, frame and mapping
+rows). The training split's count is recorded in `7366752`, before any gap listing or census
+ran: `CATALOG["support2"].read` on the data root, then `split(records, seed=0,
+edges=frame.edges).train`. The cohort holds 9,104 records (9,105 rows, one dropped for a missing
+`scoma`, 2,359 in-hospital deaths); the training split holds 7,282 records, 1,887 of them
+in-hospital deaths, an in-hospital death rate of 0.2591, digest
 `a9231c19529069a9bd0cc94a02209bac5c1242baf8da610f4dc93eca868347e7`. The split is above the 5,000
-records condition 5 asks.
+records condition 5 asks. The first readings are recorded in `de50f71` and the current ones in
+`bbc698b`. These are commits of pull request #135, kept at `refs/pull/135/head` after its squash
+merge.
 
 **The readings, at `ea2c11a`, after the count.** `uv run --no-sync python -m bko.ontology check`
 exited 0, its log ending `checked 89 rows: 0 disagree`. The gap listing is run `d1-4`, `uv run
@@ -157,15 +181,16 @@ and its log sha256 `fcae4dfdf7a8062b7dccd80a8d695d63372f481bd8bd37971e9e85250e0b
 the archive sha256 `8ed43980742a18e1847a8dfc5530bc4b30564ad9e4ad1b1b50bbc5d29d8c86fe`, HPO
 `hp/releases/2026-09-01` and MONDO `releases/2026-10-06`. The first readings, runs `d1-3` and
 `d2-3` at `7366752`, wrote the same csv bytes; their logs lack the `data` and `split` lines and
-the `cohort` line's `dataset=`. `tests/test_datasets_support2_pinned.py` passes with
-`--releases`.
+the `cohort` line's `dataset=`.
 
-**Deviations from the plan.** The cutoffs are read in Singer et al.'s reproduction, not in Bone
-et al. and Vincent et al. themselves (Context). The one record with a missing `scoma` is dropped
-rather than coded (Ruled Out). Each measured value is read at 2 decimals, and the tertile cutoffs
-are rounded to 2 decimals (Decision 3). The frame builder lives in its own module beside the
-loader, which would otherwise pass the 500-line cap. The census reads SUPPORT2 through
-`--dataset support2`; the default census keeps its three frames.
+**Choices beside the rows.** The cutoffs are read in Singer et al.'s reproduction, because
+neither original could be read (Context). The one record with a missing `scoma` is dropped
+rather than coded, because coding it at its tertiles would make a missing flag (Ruled Out). Each
+measured value is read at 2 decimals, and the tertile cutoffs are rounded to 2 decimals, because
+the file stores values truncated in binary (Decision 3). The frame builder lives in its own
+module beside the loader, which keeps the loader under the 500-line cap. The census reads
+SUPPORT2 through `--dataset support2`, which keeps the default census's three frames and its
+recorded bytes (Ruled Out).
 
 **Gained**: a second positive dataset whose diagnoses and physiology reach MONDO and HPO through
 fixed rows. **Accepted**: one record leaves the cohort for a missing `scoma`. The originals of the
@@ -181,7 +206,7 @@ row. Tertile bands can be uneven where values tie at a tertile (`edu`'s 11 and 1
 | Imputing missing physiology with the publisher's normal fill-in values | An imputed normal value would show the absence of a finding no one measured | 2026-11-25 |
 | The SIRS alternatives PaCO2 below 32 and over 10% immature bands | Neither is a column of the file | 2026-11-25 |
 | A colon cancer concept named `colon cancer` | The pinned MONDO has no term of that name; malignant colon neoplasm, its class for malignant neoplasms of the colon, maps instead | 2026-11-25 |
-| A metastatic-cancer row on `ca` `metastatic` | Not among the rows fixed in the mapping commit; `ca` `metastatic` shows cancer | 2026-11-25 |
+| A metastatic-cancer row on `ca` `metastatic` | `ca` `metastatic` shows cancer through the `ca` row, and the rows fixed before the count (Decision 5) hold no metastatic-cancer row | 2026-11-25 |
 | `urine` at SOFA's renal cutoff, below 500 mL/d | The file states no period for `urine`, so it stays at tertiles and maps nothing | 2026-11-25 |
 | SUPPORT2 in the default census | It would change the bytes of EVIDENCE D2's recorded run and make the bare command fetch another archive; the census takes `--dataset` | 2026-11-25 |
 

@@ -26,8 +26,8 @@ computes the union.
 
 **In.**
 
-- As ADR [`research/support2-frame`](../docs/adr/research/support2-frame.md) records, for NHANES August 2021 to
-  August 2023:
+- As ADR [`research/support2-frame`](../docs/adr/research/support2-frame.md)
+  records, for NHANES August 2021 to August 2023:
   - pins of each component file, joined on the respondent sequence number, each carrying the
     `agreement` value ADR `research/confirmatory-dataset-selection` records;
   - adults only;
@@ -42,8 +42,8 @@ computes the union.
 
 **Out.**
 
-- As ADR [`research/support2-frame`](../docs/adr/research/support2-frame.md) records: the test split, any classifier
-  fit or arm score, and picking the removed cell.
+- As ADR [`research/support2-frame`](../docs/adr/research/support2-frame.md)
+  records: the test split, any classifier fit or arm score, and picking the removed cell.
 - Survey weights.
 - A diabetes label: glycated haemoglobin nearly defines it.
 

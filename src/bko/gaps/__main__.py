@@ -1,4 +1,4 @@
-"""Command line for gap detection: `python -m bko.gaps uci`, `synthea`, `first-flag`, `support2`.
+"""Command line for gap detection: `python -m bko.gaps uci`, `synthea`, `first-flag` and `support2`.
 
 The commands after `first-flag` are one per catalogued dataset (`bko.ontology.catalog`).
 
