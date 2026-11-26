@@ -59,6 +59,8 @@ shares.
 - The unit's ADR records the frame's record count, counted from the training split before any gap
   is read. Below 5,000 records the dataset is excluded and ADR
   `research/non-health-dataset-selection` revised.
+- The unit's ADR records that any published fill derived from VCDB carries CC BY-SA 4.0 and
+  VCDB's attribution.
 - `python -m bko.ontology check` passes with the new rows.
 - `python -m bko.gaps vcdb` lists the training split's gaps.
 - `make check` passes.

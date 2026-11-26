@@ -203,9 +203,9 @@ waits on the cell machinery reading a frame's own two axes, since neither record
 person. Each frame's `Source` pin carries `agreement=None`, the value ADR
 `research/confirmatory-dataset-selection` point 4 gives open data, so `permits_sending` lets the
 `bko` arm send its records. VCDB's and VERIS's licence grants the right to "produce, reproduce, and
-Share Adapted Material."; no page read states whether a generated row is Adapted Material. The
-share-alike condition is taken to bind: any published fill derived from VCDB carries CC BY-SA 4.0
-and VCDB's attribution.
+Share Adapted Material." No page read states whether a generated row is Adapted Material, so the
+share-alike condition is taken to bind, the conservative reading the project owner chose on
+2026-11-26: any published fill derived from VCDB carries CC BY-SA 4.0 and VCDB's attribution.
 
 ## Rationale
 
@@ -219,8 +219,8 @@ files; FARS's and NEISS's groupings sit in PDF tables and reports.
 
 NVD with KEV ranks first: its terms are public domain, CC0 and royalty-free, its label is read
 from every record, and CWE's ChildOf relation is published in XML. VCDB ranks second: its VERIS
-enumerations are shallower, its published fills carry the share-alike licence, and its sample mixes
-random and chosen incidents. Both clear the record minimum on the counts above.
+enumerations are shallower, its published fills carry the licence obligation of Decision 4, and its
+sample mixes random and chosen incidents. Both clear the record minimum on the counts above.
 
 SBA and TED have their data terms quoted but leave other items unquoted, so each is a runner-up.
 Each would be chosen by a re-read that quotes what it lacks.
@@ -233,10 +233,9 @@ hierarchy named before any record is loaded, and each candidate's exclusion stat
 schema before the loader reads it. The KEV label is rare: 1,805 of 432,554 CVEs, about 0.42%, on
 the API counts above, so the NVD frame unit fixes its snapshot and any sampling before reading a
 gap. VCDB's non-random sample and its AI-encoded records stay in the data; the frame unit records
-their shares. A published fill derived from VCDB carries CC BY-SA 4.0 and VCDB's attribution,
-though no page read says a generated row is Adapted Material. TED's
-cancellation outcome exists only from 2011. Most candidates outside the ten re-read rest on the
-research pass's reading of their terms.
+their shares. VCDB's published fills carry the licence obligation of Decision 4. TED's cancellation
+outcome exists only from 2011. Most candidates outside the ten re-read rest on the research pass's
+reading of their terms.
 
 ## Ruled Out
 
@@ -244,7 +243,7 @@ research pass's reading of their terms.
 |------|---------------|------|
 | The person-axes condition for non-health frames | No vulnerability, incident, loan or tender record has a numeric age and a binary sex; this rule's condition 2 replaces it | 2026-11-25 |
 | VCDB's cells as industry by actor type, the IDEAS entry's pair | An incident can hold several actor types, so actor type does not partition the records | 2026-11-25 |
-| Leaving open whether VCDB's share-alike condition reaches published fills | A fill published without the licence would breach it if a generated row is Adapted Material, and no page read says it is not; the condition is taken to bind | 2026-11-26 |
+| Publishing a VCDB-derived fill without CC BY-SA 4.0 and VCDB's attribution | No page read says a generated row is not Adapted Material, so such a fill could breach the licence (Decision 4) | 2026-11-26 |
 | NAICS as part of VCDB's hierarchy | The VERIS enumerations are the hierarchy the frame reads; NAICS sectors serve only as a cell axis | 2026-11-26 |
 | A threshold on a count or an amount as the outcome (USAspending single bid, UCDP fatalities, KDD income) | The cutoff is the frame's choice, not the dataset's category | 2026-11-26 |
 | GDELT with material conflict as the outcome | QuadClass is a function of the CAMEO event code, the hierarchy itself | 2026-11-25 |
@@ -264,9 +263,9 @@ hierarchy's publication. **CPV's licence and download list and TED's axes are qu
 pages**, which makes TED a chosen frame. **SBA's data dictionary is read and names a charged-off
 status code, with its axes and NAICS file quoted**, which makes SBA a chosen frame. **A page
 states that a generated row is not Adapted Material under VCDB's licence**, which lifts the
-share-alike condition from its fills. **A frame unit finds its
-hierarchy cannot be converted for the loader**, or its record count below 5,000 after its
-snapshot, which excludes it and revises this record. **The NVD terms, the NVD FAQ's public-domain
+share-alike condition from its fills. **A frame unit finds its hierarchy cannot be converted for
+the loader**, or its record count below 5,000 after its snapshot, which excludes it and revises
+this record. **The NVD terms, the NVD FAQ's public-domain
 statement or KEV's licence change.**
 
 ## Related

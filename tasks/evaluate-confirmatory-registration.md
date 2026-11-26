@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-composite-dev-results
+depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, evaluate-composite-dev-results, datasets-frame-rule-revisions
 blocks: evaluate-confirmatory-results
 parallel_safe: false
 milestone: direct-method-research
@@ -61,6 +61,10 @@ readings are fixed before any score exists on the new datasets.
   - the holdout count, derived from E6's interval widths
     ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) Configurations.
+- `tests/test_unrun_frames.py` loses each dataset this unit's `RUNS` entries read, and is deleted
+  once it names none: unit [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md)
+  has changed those frames under their own names, and the exception of `direct-index.md`, What
+  every unit relies on, ends with this unit's entries.
 - A signed tag.
 - ADR [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) revised
   in place.

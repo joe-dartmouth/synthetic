@@ -33,7 +33,9 @@ attempts and is refused (P1 Runs).
 - Run `p1-id-partial` and `p1-ood-partial` from a detached worktree, as
   [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) gives the steps for the arms the
   runs name.
-- The EVIDENCE entry's Runs, Result and Read against, beside TableShift's Table 7.
+- The EVIDENCE entry's Runs, Result and Read against, beside TableShift's Table 7. The Result
+  records, per holdout and arm, each partial fill's short cells and their missing rows, read
+  from the `shortfall` lines, and each partial replica's row count beside the rows it asked.
 
 **Out.**
 
@@ -44,4 +46,5 @@ attempts and is refused (P1 Runs).
 - The entry's status is `complete`.
 - The entry's Read against compares with TableShift's Table 7.
 - Each run's sha256 is recorded.
+- The Result names every partial replica, so none reads as a full copy of the training cells.
 - `make check` passes.
