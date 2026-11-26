@@ -190,6 +190,38 @@ id: MONDO:0004992
 name: cancer
 
 [Term]
+id: MONDO:0004979
+name: asthma
+
+[Term]
+id: MONDO:0002050
+name: depressive disorder
+
+[Term]
+id: MONDO:0005147
+name: type 1 diabetes mellitus
+
+[Term]
+id: MONDO:0004375
+name: end stage renal failure
+
+[Term]
+id: MONDO:0005109
+name: HIV infectious disease
+
+[Term]
+id: MONDO:0011122
+name: obesity disorder
+
+[Term]
+id: MONDO:0007147
+name: obstructive sleep apnea syndrome
+
+[Term]
+id: MONDO:0005298
+name: osteoporosis
+
+[Term]
 id: MONDO:9999998
 name: obsolete test term
 is_obsolete: true

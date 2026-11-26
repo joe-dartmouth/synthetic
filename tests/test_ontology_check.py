@@ -13,6 +13,7 @@ from bko.ontology.acs_rows import OCCUPATION_CODES
 from bko.ontology.check import Verdict, check
 from bko.ontology.icd9 import EXACT, Icd9Code, UnmappedIcd9
 from bko.ontology.icd9_codes import ICD9_CODES
+from bko.ontology.icd10cm_codes import ICD10CM_CODES
 from bko.ontology.mapping import CHECKED_ROWS, CODE_MAPPINGS, MAPPED, OUT_OF_SCOPE
 from bko.ontology.obo import parse_obo
 from bko.ontology.schema import (
@@ -256,8 +257,11 @@ def _fixture_releases(tmp_path: Path) -> dict[str, Ontology]:
     }
 
 
-_CURATED_ROWS = tuple(row for row in CHECKED_ROWS if row not in {*ICD9_CODES, *OCCUPATION_CODES})
-"""The checked rows but the generated code rows, which `tests/test_ontology_codes.py` checks, and
+_CURATED_ROWS = tuple(
+    row for row in CHECKED_ROWS if row not in {*ICD9_CODES, *ICD10CM_CODES, *OCCUPATION_CODES}
+)
+"""The checked rows but the generated code rows, which `tests/test_ontology_codes.py` and
+`tests/test_ontology_icd10cm.py` check, and
 ACS's occupation rows, whose release `tests/test_ontology_occupations.py` and the `--releases`
 tests read."""
 

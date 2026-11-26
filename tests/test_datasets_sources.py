@@ -13,6 +13,7 @@ from bko.datasets.sources import (
     HPO_OWL,
     MONDO,
     MONDO_OWL,
+    NHAMCS_ED_2022,
     NHANES,
     OCCO,
     ROBOT_JAR,
@@ -40,6 +41,7 @@ def test_the_scan_finds_every_pin() -> None:
         *(f"nhanes-{name}" for name in ("demo-l", "mcq-l", "bpxo-l", "bmx-l", "tchol-l")),
         "nhanes-hdl-l",
         "nhanes-ghb-l",
+        "nhamcs-ed-2022",
     }
 
 
@@ -133,3 +135,11 @@ def test_each_nhanes_pin_is_its_component_file_at_nchs() -> None:
         174_000,
     ]
     assert {pin.agreement for pin in NHANES} == {None}
+
+
+def test_the_nhamcs_pin_is_the_ed_file_at_nchs() -> None:
+    assert NHAMCS_ED_2022.url == (
+        "https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHAMCS/ed2022.zip"
+    )
+    assert (NHAMCS_ED_2022.filename, NHAMCS_ED_2022.size) == ("ed2022.zip", 1_666_841)
+    assert NHAMCS_ED_2022.agreement is None

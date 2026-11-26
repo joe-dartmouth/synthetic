@@ -20,6 +20,7 @@ from typing import Final
 
 from bko.datasets.diagnoses import UNKNOWN, canonical, code_number
 from bko.ontology.icd9 import EXACT, ICD9_MAPPINGS, Icd9Code, Icd9Mapping
+from bko.ontology.icd10_row import Icd10Code
 from bko.ontology.terms import Ontology, ancestors
 
 
@@ -104,7 +105,7 @@ def generate(
     codes = sorted(
         {canonical(token) for token in tokens if code_number(token) != UNKNOWN}, key=code_number
     )
-    exact, weaker, dead = _holders(mondo)
+    exact, weaker, dead = exact_holders(mondo, _XREF)
     chosen = {row.xref: row.concept for row in curated}
     rows: list[Icd9Code] = []
     unmapped = dict.fromkeys(REASONS, 0)
@@ -114,7 +115,7 @@ def generate(
             unmapped[f"{code[0]} code"] += 1
             continue
         if not holders:
-            unmapped[_unmapped(code, weaker, dead)] += 1
+            unmapped[unmapped_reason(code, weaker, dead)] += 1
             continue
         concept = chosen.get(f"{_XREF}{code}")
         if concept is not None and concept not in holders:
@@ -123,11 +124,11 @@ def generate(
                 f"{EXACT} holders {', '.join(holders)}"
             )
             raise ValueError(msg)
-        concept = concept or _spanning(mondo, holders)
+        concept = concept or spanning_holder(mondo, holders)
         if concept is None:
             unmapped["holders not nested"] += 1
             continue
-        rows.append(Icd9Code(code, concept, _name(mondo, concept), frozenset(holders)))
+        rows.append(Icd9Code(code, concept, concept_name(mondo, concept), frozenset(holders)))
     return Generated(tuple(rows), MappingProxyType(unmapped))
 
 
@@ -140,11 +141,23 @@ def render(rows: Sequence[Icd9Code]) -> str:
         ValueError: If a row's code, concept or label holds a control character, which would
             break its line, naming the row's code.
     """
+    return render_rows(rows, header=_HEADER, footer=_FOOTER, system="ICD-9")
+
+
+def render_rows(
+    rows: Sequence[Icd9Code | Icd10Code], *, header: str, footer: str, system: str
+) -> str:
+    """A generated code module: `header`, `_ROWS` and `_ALSO` holding `rows`, then `footer`.
+
+    Raises:
+        ValueError: If a row's code, concept or label holds a control character, naming the row's
+            code under `system`.
+    """
     for row in rows:
         if any(_controlled(text) for text in (row.code, row.concept, row.label)):
-            msg = f"ICD-9 {row.code!r}: a control character in {row!r} would break its line"
+            msg = f"{system} {row.code!r}: a control character in {row!r} would break its line"
             raise ValueError(msg)
-    lines = [_HEADER, "# fmt: off\n", "_ROWS: Final[tuple[tuple[str, str, str], ...]] = (\n"]
+    lines = [header, "# fmt: off\n", "_ROWS: Final[tuple[tuple[str, str, str], ...]] = (\n"]
     lines.extend(
         f"    ({_quoted(row.code)}, {_quoted(row.concept)}, {_quoted(row.label)}),\n"
         for row in rows
@@ -156,14 +169,18 @@ def render(rows: Sequence[Icd9Code]) -> str:
         others = [_quoted(curie) for curie in sorted(row.holders - {row.concept})]
         tail = "," if len(others) == 1 else ""
         lines.append(f"    {_quoted(row.code)}: ({', '.join(others)}{tail}),\n")
-    lines.extend(("}\n", _FOOTER))
+    lines.extend(("}\n", footer))
     return "".join(lines)
 
 
-def _holders(
-    mondo: Ontology,
+def exact_holders(
+    mondo: Ontology, prefix: str
 ) -> tuple[dict[str, tuple[str, ...]], dict[str, bool], frozenset[str]]:
     """Each code's live `EXACT` holders, and whether its other live xrefs include `RELATED`.
+
+    Args:
+        mondo: The MONDO release.
+        prefix: The cross-reference prefix whose codes are read, `ICD9:` or `ICD10CM:`.
 
     Returns:
         Each code's live `EXACT` holders in term order; each code some other live xref carries,
@@ -174,9 +191,9 @@ def _holders(
     dead: set[str] = set()
     for curie, term in mondo.terms.items():
         for xref in term.xrefs:
-            if not xref.startswith(_XREF):
+            if not xref.startswith(prefix):
                 continue
-            code = xref.removeprefix(_XREF)
+            code = xref.removeprefix(prefix)
             sources = term.xref_sources(xref)
             if term.obsolete:
                 dead.add(code)
@@ -190,14 +207,23 @@ def _holders(
     return {code: tuple(c) for code, c in exact.items()}, weaker, frozenset(dead - live)
 
 
-def _unmapped(code: str, weaker: Mapping[str, bool], dead: frozenset[str]) -> str:
-    """Why `code`, which no live term carries under `EXACT`, stays unmapped."""
+def unmapped_reason(code: str, weaker: Mapping[str, bool], dead: frozenset[str]) -> str:
+    """Why `code`, which no live term carries under `EXACT`, stays unmapped.
+
+    Args:
+        code: The code, without its prefix.
+        weaker: The second item `exact_holders` returns.
+        dead: The third item `exact_holders` returns.
+
+    Returns:
+        One of the first four of `REASONS`.
+    """
     if code in weaker:
         return "relatedTo only" if weaker[code] else "unreviewed source only"
     return "obsolete holder only" if code in dead else "no live xref"
 
 
-def _spanning(mondo: Ontology, holders: Sequence[str]) -> str | None:
+def spanning_holder(mondo: Ontology, holders: Sequence[str]) -> str | None:
     """The one holder every other holder descends from by `is_a`; None if there is none."""
     spanning = [
         curie
@@ -209,7 +235,12 @@ def _spanning(mondo: Ontology, holders: Sequence[str]) -> str | None:
     return spanning[0] if len(spanning) == 1 else None
 
 
-def _name(mondo: Ontology, concept: str) -> str:
+def concept_name(mondo: Ontology, concept: str) -> str:
+    """The name `concept` carries in `mondo`.
+
+    Raises:
+        ValueError: If `concept` is absent from `mondo` or has no name.
+    """
     term = mondo.terms.get(concept)
     if term is None or term.name is None:
         msg = f"{concept} has no name in {mondo.name} {mondo.version}"

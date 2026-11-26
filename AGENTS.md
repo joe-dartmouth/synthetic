@@ -107,6 +107,10 @@ import it (ADR `tooling/agent-config-single-home`).
   MONDO release and the cohort's codes, fetching both into `data/` if absent; the scratch file
   keeps a failed run from truncating the module. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
+- `mkdir -p scratchpad && uv run --no-sync python -m bko.ontology codes --system icd10cm > scratchpad/icd10cm_codes.py && mv scratchpad/icd10cm_codes.py src/bko/ontology/icd10cm_codes.py`,
+  then `make format`: regenerate NHAMCS's ICD-10-CM diagnosis rows from the pinned MONDO release
+  and the NHAMCS archive's tokens, fetching both into `data/` if absent. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `mkdir -p scratchpad && uv run --no-sync python -m bko.ontology occupations --part low > scratchpad/occupation_codes_low.py && mv scratchpad/occupation_codes_low.py src/bko/ontology/occupation_codes_low.py`,
   and the same with `high`: regenerate ACS's occupation rows for SOC major groups below 31, or
   from 31 up, from the pinned OccO release and the ACS archive, fetching both into `data/` if
@@ -120,9 +124,10 @@ import it (ADR `tooling/agent-config-single-home`).
   check the table and the fusion reproduction against the pinned releases already in `data/`
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `uv run --no-sync python -m bko.gaps uci`, `uv run --no-sync python -m bko.gaps support2`,
-  `uv run --no-sync python -m bko.gaps acs`, `uv run --no-sync python -m bko.gaps nhanes` or
-  `uv run --no-sync python -m bko.gaps synthea`: list the gaps under each BKO gap definition and
-  the count-based gaps of the UCI, SUPPORT2, ACS or NHANES training split, or of the Synthea
+  `uv run --no-sync python -m bko.gaps acs`, `uv run --no-sync python -m bko.gaps nhanes`,
+  `uv run --no-sync python -m bko.gaps nhamcs` or `uv run --no-sync python -m bko.gaps synthea`:
+  list the gaps under each BKO gap definition and the count-based gaps of the UCI, SUPPORT2, ACS,
+  NHANES or NHAMCS training split, or of the Synthea
   population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `uv run --no-sync python -m bko.gaps first-flag`: remove each whole E2 ablation's cases one at a
@@ -131,7 +136,7 @@ import it (ADR `tooling/agent-config-single-home`).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   list where each mapped frame's training split contradicts its ontology, in the five kinds of ADR
   `research/data-contradiction-handling`: UCI's, Synthea's and Diabetes 130's frames, or those
-  `--dataset` names, such as `support2`, `acs` or `nhanes`. It makes no API call
+  `--dataset` names, such as `support2`, `acs`, `nhanes` or `nhamcs`. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   count those kinds and the three Diabetes coherence rules' breaks in each fill's added rows of a

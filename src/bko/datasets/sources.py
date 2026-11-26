@@ -286,3 +286,19 @@ content-length. The files are public-use under the NCHS terms, which bind by use
 identification and linkage, not sending, so they are open data (ADR
 `research/confirmatory-dataset-selection`, point 4).
 """
+
+NHAMCS_ED_2022: Final = Source(
+    name="nhamcs-ed-2022",
+    url="https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Datasets/NHAMCS/ed2022.zip",
+    filename="ed2022.zip",
+    size=1_666_841,
+    sha256="a513693ed05b98bf94d2ff48b50de85afe48dd63cd7d43fb0930f914b18a9f25",
+    agreement=None,
+)
+"""The NHAMCS 2022 emergency-department public-use file as NCHS serves it, one fixed-width member
+`ed2022`, which `bko.datasets.nhamcs` reads.
+
+Size and sha256 were measured from the bytes the host serves; the size equals its content-length.
+The file is public-use under the NCHS terms, which bind by use and bar identification and linkage,
+not sending, so it is open data (ADR `research/confirmatory-dataset-selection`, point 4).
+"""

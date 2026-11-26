@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results
+depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-physionet2012-frame, evaluate-composite-dev-results
 blocks: evaluate-confirmatory-results
 parallel_safe: false
 milestone: direct-method-research
@@ -26,10 +26,10 @@ readings are fixed before any score exists on the new datasets.
 - Confirmatory `RUNS` entries per new dataset, the four health datasets of
   [`docs/RESEARCH.md`](../docs/RESEARCH.md) section 11 (SUPPORT2, NHANES, the PhysioNet/CinC
   Challenge 2012 set and NHAMCS 2022 ED, framed by ADRs
-  [`research/support2-frame`](../docs/adr/research/support2-frame.md) and
-  [`research/nhanes-frame`](../docs/adr/research/nhanes-frame.md) and units
-  [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) and
-  [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md)) and ACS PUMS, framed by ADR
+  [`research/support2-frame`](../docs/adr/research/support2-frame.md),
+  [`research/nhanes-frame`](../docs/adr/research/nhanes-frame.md) and
+  [`research/nhamcs-frame`](../docs/adr/research/nhamcs-frame.md) and unit
+  [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md)) and ACS PUMS, framed by ADR
   [`research/acs-frame`](../docs/adr/research/acs-frame.md), a separate exploratory family:
   - candidate from unit [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md).
     When that unit reports the composite failing the non-inferiority margin, `bko-direct` is

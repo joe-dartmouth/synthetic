@@ -1,7 +1,8 @@
 """Check the table's rows against parsed releases: `python -m bko.ontology check`'s core.
 
-The rows are the concept rows, the generated ICD-9 code rows and ACS occupation rows among them,
-the excluded Synthea codes and the excluded ICD-9 categories (`bko.ontology.mapping.CHECKED_ROWS`).
+The rows are the concept rows, the generated ICD-9 and ICD-10-CM code rows and ACS occupation
+rows among them, the excluded Synthea codes and the excluded ICD-9 categories
+(`bko.ontology.mapping.CHECKED_ROWS`).
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from dataclasses import dataclass
 from typing import Final, Literal, assert_never
 
 from bko.ontology.icd9 import EXACT, Icd9Code, Icd9Mapping, LabMapping, UnmappedIcd9
+from bko.ontology.icd10_row import Icd10Code
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
@@ -34,6 +36,7 @@ type Table = Literal[
     "excluded-code",
     "icd9",
     "icd9-code",
+    "icd10cm-code",
     "excluded-icd9",
     "occupation-code",
 ]
@@ -48,7 +51,7 @@ _EXACT_XREF: Final = f"xref {EXACT}"
 
 type _Key = tuple[str, str]
 """What a term carries: `(skos:exactMatch, <SCTID: object>)`, `(xref, <ICD9: id>)` or
-`(xref MONDO:equivalentTo, <ICD9: id>)`."""
+`(xref MONDO:equivalentTo, <ICD9: or ICD10CM: id>)`."""
 
 type _Holders = Mapping[str, Mapping[_Key, tuple[str, ...]]]
 """Per release prefix, each wanted key to the live terms that carry it."""
@@ -62,8 +65,8 @@ class Verdict:
         table: Which kind of row it is.
         subject: The dataset side: `cp in 1|2|3`, `chol >= 240`, `A1Cresult in >7|>8`,
             `SCTID:414545008` (a code row or an excluded code), `ICD9:428` (an ICD-9 row, a
-            generated code row or an excluded category), `OCCP:0010` (an occupation row), or
-            empty.
+            generated code row or an excluded category), `ICD10CM:I50.9` (a generated ICD-10-CM
+            row), `OCCP:0010` (an occupation row), or empty.
         concept: The row's concept; empty for an excluded code or category.
         label: The row's label; for an excluded code or category, its description.
         problem: None when the release agrees; otherwise how it disagrees.
@@ -86,13 +89,13 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     of `rows` maps, since the scope rule puts every such ancestor in scope. An excluded code
     disagrees when a live `EXCLUDED_PREFIX` concept carries its `skos:exactMatch`, and an excluded
     ICD-9 category when one carries its xref. An ICD-9 row disagrees when its concept lacks its xref
-    or the release's live holders of the xref differ from the row's declared ones; a generated code
-    row likewise, counting only xrefs under the qualifier `EXACT`. A generated code row's concept
-    joins no out-of-scope check, since it is outside the table's scope. An occupation row
-    disagrees when its concept's distinct `OCCO:00000008` literals are not exactly its SOC id, as
-    `bko.ontology.occupations.generate` maps only such a class, and joins no out-of-scope check
-    either. Each release's holders are collected in one pass per call, however many code rows,
-    ICD-9 rows and excluded codes or categories name its prefix.
+    or the release's live holders of the xref differ from the row's declared ones; a generated ICD-9
+    or ICD-10-CM code row likewise, counting only xrefs under the qualifier `EXACT`. A generated
+    code row's concept joins no out-of-scope check, since it is outside the table's scope. An
+    occupation row disagrees when its concept's distinct `OCCO:00000008` literals are not exactly
+    its SOC id, as `bko.ontology.occupations.generate` maps only such a class, and joins no
+    out-of-scope check either. Each release's holders are collected in one pass per call, however
+    many code rows, ICD-9 rows and excluded codes or categories name its prefix.
     """
     rows = tuple(rows)
     mapped = frozenset(
@@ -103,7 +106,7 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     wanted: dict[str, set[_Key]] = {}
     for row in rows:
         match row:
-            case CodeMapping() | Icd9Mapping() | Icd9Code():
+            case CodeMapping() | Icd9Mapping() | Icd9Code() | Icd10Code():
                 wanted.setdefault(_prefix(row), set()).add(_key(row))
             case UnmappedCode() | UnmappedIcd9():
                 wanted.setdefault(EXCLUDED_PREFIX, set()).add(_key(row))
@@ -134,6 +137,7 @@ def _verdict(
             | Icd9Mapping()
             | LabMapping()
             | Icd9Code()
+            | Icd10Code()
             | OccupationCode()
         ):
             table, subject = _describe(row)
@@ -160,6 +164,8 @@ def _describe(row: ConceptRow) -> tuple[Table, str]:
             return "icd9", xref
         case Icd9Code():
             return "icd9-code", row.xref
+        case Icd10Code():
+            return "icd10cm-code", row.xref
         case LabMapping(field=field, states=states):
             return "field", f"{field} in {'|'.join(sorted(states))}"
         case OccupationCode(code=code):
@@ -210,7 +216,7 @@ def _kind_problem(
     match row:
         case CodeMapping():
             return _match_problem(row, ontology, where, holders[_prefix(row)])
-        case Icd9Mapping() | Icd9Code():
+        case Icd9Mapping() | Icd9Code() | Icd10Code():
             return _xref_problem(row, ontology, where, holders[_prefix(row)])
         case OutOfScope():
             return _scope_problem(row, ontology, where, mapped)
@@ -262,13 +268,13 @@ def _target(row: CodedRow) -> str:
     return f"SCTID:{row.snomed}"
 
 
-def _key(row: CodedRow | Icd9Mapping | Icd9Code | UnmappedIcd9) -> _Key:
+def _key(row: CodedRow | Icd9Mapping | Icd9Code | Icd10Code | UnmappedIcd9) -> _Key:
     match row:
         case CodeMapping() | UnmappedCode():
             return _EXACT, _target(row)
         case Icd9Mapping() | UnmappedIcd9():
             return _XREF, row.xref
-        case Icd9Code():
+        case Icd9Code() | Icd10Code():
             return _EXACT_XREF, row.xref
         case _:
             assert_never(row)
@@ -321,7 +327,7 @@ def _match_problem(
 
 
 def _xref_problem(
-    row: Icd9Mapping | Icd9Code,
+    row: Icd9Mapping | Icd9Code | Icd10Code,
     ontology: Ontology,
     where: str,
     holders: Mapping[_Key, tuple[str, ...]],
