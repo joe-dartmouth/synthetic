@@ -19,7 +19,6 @@ import logging
 import math
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
@@ -32,10 +31,9 @@ from bko.evaluate.attack_stats import scopes
 from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment
-from bko.evaluate.fidelity import quality_report
+from bko.evaluate.fidelity import ReportScores, quality_report, report_scores
 from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
 from bko.evaluate.privacy_stores import Store, checked, read, read_fills
-from bko.evaluate.run_scores import MIN_LABELS
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -46,40 +44,24 @@ TRUTH_COLUMNS: Final = ("holdout", "arm", "rows", "measure", "column", "value")
 Row = tuple[int, str, int, str, str, float]
 """One CSV row, in `TRUTH_COLUMNS`' order."""
 
-MIN_ROWS: Final = MIN_LABELS
-"""The fewest rows either side must hold to be scored, as a replica of fewer has no fidelity."""
+MIN_ROWS: Final = 2
+"""The fewest rows either side must hold to be scored.
+
+It mirrors the replica rule (`bko.evaluate.run_scores.MIN_LABELS`): a replica of fewer rows is
+not scored, so neither is a fill or a removal of fewer.
+"""
 
 
-@dataclass(frozen=True, slots=True)
-class Truth:
-    """One fill's rows in the removed cell read against the removed records.
-
-    Attributes:
-        shapes: The column shapes score.
-        pair_trends: The column pair trends score.
-        columns: Each column's shape, in the frame's column order.
-    """
-
-    shapes: float
-    pair_trends: float
-    columns: Mapping[str, float]
-
-
-def truth_scores(added: pd.DataFrame, removed: pd.DataFrame, *, frame: FrameSpec) -> Truth:
+def truth_scores(added: pd.DataFrame, removed: pd.DataFrame, *, frame: FrameSpec) -> ReportScores:
     """SDMetrics' column shapes, pair trends and each column's shape of `added` against `removed`.
 
-    Every score is NaN when either side holds fewer than `MIN_ROWS` rows, or for a column the
-    report's details lack.
+    Every score is NaN when either side holds fewer than `MIN_ROWS` rows; a score the report
+    lacks reads NaN (`report_scores`).
     """
     if len(added) < MIN_ROWS or len(removed) < MIN_ROWS:
-        return Truth(math.nan, math.nan, dict.fromkeys(frame.columns, math.nan))
+        return ReportScores(math.nan, math.nan, dict.fromkeys(frame.columns, math.nan))
     report = quality_report(removed, added, frame=frame)
-    properties = report.get_properties().set_index("Property")["Score"]
-    details = report.get_details("Column Shapes").set_index("Column")["Score"]
-    columns = {name: float(details.get(name, math.nan)) for name in frame.columns}
-    return Truth(
-        float(properties["Column Shapes"]), float(properties["Column Pair Trends"]), columns
-    )
+    return report_scores(report, columns=frame.columns)
 
 
 def truth(

@@ -19,9 +19,10 @@ from bko.evaluate import truth as truth_module
 from bko.evaluate.__main__ import main
 from bko.evaluate.data import held_split, load
 from bko.evaluate.experiment import REAL_ARM
+from bko.evaluate.fidelity import ReportScores
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.prepare import prepared
-from bko.evaluate.truth import TRUTH_COLUMNS, Truth, truth_scores
+from bko.evaluate.truth import TRUTH_COLUMNS, truth_scores
 from tests._evaluate_bko_fixtures import NARROW
 from tests.test_evaluate_membership import PRIVATE, _context, _header, _rewrite, _stored
 from tests.test_evaluate_privacy import random_records
@@ -72,7 +73,7 @@ def test_the_dropped_records_are_the_removals(tmp_path, caplog, monkeypatch):
     seen: list[tuple[pd.DataFrame, pd.DataFrame]] = []
     real = truth_module.truth_scores
 
-    def spying(added: pd.DataFrame, removed: pd.DataFrame, *, frame: FrameSpec) -> Truth:
+    def spying(added: pd.DataFrame, removed: pd.DataFrame, *, frame: FrameSpec) -> ReportScores:
         seen.append((added, removed))
         return real(added, removed, frame=frame)
 
