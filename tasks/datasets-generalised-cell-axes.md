@@ -3,7 +3,7 @@ id: datasets-generalised-cell-axes
 title: Let a frame name its own two cell axes in place of age band and sex
 status: blocked
 depends_on: datasets-non-health-selection
-blocks: --
+blocks: datasets-nvd-frame, datasets-vcdb-frame
 parallel_safe: true
 milestone: direct-method-research
 paid: false
