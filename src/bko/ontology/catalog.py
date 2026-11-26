@@ -25,12 +25,15 @@ from bko.datasets.nhamcs import NHAMCS_NAME, load_nhamcs
 from bko.datasets.nhamcs_frame import nhamcs_frame
 from bko.datasets.nhanes import NHANES_NAME, load_nhanes
 from bko.datasets.nhanes_frame import nhanes_frame
+from bko.datasets.physionet2012 import PHYSIONET2012_NAME, load_physionet2012
+from bko.datasets.physionet2012_frame import physionet2012_frame
 from bko.datasets.sources import (
     ACS_MA_2024,
     HPO,
     NHAMCS_ED_2022,
     NHANES,
     OCCO,
+    PHYSIONET2012,
     SUPPORT2,
     Agreement,
     Source,
@@ -40,6 +43,7 @@ from bko.datasets.support2_frame import support2_frame
 from bko.ontology.acs_rows import ACS_FIELD_ROWS
 from bko.ontology.nhamcs_rows import NHAMCS_FIELD_ROWS
 from bko.ontology.nhanes_rows import NHANES_FIELD_ROWS
+from bko.ontology.physionet2012_rows import PHYSIONET2012_FIELD_ROWS
 from bko.ontology.schema import FieldMapping
 from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS
 
@@ -141,6 +145,13 @@ CATALOG: Final[Mapping[str, Catalogued]] = MappingProxyType(
             load=load_nhamcs,
             frame=nhamcs_frame,
             rows=NHAMCS_FIELD_ROWS,
+        ),
+        PHYSIONET2012_NAME: Catalogued(
+            name=PHYSIONET2012_NAME,
+            sources=PHYSIONET2012,
+            load=load_physionet2012,
+            frame=physionet2012_frame,
+            rows=PHYSIONET2012_FIELD_ROWS,
         ),
     }
 )

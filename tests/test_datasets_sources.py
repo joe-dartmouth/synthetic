@@ -42,6 +42,8 @@ def test_the_scan_finds_every_pin() -> None:
         "nhanes-hdl-l",
         "nhanes-ghb-l",
         "nhamcs-ed-2022",
+        *(f"physionet2012-{name}" for name in ("set-a", "set-b", "set-c")),
+        *(f"physionet2012-outcomes-{name}" for name in ("a", "b", "c")),
     }
 
 

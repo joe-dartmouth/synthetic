@@ -41,6 +41,7 @@ from bko.ontology.icd9_codes import ICD9_CODES
 from bko.ontology.icd10cm_codes import ICD10CM_CODES
 from bko.ontology.nhamcs_rows import FLAG_ROWS as NHAMCS_FLAG_ROWS
 from bko.ontology.nhanes_rows import NHANES_FIELD_ROWS
+from bko.ontology.physionet2012_rows import PHYSIONET2012_FIELD_ROWS
 from bko.ontology.schema import (
     AtLeast,
     CheckedRow,
@@ -363,13 +364,15 @@ CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (
     *NHANES_FIELD_ROWS,
     *NHAMCS_FLAG_ROWS,
     *ICD10CM_CODES,
+    *PHYSIONET2012_FIELD_ROWS,
 )
 """Every row that names a concept, in table order: the Diabetes 130 rows of `bko.ontology.icd9`,
 the generated code rows of `bko.ontology.icd9_codes`, SUPPORT2's rows
 (`bko.ontology.support2_rows`), ACS's disability rows and generated occupation rows
 (`bko.ontology.acs_rows`), NHANES's rows (`bko.ontology.nhanes_rows`), then NHAMCS's chronic-flag
-rows (`bko.ontology.nhamcs_rows`) and generated ICD-10-CM rows (`bko.ontology.icd10cm_codes`);
-ACS's and NHAMCS's per-code field rows are built from the generated rows."""
+rows (`bko.ontology.nhamcs_rows`) and generated ICD-10-CM rows (`bko.ontology.icd10cm_codes`),
+then PhysioNet 2012's rows (`bko.ontology.physionet2012_rows`); ACS's and NHAMCS's per-code
+field rows are built from the generated rows."""
 
 CHECKED_ROWS: Final[tuple[CheckedRow, ...]] = (*CONCEPT_ROWS, *UNMAPPED_CODES, *UNMAPPED_ICD9)
 """Every concept row, then every excluded code and ICD-9 category: what `bko.ontology.check`

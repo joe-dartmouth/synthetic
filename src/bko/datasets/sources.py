@@ -302,3 +302,51 @@ Size and sha256 were measured from the bytes the host serves; the size equals it
 The file is public-use under the NCHS terms, which bind by use and bar identification and linkage,
 not sending, so it is open data (ADR `research/confirmatory-dataset-selection`, point 4).
 """
+
+
+def _physionet2012(filename: str, size: int, sha256: str) -> Source:
+    """One file of the PhysioNet/CinC Challenge 2012 set as PhysioNet serves it."""
+    return Source(
+        name=f"physionet2012-{filename.split('.', 1)[0].lower()}",
+        url=f"https://physionet.org/files/challenge-2012/1.0.0/{filename}",
+        filename=filename,
+        size=size,
+        sha256=sha256,
+        agreement=None,
+    )
+
+
+PHYSIONET2012_SET_A: Final = _physionet2012(
+    "set-a.zip", 7_938_449, "1433638192fda622e8bb11a4559b8af2dbb1c69f0e1c3b5b606cc12aabd0a4c5"
+)
+PHYSIONET2012_SET_B: Final = _physionet2012(
+    "set-b.zip", 7_958_979, "54094c39631797af554ad4233164e004a699521351bd2f2bed50d6564ebc56dc"
+)
+PHYSIONET2012_SET_C: Final = _physionet2012(
+    "set-c.tar.gz", 6_600_293, "a4a56b95bcee4d50a3874fe298bf2998f2ed0dd98a676579573dc10419329ee1"
+)
+PHYSIONET2012_OUTCOMES_A: Final = _physionet2012(
+    "Outcomes-a.txt", 79_219, "2613ea60ccda29f87571a7d6b09ad130858a8ccd66325bd073365925026883c2"
+)
+PHYSIONET2012_OUTCOMES_B: Final = _physionet2012(
+    "Outcomes-b.txt", 79_149, "1305f29734da374a809483229a99f33a9230aa8d4fa74b1a2d6ad788136423d5"
+)
+PHYSIONET2012_OUTCOMES_C: Final = _physionet2012(
+    "Outcomes-c.txt", 79_191, "0b32dcb7753c0f18f2f5fde498a28618b8879c5e527ce0dae8ad120dd7e205c9"
+)
+PHYSIONET2012: Final = (
+    PHYSIONET2012_SET_A,
+    PHYSIONET2012_SET_B,
+    PHYSIONET2012_SET_C,
+    PHYSIONET2012_OUTCOMES_A,
+    PHYSIONET2012_OUTCOMES_B,
+    PHYSIONET2012_OUTCOMES_C,
+)
+"""The PhysioNet/CinC Challenge 2012 set's six files, which `bko.datasets.physionet2012` reads in
+this order: sets A and B as zips, set C as a gzipped tar, then each set's outcomes file.
+
+The URLs redirect to an HTTPS S3 address. Each size and sha256 was measured from the bytes the
+host serves; each size equals its content-length. The licence is the Open Data Commons
+Attribution License v1.0, open to anyone who conforms to it, so they are open data (ADR
+`research/confirmatory-dataset-selection`, point 4).
+"""

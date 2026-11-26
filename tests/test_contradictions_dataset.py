@@ -91,6 +91,7 @@ def test_every_catalog_name_is_a_dataset() -> None:
         "acs": Dataset.ACS,
         "nhanes": Dataset.NHANES,
         "nhamcs": Dataset.NHAMCS,
+        "physionet2012": Dataset.PHYSIONET2012,
     }
 
 
@@ -103,8 +104,9 @@ def test_the_choices_are_the_census_and_the_catalog() -> None:
         Dataset.ACS,
         Dataset.NHANES,
         Dataset.NHAMCS,
+        Dataset.PHYSIONET2012,
     )
-    assert tuple(CATALOG) == ("support2", "acs", "nhanes", "nhamcs")
+    assert tuple(CATALOG) == ("support2", "acs", "nhanes", "nhamcs", "physionet2012")
 
 
 @pytest.mark.parametrize(

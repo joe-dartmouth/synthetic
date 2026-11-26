@@ -125,9 +125,10 @@ import it (ADR `tooling/agent-config-single-home`).
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `uv run --no-sync python -m bko.gaps uci`, `uv run --no-sync python -m bko.gaps support2`,
   `uv run --no-sync python -m bko.gaps acs`, `uv run --no-sync python -m bko.gaps nhanes`,
-  `uv run --no-sync python -m bko.gaps nhamcs` or `uv run --no-sync python -m bko.gaps synthea`:
-  list the gaps under each BKO gap definition and the count-based gaps of the UCI, SUPPORT2, ACS,
-  NHANES or NHAMCS training split, or of the Synthea
+  `uv run --no-sync python -m bko.gaps nhamcs`, `uv run --no-sync python -m bko.gaps physionet2012`
+  or `uv run --no-sync python -m bko.gaps synthea`: list the gaps under each BKO gap definition and
+  the count-based gaps of the UCI, SUPPORT2, ACS, NHANES, NHAMCS or PhysioNet 2012 training split,
+  or of the Synthea
   population before and after each of E2's ablations
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `uv run --no-sync python -m bko.gaps first-flag`: remove each whole E2 ablation's cases one at a
@@ -136,7 +137,8 @@ import it (ADR `tooling/agent-config-single-home`).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   list where each mapped frame's training split contradicts its ontology, in the five kinds of ADR
   `research/data-contradiction-handling`: UCI's, Synthea's and Diabetes 130's frames, or those
-  `--dataset` names, such as `support2`, `acs`, `nhanes` or `nhamcs`. It makes no API call
+  `--dataset` names, such as `support2`, `acs`, `nhanes`, `nhamcs` or `physionet2012`. It makes no
+  API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#gap-detection)).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null`:
   count those kinds and the three Diabetes coherence rules' breaks in each fill's added rows of a
