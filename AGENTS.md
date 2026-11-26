@@ -107,6 +107,10 @@ import it (ADR `tooling/agent-config-single-home`).
   MONDO release and the cohort's codes, fetching both into `data/` if absent; the scratch file
   keeps a failed run from truncating the module. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
+- `mkdir -p scratchpad && uv run --no-sync python -m bko.ontology codes --system icd10cm > scratchpad/icd10cm_codes.py && mv scratchpad/icd10cm_codes.py src/bko/ontology/icd10cm_codes.py`,
+  then `make format`: regenerate NHAMCS's ICD-10-CM diagnosis rows from the pinned MONDO release
+  and the NHAMCS archive's tokens, fetching both into `data/` if absent. It makes no API call
+  ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `mkdir -p scratchpad && uv run --no-sync python -m bko.ontology occupations --part low > scratchpad/occupation_codes_low.py && mv scratchpad/occupation_codes_low.py src/bko/ontology/occupation_codes_low.py`,
   and the same with `high`: regenerate ACS's occupation rows for SOC major groups below 31, or
   from 31 up, from the pinned OccO release and the ACS archive, fetching both into `data/` if

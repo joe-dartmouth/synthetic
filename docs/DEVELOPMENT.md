@@ -1474,13 +1474,14 @@ inside `.venv`:
   of its concept and of no other live concept, an excluded Synthea code is a `skos:exactMatch` of no
   live MONDO concept (the check reads MONDO only for it), an ICD-9 row's concept carries its
   `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that xref are exactly the row's
-  declared holders, a generated code row of `bko.ontology.icd9_codes` likewise but counting only
-  xrefs qualified `source="MONDO:equivalentTo"`, an excluded ICD-9 category is an xref of no live
+  declared holders, a generated code row of `bko.ontology.icd9_codes` or
+  `bko.ontology.icd10cm_codes` likewise but counting only xrefs qualified `source="MONDO:equivalentTo"`, an excluded ICD-9 category is an xref of no live
   MONDO concept, an occupation row's concept carries exactly its SOC id as its `OCCO:00000008`
   literal, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets
   a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`,
-  `icd9-code`, `excluded-icd9` or `occupation-code`), `subject` (the dataset side, such as
-  `cp in 1|2|3`, `A1Cresult in >7|>8`, `SCTID:<code>`, `ICD9:<code>` or `OCCP:<code>`),
+  `icd9-code`, `icd10cm-code`, `excluded-icd9` or `occupation-code`), `subject` (the dataset
+  side, such as `cp in 1|2|3`, `A1Cresult in >7|>8`, `SCTID:<code>`, `ICD9:<code>`,
+  `ICD10CM:<code>` or `OCCP:<code>`),
   `concept` (empty for an excluded code or category), `label` and `status` (`ok`, or how the
   release disagrees; for an `excluded-code` or `excluded-icd9` row, `ok` means the code still has
   no live holder), one row per checked row, the same bytes on every run over the same releases.
@@ -1535,6 +1536,20 @@ inside `.venv`:
   line. `tests/test_ontology_icd9_codes_pinned.py` regenerates the rows from the pinned release
   and cohort under `--releases` and compares them with the committed ones; run it with the
   release tests after a re-pin.
+- **The generated ICD-10-CM rows**: `bko.ontology.icd10cm_codes` maps the ICD-10-CM id each
+  four-character diagnosis token of the `nhamcs` records reads as to the one MONDO concept that
+  carries its xref under `source="MONDO:equivalentTo"` (ADR
+  [`research/nhamcs-frame`](adr/research/nhamcs-frame.md)). It is written, never edited, through a
+  scratch file as above:
+
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology codes --system icd10cm > scratchpad/icd10cm_codes.py && mv scratchpad/icd10cm_codes.py src/bko/ontology/icd10cm_codes.py
+
+  then `make format`. The command fetches MONDO and the NHAMCS archive into the data root if
+  absent, writes nothing to stdout until the module text is complete, and logs one
+  `codes unmapped system=icd10cm reason=... codes=N` line per reason and a closing
+  `codes system=icd10cm rows=N tokens=N sha256=...` line.
+  `tests/test_ontology_icd10cm_codes_pinned.py` regenerates the rows under `--releases` and
+  compares them with the committed ones.
 - **The generated occupation rows**: `bko.ontology.occupation_codes_low` and
   `bko.ontology.occupation_codes_high` map each `OCCP` code of the ACS cohort to the Occupation
   Ontology class its `SOCP` code reaches by SOC level, split at SOC major group 31 so each module

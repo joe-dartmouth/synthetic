@@ -38,6 +38,7 @@ from bko.datasets.uci import RANGES  # ruff: ignore[unused-import]  (re-exported
 from bko.ontology.acs_rows import DISABILITY_ROWS, OCCUPATION_CODES
 from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS, UNMAPPED_ICD9
 from bko.ontology.icd9_codes import ICD9_CODES
+from bko.ontology.icd10cm_codes import ICD10CM_CODES
 from bko.ontology.nhanes_rows import NHANES_FIELD_ROWS
 from bko.ontology.schema import (
     AtLeast,
@@ -359,12 +360,14 @@ CONCEPT_ROWS: Final[tuple[ConceptRow, ...]] = (
     *DISABILITY_ROWS,
     *OCCUPATION_CODES,
     *NHANES_FIELD_ROWS,
+    *ICD10CM_CODES,
 )
 """Every row that names a concept, in table order: the Diabetes 130 rows of `bko.ontology.icd9`,
 the generated code rows of `bko.ontology.icd9_codes`, SUPPORT2's rows
 (`bko.ontology.support2_rows`), ACS's disability rows and generated occupation rows
-(`bko.ontology.acs_rows`), then NHANES's rows (`bko.ontology.nhanes_rows`); ACS's per-code field
-rows are built from the occupation rows."""
+(`bko.ontology.acs_rows`), NHANES's rows (`bko.ontology.nhanes_rows`), then NHAMCS's generated
+ICD-10-CM rows (`bko.ontology.icd10cm_codes`); ACS's per-code field rows are built from the
+occupation rows."""
 
 CHECKED_ROWS: Final[tuple[CheckedRow, ...]] = (*CONCEPT_ROWS, *UNMAPPED_CODES, *UNMAPPED_ICD9)
 """Every concept row, then every excluded code and ICD-9 category: what `bko.ontology.check`

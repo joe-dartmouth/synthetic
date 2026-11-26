@@ -16,11 +16,15 @@ import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from bko.datasets.diagnoses import UNKNOWN, canonical, code_number
 from bko.ontology.icd9 import EXACT, ICD9_MAPPINGS, Icd9Code, Icd9Mapping
 from bko.ontology.terms import Ontology, ancestors
+
+
+if TYPE_CHECKING:
+    from bko.ontology.icd10 import Icd10Code
 
 
 REASONS: Final = (
@@ -104,7 +108,7 @@ def generate(
     codes = sorted(
         {canonical(token) for token in tokens if code_number(token) != UNKNOWN}, key=code_number
     )
-    exact, weaker, dead = _holders(mondo)
+    exact, weaker, dead = _holders(mondo, _XREF)
     chosen = {row.xref: row.concept for row in curated}
     rows: list[Icd9Code] = []
     unmapped = dict.fromkeys(REASONS, 0)
@@ -140,11 +144,23 @@ def render(rows: Sequence[Icd9Code]) -> str:
         ValueError: If a row's code, concept or label holds a control character, which would
             break its line, naming the row's code.
     """
+    return render_rows(rows, header=_HEADER, footer=_FOOTER, system="ICD-9")
+
+
+def render_rows(
+    rows: Sequence[Icd9Code | Icd10Code], *, header: str, footer: str, system: str
+) -> str:
+    """A generated code module: `header`, `_ROWS` and `_ALSO` holding `rows`, then `footer`.
+
+    Raises:
+        ValueError: If a row's code, concept or label holds a control character, naming the row's
+            code under `system`.
+    """
     for row in rows:
         if any(_controlled(text) for text in (row.code, row.concept, row.label)):
-            msg = f"ICD-9 {row.code!r}: a control character in {row!r} would break its line"
+            msg = f"{system} {row.code!r}: a control character in {row!r} would break its line"
             raise ValueError(msg)
-    lines = [_HEADER, "# fmt: off\n", "_ROWS: Final[tuple[tuple[str, str, str], ...]] = (\n"]
+    lines = [header, "# fmt: off\n", "_ROWS: Final[tuple[tuple[str, str, str], ...]] = (\n"]
     lines.extend(
         f"    ({_quoted(row.code)}, {_quoted(row.concept)}, {_quoted(row.label)}),\n"
         for row in rows
@@ -156,14 +172,18 @@ def render(rows: Sequence[Icd9Code]) -> str:
         others = [_quoted(curie) for curie in sorted(row.holders - {row.concept})]
         tail = "," if len(others) == 1 else ""
         lines.append(f"    {_quoted(row.code)}: ({', '.join(others)}{tail}),\n")
-    lines.extend(("}\n", _FOOTER))
+    lines.extend(("}\n", footer))
     return "".join(lines)
 
 
 def _holders(
-    mondo: Ontology,
+    mondo: Ontology, prefix: str = _XREF
 ) -> tuple[dict[str, tuple[str, ...]], dict[str, bool], frozenset[str]]:
     """Each code's live `EXACT` holders, and whether its other live xrefs include `RELATED`.
+
+    Args:
+        mondo: The MONDO release.
+        prefix: The cross-reference prefix whose codes are read, `ICD9:` or `ICD10CM:`.
 
     Returns:
         Each code's live `EXACT` holders in term order; each code some other live xref carries,
@@ -174,9 +194,9 @@ def _holders(
     dead: set[str] = set()
     for curie, term in mondo.terms.items():
         for xref in term.xrefs:
-            if not xref.startswith(_XREF):
+            if not xref.startswith(prefix):
                 continue
-            code = xref.removeprefix(_XREF)
+            code = xref.removeprefix(prefix)
             sources = term.xref_sources(xref)
             if term.obsolete:
                 dead.add(code)
