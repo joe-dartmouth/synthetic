@@ -12,7 +12,7 @@ import logging
 import re
 from fractions import Fraction
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 import pandas as pd
 import pytest
@@ -122,6 +122,17 @@ def test_a_rule_beside_a_flagged_cell_is_refused():
         )
     named = dataclasses.replace(TOY_RUN, flagged_cell=FULL)
     assert named.quota_rule is QuotaRule.FILL_TO
+
+
+def test_a_quota_rule_given_by_value_reads_as_the_rule():
+    ruled = dataclasses.replace(TOY_RUN, quota_rule=cast(QuotaRule, "coverage"))
+    assert ruled.quota_rule is QuotaRule.COVERAGE
+    assert ruled == dataclasses.replace(TOY_RUN, quota_rule=QuotaRule.COVERAGE)
+    with pytest.raises(ValueError, match="no-such-rule"):
+        dataclasses.replace(TOY_RUN, quota_rule=cast(QuotaRule, "no-such-rule"))
+    message = "cannot stand beside a flagged cell or a synthetic share"
+    with pytest.raises(ValueError, match=message):
+        dataclasses.replace(TOY_RUN, flagged_cell=FULL, quota_rule=cast(QuotaRule, "coverage"))
 
 
 def _quota(experiment: Experiment) -> dict[Stratum, int]:
