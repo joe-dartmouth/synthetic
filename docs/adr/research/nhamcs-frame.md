@@ -194,6 +194,31 @@ holders not nested 0, and not ICD-10-CM 4, the `ZZZ` tokens. The same release ho
 `ICD10CM:` ids under `MONDO:equivalentTo` of the shape a token reads as. The flag rows map 18 of
 the 22 chronic items.
 
+**The readings, at `90ffff7`, after the count.** `uv run --no-sync python -m bko.ontology check`
+exited 0, its log ending `checked 810 rows: 0 disagree`. The gap listing is run `d1-8`, `uv run
+--no-sync python -m bko.gaps nhamcs` into `runs/d1-8/gaps-nhamcs.csv` and
+`runs/d1-8/gaps-nhamcs.log`, exit 0, closing `gaps rows=11476
+sha256=3a34ca90f0f3767e685aea135bd1dbadc05589604f19d6b4abe980cf479a0f64`: per-subgroup 9,864
+rows, population-level 62 gaps in each of the 16 cells, frequency-aware 620 rows, and no cell
+below the count threshold of 20. Its csv sha256 is
+`3a34ca90f0f3767e685aea135bd1dbadc05589604f19d6b4abe980cf479a0f64` and its log sha256
+`35973a0ed50c86e5e5ae1e97365bee82abbf50d20e3fd239a499798249fa004d`; its `data` line gives the
+16,025 records' digest `ac84a442710ad8a09a90ec0c1c6f29e12630e78ab99714ddec50e50b92ce44e0` and its
+`split` line the test fingerprint
+`83ec4ee9084ee19540a5d544a65c910bc3e1b8684ddf7afbd967c3b03553a86b`. The census is run `d2-8`, `uv
+run --no-sync python -m bko.evaluate contradictions --dataset nhamcs` into
+`runs/d2-8/contradictions.csv` and `runs/d2-8/contradictions.log`, exit 0, over 16 of 16 cells, 908
+field rows and 29 `is_a` pairs among the mapped concepts: `census kind=narrow-without-broad` 126,
+`child-share-above-parent` 91, `empty-cell` 0, `all-show` 0 and `code-overlap` 0. Most of the
+narrow-without-broad findings are the chronic checklist's own structure: a visit ticking type 2
+diabetes, 921 training records, need not also tick the type-unspecified box, which maps diabetes
+mellitus; end stage renal failure, 146 records, shows without chronic kidney disease in 58. Its
+csv sha256 is `150d189b8f8e6bf16fc88f76722928fb86a6677d6927c99e00e1347a23037b17` and its log
+sha256 `ce41e63922327a7e6c1889b817a9a69f72b4886d74504cf064d5f5b90a0e4984`. Both read the pinned
+archive, MONDO `releases/2026-10-06` and HPO `hp/releases/2026-09-01`, and each log's `versions`
+line reads `dirty=false`. These are commits of pull request #139, kept at `refs/pull/139/head`
+after its squash merge; [`EVIDENCE.md`](../../EVIDENCE.md) keeps the runs' rows.
+
 **Gained**: a health frame whose concepts come from coded diagnoses and a chronic-condition
 checklist, reaching MONDO through curator-stated equivalence. **Accepted**: diagnoses MONDO links
 only weakly, and the four-character truncation of longer codes, leave tokens unmapped; they stay
@@ -216,8 +241,20 @@ free fields. Age 94 means 94 and over.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/catalog.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/ontology/nhamcs_rows.py`
+- Pinned by: `tests/test_ontology_icd10cm.py::test_a_four_character_token_reads_as_a_dotted_code`,
+  `tests/test_ontology_icd10cm.py::test_a_padded_token_reads_as_its_category`,
+  `tests/test_ontology_icd10cm.py::test_only_exact_cross_references_map`,
+  `tests/test_ontology_icd10cm.py::test_the_token_number_is_reversible_and_distinct`,
+  `tests/test_datasets_nhamcs.py::test_the_positions_neither_overlap_nor_run_past_the_record`,
+  `tests/test_datasets_nhamcs.py::test_admithos_is_the_label`,
+  `tests/test_datasets_nhamcs.py::test_the_disposition_and_stay_fields_never_enter`,
+  `tests/test_datasets_nhamcs.py::test_the_frame_holds_exactly_the_named_fields`,
+  `tests/test_datasets_nhamcs.py::test_a_visit_with_the_chronic_item_blank_shows_no_flag_concept`,
+  `tests/test_evaluate_nhamcs.py::test_each_diagnosis_columns_rows_partition_its_mapped_codes`,
+  `tests/test_evaluate_nhamcs.py::test_the_flag_rows_map_these_items_on_code_1`,
+  `tests/test_ontology_icd10cm_codes_pinned.py` and `tests/test_datasets_nhamcs_pinned.py` (with
+  `--releases`)
 
 ## Reversal Conditions
 
