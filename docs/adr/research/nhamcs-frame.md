@@ -170,6 +170,30 @@ words, and the broader of nested conditions, so a row never asserts more than th
 
 ## Consequences
 
+**The order, by commit.** The rows are at `a1ce476` (Add the NHAMCS frame, field rows and catalog
+entry), the generated ICD-10-CM rows at `a6a08e1` before it. The training split's count is
+recorded in the commit after `a1ce476`, before any gap listing or census ran:
+`CATALOG["nhamcs"].read` on the data root, then `split(records, seed=0, edges=frame.edges).train`,
+as this command does:
+
+    uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, open_https; from bko.datasets.frames import digest; from bko.datasets.split import split; from bko.ontology.catalog import CATALOG; records, frame = CATALOG["nhamcs"].read(default_data_dir(), open_url=open_https); train = split(records, seed=0, edges=frame.edges).train; print(len(records), int(records["target"].sum()), len(train), int(train["target"].sum()), round(float(train["target"].mean()), 4), digest(train))' </dev/null
+
+Run at `a1ce476`, the loader's `cohort` line reads `rows=16025 records=16025 admitted=2121
+chronic_blank=259`: every one of the 16,025 visits is a record, 2,121 of them admitted, and 259
+with the chronic item blank. The training split holds 12,823 records, 1,698 of them admitted, a
+rate of 0.1324, digest `faecee0ac1a59afaeceaf4f1ce2e42bd9e06479f36f05935d3ea6f0ba2eb939b`. The
+split is above the 5,000 records condition 5 of ADR `research/confirmatory-dataset-selection`
+asks.
+
+**The diagnosis rows.** `python -m bko.ontology codes --system icd10cm` at `a6a08e1`'s code, over
+MONDO `releases/2026-10-06`, read 2,114 distinct tokens other than blank and mapped 178, its log
+closing `codes system=icd10cm rows=178 tokens=2114
+sha256=0ea05ce957168cbfa512d854090bf80ab835666eefdb375fff935d5cc7b66fac`. The unmapped tokens by
+reason: no live xref 1,920, obsolete holder only 0, relatedTo only 1, unreviewed source only 11,
+holders not nested 0, and not ICD-10-CM 4, the `ZZZ` tokens. The same release holds 1,520 distinct
+`ICD10CM:` ids under `MONDO:equivalentTo` of the shape a token reads as. The flag rows map 18 of
+the 22 chronic items.
+
 **Gained**: a health frame whose concepts come from coded diagnoses and a chronic-condition
 checklist, reaching MONDO through curator-stated equivalence. **Accepted**: diagnoses MONDO links
 only weakly, and the four-character truncation of longer codes, leave tokens unmapped; they stay

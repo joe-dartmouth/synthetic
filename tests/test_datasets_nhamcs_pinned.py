@@ -15,9 +15,10 @@ import pandas as pd
 import pytest
 
 from bko.datasets.fetch import default_data_dir, read_verified
-from bko.datasets.frames import FrameSpec
+from bko.datasets.frames import FrameSpec, digest
 from bko.datasets.nhamcs import MEMBER
 from bko.datasets.sources import NHAMCS_ED_2022
+from bko.datasets.split import split
 from bko.ontology.catalog import CATALOG
 from tests._nhamcs_fixtures import REAL_LINE
 
@@ -49,6 +50,11 @@ def test_the_fixtures_real_record_is_the_files_first() -> None:
     assert first.decode("ascii") == REAL_LINE
 
 
-def test_every_visit_is_a_record() -> None:
-    records, _ = _loaded()
+def test_the_records_and_the_training_splits_admission_rate() -> None:
+    records, frame = _loaded()
     assert len(records) == 16025
+    assert int(records["target"].sum()) == 2121
+    train = split(records, seed=0, edges=frame.edges).train
+    assert (len(train), int(train["target"].sum())) == (12823, 1698)
+    assert f"{train['target'].mean():.4f}" == "0.1324"
+    assert digest(train) == "faecee0ac1a59afaeceaf4f1ce2e42bd9e06479f36f05935d3ea6f0ba2eb939b"
