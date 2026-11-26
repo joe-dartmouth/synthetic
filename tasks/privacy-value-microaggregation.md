@@ -93,7 +93,8 @@ value no single record holds when the donors' values differ.
   `uv run --no-sync pytest tests/test_generate_capped_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null`
   passes.
 - `RUNS` holds `e20-thin` and `e20-empty`: `tests/test_evaluate_micro_runs.py` and
-  `tests/test_named_runs_slices.py` pass.
+  `tests/test_named_runs_slices.py` pass, its `KEYS` gaining the new names immediately before
+  `"p1-id"` and its slice parametrize list gaining `e20`.
 - One real slice fills for free: `python -m bko.evaluate score e20-thina` into `scratchpad/`
   exits 0 with `micro-field` lines for the eight count fields and no `refused` line.
 - `make check` passes.

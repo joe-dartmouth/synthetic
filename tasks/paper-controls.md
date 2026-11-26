@@ -16,7 +16,8 @@ The set's graph is [direct-index.md](direct-index.md).
 
 ## Why this unit exists
 
-E9, E12, E13 and E15 supply related controls. A change in donor selection or field dependence can also change predictive utility.
+E9, E12, E13 and E15 supply related controls. A change in donor selection or field dependence can
+also change predictive utility.
 
 ## Scope
 
@@ -30,10 +31,13 @@ E9, E12, E13 and E15 supply related controls. A change in donor selection or fie
   E9, E12, E13, E15 and E19; columns `cell`, `label-group`, `other-label`, `mapping`,
   `hierarchy`, `codebook`, `age-range`) and an audit table (presence weights, donor pool, field
   grouping and fitted model per arm), which records the weights that already come from training
-  counts. The ADR states that at full removal `bko-direct` and `bko-nomap` draw one distribution
-  on E6's frame (`src/bko/gaps/shares.py:49-50`, `src/bko/generate/donors.py:53-56`), and that
-  `bko-direct` pools at `GROUP_WEIGHT` 20 only on the 12 mapped fields while `age` and the 19
-  free fields are copied own-first (`src/bko/generate/direct.py:365-388`).
+  counts. The unit creates `tests/_arm_inputs.py`, whose `ARM_INPUTS` maps each arm to the
+  frozenset of the seven declared-input names it reads, and `tests/test_arm_inputs.py`. The ADR
+  points at ADR [`research/no-mapping-ablation`](../docs/adr/research/no-mapping-ablation.md),
+  Consequences, for why `bko-direct` and `bko-nomap` draw one distribution at full removal on
+  E6's frame, and states that `bko-direct` pools at `GROUP_WEIGHT` 20 only on the 12 mapped
+  fields while `age` and the 19 free fields are copied own-first
+  (`src/bko/generate/direct.py:365-388`).
 - Three direct arms, each `bko-nomap`'s record with a set of fields drawn by the pooled rule (a
   unit's donor is a uniform cell record with probability n/(n+`GROUP_WEIGHT`), else a uniform
   record of the whole label group), each pooled field attributed `donor`:
@@ -49,17 +53,21 @@ E9, E12, E13 and E15 supply related controls. A change in donor selection or fie
   - `row-resample`: a whole row from one pooled donor of the cell's band;
   - `marginals`: each column from its own pooled donor of the cell's band;
   - `eb-marginals`: `marginals` at one empirical-Bayes weight `kappa` for all columns, the
-    Dirichlet-multinomial maximum over a fixed log-spaced grid, logged as `eb holdout=%d kappa=%s`;
+    Dirichlet-multinomial maximum over a fixed log-spaced grid, logged as
+    `eb holdout=%d fill=%s kappa=%s`;
   - `hb-marginals`: a hierarchical partial-pooling competitor, per column a baseline-category
     multinomial logit with main effects, every two-way interaction and a cell effect, its scales
     chosen on a fixed grid by Laplace evidence, logged per column as
-    `hb holdout=%d cell=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`. Its
+    `hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`, `key`
+    naming the stratum as the direct arms' lines do. Its
     specification is fixed before any E19 holdout is scored; a change is a new arm name.
 - `bko-kb`, `DrawSpec(presence=Presence.LOGIC, donors=False)`: the ontology-only draw. It takes
   no training frame: presence per logic component is uniform over what K allows, coded fields
   uniform over the codebook tuples showing the drawn pattern, and `age` uniform inside its band
   and the training split's age range. A frame with a free field or a numeric clause is refused
-  before any arm fits. It is registered as a floor expected below `bko-logic`.
+  before any arm fits. It is registered only in `e19-supported-thin` and `e19-supported-empty`,
+  since E6's frame has free fields, which it refuses; `bko-logic` sits beside it there, and
+  `bko-kb` is a floor expected below it.
 - The fields K cannot generate marked by a projected dataset, `diabetes-supported`
   (`Dataset.DIABETES_SUPPORTED`): `diabetes` on `age`, `sex`, the label and every field of a
   `Codes` clause of a non-label row, 15 of E6's 34 columns, held in `VARIANTS` over its base, so
@@ -73,7 +81,8 @@ E9, E12, E13 and E15 supply related controls. A change in donor selection or fie
   intervals both lie above 0; `equivalent` uses the margin of the
   [control reading rule](../docs/RESEARCH.md#control-reading-rule). Every other E19 contrast is
   secondary and descriptive, a secondary claim Holm-adjusted within its fraction. No K contrast
-  is read at full removal, where `bko-direct` and `bko-nomap` draw one distribution.
+  is read at full removal, where `bko-direct` and `bko-nomap` draw one distribution (ADR
+  [`research/no-mapping-ablation`](../docs/adr/research/no-mapping-ablation.md), Consequences).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry E19's Configuration with status
   `not yet run`; `docs/RESEARCH.md` section 11's ablation list, register row and matched-control
   reading; the cited works registered in [`docs/literature.md`](../docs/literature.md).
@@ -97,7 +106,9 @@ E9, E12, E13 and E15 supply related controls. A change in donor selection or fie
 ## Acceptance
 
 - Register a development run with an information-source table: `RUNS` holds E19's four families
-  (`tests/test_evaluate_control_runs.py`, `tests/test_named_runs_slices.py`), and the ADR's
+  (`tests/test_evaluate_control_runs.py`, and `tests/test_named_runs_slices.py`, whose `KEYS`
+  gains the new names immediately before `"p1-id"` and whose slice parametrize list gains `e19`
+  and `e19-supported`), and the ADR's
   declared-inputs table mirrors `tests/_arm_inputs.py`
   (`tests/test_arm_inputs.py::test_the_adr_table_mirrors_arm_inputs`).
 - Include an ontology-only draw using no empirical donors or fitted marginals:

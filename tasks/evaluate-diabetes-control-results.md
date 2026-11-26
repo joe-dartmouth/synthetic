@@ -34,12 +34,11 @@ The controls decide what the study can claim for `bko-direct`, and every control
 
 **Findings from planning.**
 
-- At full removal `bko-direct` and `bko-nomap` draw one distribution on E6's frame: a cell of no
-  record takes the label group's share for every concept (`src/bko/gaps/shares.py:49-50`), and
-  every unit falls back to the label group (`src/bko/generate/donors.py:53-56`); on holdout 0
-  every mapped field's share was within 0.004 of the label group's. E12's `e12-empty` `bko-nomap`
-  contrast is therefore expected `equivalent`, and ADR
-  [`research/no-mapping-ablation`](../docs/adr/research/no-mapping-ablation.md) states why.
+- At full removal `bko-direct` and `bko-nomap` draw one distribution on E6's frame (ADR
+  [`research/no-mapping-ablation`](../docs/adr/research/no-mapping-ablation.md), Consequences),
+  so E12's `e12-empty` `bko-nomap` contrast is expected `equivalent`. On holdout 0 the realized
+  added rows' share of each mapped field sat within 0.004 of the label group's, sampling noise
+  around that exact equality.
 - The reading names the two models it reads: the regression and the boosting model.
 - Unit [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) reads this unit's E12
   runs beside its sweep as the fixed-fill point, with `compare --beside`.

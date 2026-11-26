@@ -121,7 +121,8 @@ relations, and it links to no standard ontology.
   `uv run --no-sync pytest tests/test_evaluate_auto_draws_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null`
   passes.
 - `RUNS` holds E22: `tests/test_evaluate_auto_runs.py` and `tests/test_named_runs_slices.py`
-  pass.
+  pass, its `KEYS` gaining the new names immediately before `"p1-id"` and its slice parametrize
+  list gaining each of the eight families.
 - One real slice scores for free: `python -m bko.evaluate score e22-auto-lexical-thina` into
   `scratchpad/` exits 0 with a `mapping dataset=diabetes-auto-lexical` line and no `refused`
   line.
