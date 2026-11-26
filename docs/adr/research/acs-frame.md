@@ -150,6 +150,22 @@ and NIST's dictionary calls `DPHY` "Ambulatory (walking) difficulty".
 
 ## Consequences
 
+**The order, by commit.** The rows are at `107c2e5` (Add the ACS loader, frame, field rows and
+catalog entry). The training split's count is recorded in the commit after it, before any gap
+listing or census ran: `CATALOG["acs"].read` on the data root, then `split(records, seed=0,
+edges=frame.edges).train`. The file holds 74,617 rows; Folktables' filters keep 63,191 above age
+16, 58,029 with income above $100, 42,543 with usual hours above 0, and all 42,543 with a person
+weight of at least 1. The cohort holds 42,543 records, 24,896 of them with income above $50,000;
+the training split holds 34,035 records, 19,918 of them above $50,000, a rate of 0.5852, digest
+`b5d8bd0639ab25c6e3ca45e8ec810f9cf7c4a3f418de7af9f1935d8beee862ba`. The split is above the 5,000
+records condition 5 asks. Each of the 517 `OCCP` codes among the kept rows carries one `SOCP`
+code, and no used column is blank among them. These are commits of pull request #136, kept at
+`refs/pull/136/head` after its squash merge.
+
+**The occupation rows.** 516 of the 517 `OCCP` codes map; `9830`, `SOCP` `559830`
+("MIL-Military, Rank Not Specified"), reaches no class and is the one `no class` code, with none
+for `several classes`. 221 rows sit in the low part and 295 in the high one.
+
 **Gained**: a non-health frame whose occupation code reaches a five-level hierarchy, from SOC
 major group to O*NET occupation, through rows the check keeps against the release. **Accepted**:
 no surveyed column beyond occupation is mapped; the income label is unadjusted.
