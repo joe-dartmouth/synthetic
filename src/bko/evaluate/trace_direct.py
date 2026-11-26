@@ -33,6 +33,7 @@ from bko.evaluate.run_folder import fields
 from bko.evaluate.trace_lines import Fill, Trace, drawn_trace, kept_lines, log_arm, ordered
 from bko.generate.direct import Draw, logic_components, plan_hierarchy
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.knowledge_draw import kb_check
 from bko.generate.presence import Presence
 from bko.ontology.terms import Ontology
 
@@ -119,7 +120,9 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
     Raises:
         IdentityError: If the `arm` line's params are not a JSON object, or name another value
             of a spec field, a value of another type included (JSON `0` is not `false`).
-        EvaluationError: If a logic-only arm's components cannot be enumerated.
+        EvaluationError: If a logic-only arm's components cannot be enumerated, or a
+            knowledge-only arm's frame holds a value K cannot give
+            (`bko.generate.knowledge_draw.kb_check`).
     """
     spec = DIRECT_ARMS[fill.name]
     params = fields(fill.line)["params"]
@@ -140,6 +143,8 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
             raise IdentityError(msg)
     if spec.presence is Presence.LOGIC:
         try:
+            if not spec.donors:
+                kb_check(data.field_rows, data.frame)
             logic_components(data.field_rows, ontologies, data.frame)
         except ValueError as exc:
             msg = f"{fill.name} cannot draw dataset {data.name} on frame {data.frame.name}: {exc}"

@@ -171,7 +171,7 @@ def test_a_perturbation_arm_outside_the_direct_arms_logs_its_spec_once_per_fill(
     assert logged == [
         (
             'attribution spec={"presence":"shares","mapped":true,"min_donors":1,"reuse_cap":null,'
-            '"tree":false,"hierarchy":null,"closed":false,"pool":"mapped"}'
+            '"tree":false,"hierarchy":null,"closed":false,"pool":"mapped","donors":true}'
             f" holdout=0 arm={PERTURBED_ARM}"
         )
     ]

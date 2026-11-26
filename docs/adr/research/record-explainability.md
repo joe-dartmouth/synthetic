@@ -44,6 +44,10 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      fields copied by the pooled rule (ADR `research/matched-knowledge-controls`); their `concepts`
      and `closed` are empty, each copied column names its source training record id, and a pooled
      field read from the label group's branch of the rule is a fallback field.
+   * `bko-kb`: as `bko-logic`, its concepts the closed draw, with no donor (ADR
+     `research/matched-knowledge-controls`): each mapping group's codes are drawn uniformly over
+     the codebook tuples showing the drawn pattern and `age` uniformly inside the cell's band and
+     the training split's age range, so its `sources` and fallback fields are empty.
    * `bko-capped`: as `bko-direct`, drawn under a donor floor and a reuse cap (ADR
      `research/sampler-donor-limits`); a field read from outside the cell below the floor is a
      fallback field.
@@ -98,8 +102,9 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * Direct: a field a mapping row's `when` clause reads (the label aside), under an arm whose
      `DrawSpec` reads the mapping table at a presence other than `POOLED`, is a knowledge fact;
      else a field with a source id is a donor, a pooled field among them, since the mapping chose
-     only which fields pool and the value is a donor's; else (`sex`, the label) it is method and
-     seed.
+     only which fields pool and the value is a donor's; else (`sex`, the label, and `bko-kb`'s
+     `age`, drawn from its band and range by the seed) it is method and seed. A `bko-kb` mapped
+     field is a knowledge fact, its value drawn from the mapping table and the codebook alone.
    * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
      rewrite arm, method and seed only under PRAM, and a training donor id under `bko-coherent`,
      whose leaf donor it names, a mapped field among them, since its value is no longer the drawn

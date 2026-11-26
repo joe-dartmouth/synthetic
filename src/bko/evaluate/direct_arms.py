@@ -67,6 +67,12 @@ once per fill: the arm `DIRECT_ARM` is read against for the mapping's choice of 
 POOL_ALL_ARM: Final = "bko-pool-all"
 """As `DONOR_ARM`, the pooled rule on every feature but `age` and `sex`."""
 
+KB_ARM: Final = "bko-kb"
+"""The free arm that draws from K alone, copying no training value: presence as `LOGIC_ARM` draws
+it, each mapping group's codes uniform over the codebook tuples showing the drawn pattern, and
+`age` inside the training split's range (`bko.generate.knowledge_draw`; ADR
+`research/matched-knowledge-controls`)."""
+
 DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
     {
         DIRECT_ARM: DEFAULT_SPEC,
@@ -82,6 +88,7 @@ DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
         DONOR_ARM: DrawSpec(presence=Presence.POOLED),
         POOL_RANDOM_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.RANDOM),
         POOL_ALL_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.ALL),
+        KB_ARM: DrawSpec(presence=Presence.LOGIC, donors=False),
     }
 )
 """Every direct arm, with the spec its draw reads (`bko.generate.draw_spec.DrawSpec`)."""

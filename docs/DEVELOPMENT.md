@@ -424,8 +424,10 @@ split's age range (ADR
 [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). The runs
 `e19-supported-thin` and `e19-supported-empty` hold it on `diabetes-supported` (ADR
 [`research/dataset-variants`](adr/research/dataset-variants.md)); its `arm` line's params add
-`"presence": "logic"` and `"donors": false`. A frame with a free field or a numeric clause exits 2
-before any arm fits.
+`"presence": "logic"` and `"donors": false`, its `direct` lines end in
+`records=0 group_records=0 donors=false presence=logic`, it writes no `fallback` line, and its
+`direct arm=` line ends in `fallback_draws=0`. A frame with a free field, or a mapping clause on a
+numeric field or on `sex`, exits 2 before any arm fits.
 
 The retained-data methods `row-resample`, `marginals` and `eb-marginals` fill a cell by the pooled
 rule inside the cell's band: a whole row from one donor, each column from its own donor, or each
@@ -1471,12 +1473,13 @@ named run, `<h>` the holdout and `<arm>` the arm:
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`) differ from its arm's, and
+  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`, `pool`, `donors`) differ
+  from its arm's, and
   a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt is not one
   line per draw, or whose unperturbed columns differ from the re-draw, or a `bko-coherent` fill
   whose change re-run does not give its lines' records. A `bko-logic` trace over an ontology whose logic
-  components cannot be enumerated, and a perturbation trace over a frame whose unmapped fields
-  are not its pinned ones, exit 2.
+  components cannot be enumerated, a `bko-kb` trace over a frame `bko-kb` refuses, and a
+  perturbation trace over a frame whose unmapped fields are not its pinned ones, exit 2.
 
 **`attribution`** reads `trace.jsonl` files and counts, per fill, what each record field can be
 attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),

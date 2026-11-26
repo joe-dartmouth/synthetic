@@ -1,0 +1,253 @@
+"""The knowledge-only draw of `bko-kb`: records from K alone, reading no training record.
+
+ADR `research/matched-knowledge-controls`, Decision 9, fixes the draw each test reads.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import inspect
+import itertools
+from collections.abc import Mapping, Sequence
+from typing import Final
+
+import pandas as pd
+import pytest
+
+from bko.datasets.frames import FrameSpec, RangeConstraint
+from bko.gaps.observe import Cell
+from bko.generate.direct import Draw, sample
+from bko.generate.draw_spec import DrawSpec
+from bko.generate.knowledge_draw import kb_sample
+from bko.generate.presence import Presence
+from bko.ontology.schema import AtLeast, Codes, FieldMapping
+from bko.ontology.terms import Ontology, Term
+
+
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
+KB: Final = DrawSpec(presence=Presence.LOGIC, donors=False)
+
+FRAME: Final = FrameSpec(
+    name="kb-toy",
+    features=("age", "sex", "a", "b", "c"),
+    numeric=("age",),
+    fractional=(),
+    fraction_digits=0,
+    categorical=("sex", "a", "b", "c"),
+    codebook={
+        "sex": {0: "female", 1: "male"},
+        "a": {0: "none", 1: "mild", 2: "severe"},
+        "b": {0: "no", 1: "yes"},
+        "c": {0: "zero", 1: "one", 2: "two", 3: "three"},
+    },
+    descriptions={
+        "age": "age",
+        "sex": "sex",
+        "a": "a grade",
+        "b": "b flag",
+        "c": "c level",
+        "target": "the condition",
+    },
+    ranges=(RangeConstraint("age", "a", 20, 90, "toy", "toy"),),
+    label_codes=(0, 1),
+    label_meanings={0: "absent", 1: "present"},
+    edges=(40, 60),
+    study="toy",
+    cohort="toy patient",
+)
+"""A frame every field of which a `Codes` clause reads, but `age` and `sex`."""
+
+
+def _row(concept: str, *when: Codes | AtLeast) -> FieldMapping:
+    return FieldMapping(when=when, concept=concept, label=concept, source="toy", limits="toy")
+
+
+BROAD: Final = _row("MONDO:0000002", Codes("a", frozenset({1, 2})))
+NARROW: Final = _row("MONDO:0000003", Codes("a", frozenset({2})))
+JOINT: Final = _row("HP:0000010", Codes("b", frozenset({1})), Codes("c", frozenset({2, 3})))
+ROWS: Final = (BROAD, NARROW, JOINT)
+"""Two logic components: the `a` pair, `NARROW` is_a `BROAD`, and the `b`-`c` group alone."""
+
+
+def _term(curie: str, *parents: str) -> Term:
+    return Term(curie, curie, parents, (), (), False, ())
+
+
+ONTOLOGIES: Final[Mapping[str, Ontology]] = {
+    "MONDO": Ontology(
+        "mondo",
+        "test",
+        {
+            "MONDO:0000002": _term("MONDO:0000002"),
+            "MONDO:0000003": _term("MONDO:0000003", "MONDO:0000002"),
+        },
+    ),
+    "HP": Ontology("hpo", "test", {"HP:0000010": _term("HP:0000010")}),
+}
+
+YOUNG_1: Final[Cell] = ("<40", "female", 1)
+MIDDLE_0: Final[Cell] = ("40-59", "male", 0)
+OLD_1: Final[Cell] = (">=60", "female", 1)
+QUOTA: Final[Mapping[Cell, int]] = {YOUNG_1: 40, MIDDLE_0: 40, OLD_1: 40}
+
+
+def _kb(
+    *,
+    rows: Sequence[FieldMapping] = ROWS,
+    frame: FrameSpec = FRAME,
+    age_range: tuple[int, int] = (25, 80),
+    seed: int = 3,
+) -> list[Draw]:
+    drawn = kb_sample(
+        QUOTA, rows=rows, ontologies=ONTOLOGIES, frame=frame, seed=seed, age_range=age_range
+    )
+    return [d for draws in drawn.values() for d in draws]
+
+
+def _train(ages: Sequence[int], shift: int) -> pd.DataFrame:
+    records = [
+        {"age": age, "sex": k % 2, "a": (k + shift) % 3, "b": k % 2, "c": (k * shift) % 4}
+        | {"target": (k // 2) % 2}
+        for k, age in enumerate(ages)
+    ]
+    frame = pd.DataFrame(records).astype(dict(FRAME.dtypes))
+    frame.index = pd.RangeIndex(1, len(frame) + 1, name="record_id")
+    return frame
+
+
+def test_the_draw_takes_no_training_frame():
+    parameters = inspect.signature(kb_sample).parameters
+    assert set(parameters) == {
+        "quota",
+        "rows",
+        "ontologies",
+        "frame",
+        "seed",
+        "age_range",
+        "tag",
+    }
+    assert all(name not in parameters for name in ("train", "records", "data"))
+
+
+def test_two_training_frames_of_one_age_range_give_one_fill():
+    one = _train([25, *range(30, 80, 3), 80], shift=1)
+    two = _train([80, *range(41, 79, 5), 25], shift=2)
+    assert not one.reset_index(drop=True).equals(two.reset_index(drop=True))
+    drawn = [
+        sample(
+            train,
+            QUOTA,
+            rows=ROWS,
+            ontologies=ONTOLOGIES,
+            name="toy",
+            seed=3,
+            frame=FRAME,
+            spec=KB,
+        )
+        for train in (one, two)
+    ]
+    assert drawn[0] == drawn[1]
+    assert drawn[0] == kb_sample(
+        QUOTA, rows=ROWS, ontologies=ONTOLOGIES, frame=FRAME, seed=3, age_range=(25, 80)
+    )
+
+
+def test_every_value_is_a_codebook_code_showing_the_pattern():
+    draws = _kb()
+    for draw in draws:
+        record = draw.record
+        assert all(record[f] in FRAME.codebook[f] for f in FRAME.categorical)
+        assert record["sex"] == (1 if draw.cell[1] == "male" else 0)
+        assert record["target"] == draw.cell[2]
+        for row in ROWS:
+            assert row.applies(record) is (row.concept in draw.concepts)
+        assert draw.sources == {}
+        assert draw.fallback == frozenset()
+        assert draw.closed >= draw.concepts
+    patterns = {frozenset(d.concepts) for d in draws}
+    assert {
+        frozenset(),
+        frozenset({BROAD.concept}),
+        frozenset({BROAD.concept, NARROW.concept}),
+    } <= {p - {JOINT.concept} for p in patterns}
+    assert all(NARROW.concept not in p or BROAD.concept in p for p in patterns)
+
+
+def test_age_is_inside_the_band_and_the_age_range():
+    draws = _kb(age_range=(33, 64))
+    bands = {YOUNG_1: (33, 39), MIDDLE_0: (40, 59), OLD_1: (60, 64)}
+    for cell, (low, high) in bands.items():
+        ages = {d.record["age"] for d in draws if d.cell == cell}
+        assert ages <= set(range(low, high + 1))
+        assert len(ages) > 1
+    assert all(isinstance(d.record["age"], int) for d in draws)
+
+
+def test_swapping_one_components_rows_leaves_other_components_equal():
+    swapped = dataclasses.replace(
+        JOINT, when=(Codes("b", frozenset({0})), Codes("c", frozenset({1})))
+    )
+    before, after = _kb(), _kb(rows=(BROAD, NARROW, swapped))
+    kept = ("age", "sex", "a", "target")
+    assert [{f: d.record[f] for f in kept} for d in before] == [
+        {f: d.record[f] for f in kept} for d in after
+    ]
+    pair = {BROAD.concept, NARROW.concept}
+    assert [d.concepts & pair for d in before] == [d.concepts & pair for d in after]
+    assert [(d.record["b"], d.record["c"]) for d in before] != [
+        (d.record["b"], d.record["c"]) for d in after
+    ]
+    for draw in after:
+        shows = draw.record["b"] == 0 and draw.record["c"] == 1
+        assert shows is (swapped.concept in draw.concepts)
+
+
+def test_a_frame_with_a_free_field_is_refused():
+    free = dataclasses.replace(
+        FRAME,
+        name="kb-free",
+        features=(*FRAME.features, "d"),
+        categorical=(*FRAME.categorical, "d"),
+        codebook={**FRAME.codebook, "d": {0: "no", 1: "yes"}},
+        descriptions={**FRAME.descriptions, "d": "an unmapped flag"},
+    )
+    with pytest.raises(ValueError, match=r"\bd\b"):
+        _kb(frame=free)
+
+
+def test_a_frame_with_a_numeric_clause_is_refused():
+    numeric = dataclasses.replace(
+        FRAME,
+        name="kb-numeric",
+        features=(*FRAME.features, "level"),
+        numeric=(*FRAME.numeric, "level"),
+        ranges=(*FRAME.ranges, RangeConstraint("level", "u", 0, 9, "toy", "toy")),
+        descriptions={**FRAME.descriptions, "level": "a level"},
+    )
+    rows = (*ROWS, _row("HP:0000011", AtLeast("level", 5)))
+    with pytest.raises(ValueError, match=r"\blevel\b"):
+        _kb(rows=rows, frame=numeric)
+
+
+def test_the_draw_follows_its_seed():
+    assert _kb(seed=3) == _kb(seed=3)
+    assert _kb(seed=3) != _kb(seed=4)
+
+
+def test_the_kb_spec_needs_presence_logic():
+    assert KB.params() == {"presence": "logic", "donors": False}
+    assert KB.tokens() == " donors=false"
+    for presence in (Presence.SHARES, Presence.POOLED):
+        with pytest.raises(ValueError, match="donors false needs presence logic"):
+            DrawSpec(presence=presence, donors=False)
+    with pytest.raises(ValueError, match="donors false needs presence logic"):
+        DrawSpec(mapped=False, donors=False)
+
+
+def test_every_codebook_tuple_showing_a_pattern_is_drawn():
+    draws = _kb()
+    joint = {(d.record["b"], d.record["c"]) for d in draws if JOINT.concept in d.concepts}
+    absent = {(d.record["b"], d.record["c"]) for d in draws if JOINT.concept not in d.concepts}
+    assert joint == {(1, 2), (1, 3)}
+    assert absent == set(itertools.product((0, 1), range(4))) - joint

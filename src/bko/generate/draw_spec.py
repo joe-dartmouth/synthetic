@@ -53,6 +53,9 @@ class DrawSpec:
         closed: Whether each `is_a` pair's broad concept is drawn present whenever its narrow
             one is, the conditional set to 1.
         pool: Which fields a `Presence.POOLED` draw pools; off its default it needs that presence.
+        donors: Whether the draw copies fields from training records; false draws every field
+            from the mapping table and the codebook alone (`bko.generate.knowledge_draw`) and
+            needs `Presence.LOGIC`.
     """
 
     presence: Presence = Presence.SHARES
@@ -63,6 +66,7 @@ class DrawSpec:
     hierarchy: float | None = None
     closed: bool = False
     pool: Pool = Pool.MAPPED
+    donors: bool = True
 
     def __post_init__(self) -> None:
         """Refuse a field combination the draw cannot read.
@@ -72,7 +76,8 @@ class DrawSpec:
                 is below 1; if `hierarchy` is not a finite non-negative float, or is set beside
                 `closed`; if `tree` is set beside `hierarchy` or `closed`; if a field of
                 `_VARIANTS` is off its default without the mapping table or at a presence other
-                than shares; or if `pool` is off its default at a presence other than pooled.
+                than shares; if `pool` is off its default at a presence other than pooled; or if
+                `donors` is false at a presence other than logic.
         """
         if self.presence is not Presence.SHARES and not self.mapped:
             msg = f"presence {self.presence.value} has no meaning without the mapping table"
@@ -100,6 +105,9 @@ class DrawSpec:
             raise ValueError(msg)
         if self.pool is not Pool.MAPPED and self.presence is not Presence.POOLED:
             msg = f"pool {self.pool.value} needs presence pooled"
+            raise ValueError(msg)
+        if not self.donors and self.presence is not Presence.LOGIC:
+            msg = "donors false needs presence logic"
             raise ValueError(msg)
 
     @property

@@ -17,7 +17,8 @@ set's closure is forced into the fields (ADR `research/logic-only-ablation`). At
 spec with `hierarchy` or `closed`, each `is_a` pair's broad concept is drawn given its narrow one
 (`bko.generate.hierarchy`; ADR `research/bkb-direct-generation`, Decision 12). With
 `Presence.POOLED`, `sample` draws as `mapped=False` does but for the units `bko.generate.pooling`
-pools, each copied by the pooled rule (ADR `research/matched-knowledge-controls`).
+pools, each copied by the pooled rule (ADR `research/matched-knowledge-controls`). At a spec with
+`donors=False`, `sample` reads only the training split's age range (`bko.generate.knowledge_draw`).
 """
 
 from __future__ import annotations
@@ -58,6 +59,7 @@ from bko.generate.fields import (
     free_fields,
 )
 from bko.generate.hierarchy import Hierarchy, PairPart, log_pairs
+from bko.generate.knowledge_draw import kb_sample
 from bko.generate.logic import Component, components, logic_assignment
 from bko.generate.pooling import pooled_for
 from bko.generate.presence import Presence
@@ -140,8 +142,18 @@ def sample(
         ValueError: As `nested`, for nesting deeper or wider than one pair, as
             `bko.generate.logic.components`, for a component too large to enumerate, or as
             `bko.generate.hierarchy.Hierarchy`, naming the dataset, the frame, the holdout and
-            the fill.
+            the fill; at `donors=False`, as `bko.generate.knowledge_draw.kb_sample`.
     """
+    if not spec.donors:
+        return kb_sample(
+            quota,
+            rows=rows,
+            ontologies=ontologies,
+            frame=frame,
+            seed=seed,
+            age_range=(int(train["age"].min()), int(train["age"].max())),
+            tag=tag,
+        )
     presence = spec.presence
     mappings = tuple(rows) if spec.mapped and presence is not Presence.POOLED else ()
     holdout, fill = (-1, "none") if tag is None else tag

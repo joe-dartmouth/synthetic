@@ -18,6 +18,7 @@ from bko.evaluate.direct_arms import (
     HIER_0_ARM,
     HIER_CLOSED_ARM,
     HIER_W_ARM,
+    KB_ARM,
     POOL_ALL_ARM,
     POOL_RANDOM_ARM,
     TREE_ARM,
@@ -68,6 +69,7 @@ def test_the_direct_arms_draw_at_their_specs():
         DONOR_ARM: DrawSpec(presence=Presence.POOLED),
         POOL_RANDOM_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.RANDOM),
         POOL_ALL_ARM: DrawSpec(presence=Presence.POOLED, pool=Pool.ALL),
+        KB_ARM: DrawSpec(presence=Presence.LOGIC, donors=False),
     }
 
 

@@ -120,8 +120,9 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
 
     `mapped` holds the fields a mapping row's `when` clause reads, the label aside. A direct
     arm's field in it is a knowledge fact when the arm's `DrawSpec` reads the mapping table at a
-    presence other than pooled; else a field with a source id is a donor's, a pooled field
-    among them, and any other the method and seed's. A
+    presence other than pooled, `bko-kb`'s drawn from the mapping table and the codebook alone;
+    else a field with a source id is a donor's, a pooled field among them, and any other the
+    method and seed's, `bko-kb`'s `age` among them. A
     perturbation arm's changed field is the prompt's under the rewrite arm, the method and seed's
     under PRAM and a donor's under `bko-coherent` (`CHANGED_CLASS`), its other fields read as a
     direct arm's over `bko-direct`'s spec. A

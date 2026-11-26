@@ -6,7 +6,9 @@ logs name the frame. ADR `research/uci-evaluation-frame` records why the run, no
 it. The Synthea and Diabetes 130 frames, their indicators and their field rows are in
 `bko.ontology.frames`, and the `diabetes-codes` frame and its rows in `bko.ontology.code_frames`.
 The two TableShift datasets hold a published partition's test records out at every holdout seed
-(`Data.held`, `held_split`; ADR `research/tableshift-comparison`).
+(`Data.held`, `held_split`; ADR `research/tableshift-comparison`). A variant (`VARIANTS`) is a base
+dataset's records under other field rows or projected onto `supported_frame`, under its own name
+(ADR `research/dataset-variants`).
 """
 
 from __future__ import annotations
@@ -17,7 +19,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Protocol, assert_never
+from types import MappingProxyType
+from typing import Final, Protocol, assert_never
 
 import pandas as pd
 
@@ -53,7 +56,7 @@ from bko.ontology.frames import (
     SYNTHEA_INDICATORS,
     SYNTHEA_NAME,
 )
-from bko.ontology.schema import FieldMapping
+from bko.ontology.schema import Codes, FieldMapping
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -73,6 +76,7 @@ class Dataset(StrEnum):
     NHANES = NHANES_NAME
     NHAMCS = NHAMCS_NAME
     PHYSIONET2012 = PHYSIONET2012_NAME
+    DIABETES_SUPPORTED = "diabetes-supported"
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -105,6 +109,63 @@ class Data:
         """Compute `digest` from `records` and `held`, so they never disagree."""
         found = digest(self.records) if self.held is None else held_digest(self.records, self.held)
         object.__setattr__(self, "digest", found)
+
+
+@dataclass(frozen=True, slots=True)
+class Variant:
+    """A dataset read as its base's records under other rows or on fewer columns.
+
+    Attributes:
+        base: The dataset whose records, split, source name and releases it reads.
+        rows: Its field rows; None keeps the base's.
+        supported: Whether its records are projected onto the base frame's `supported_frame`.
+    """
+
+    base: Dataset
+    rows: tuple[FieldMapping, ...] | None = None
+    supported: bool = False
+
+
+def supported_frame(frame: FrameSpec, rows: Sequence[FieldMapping]) -> FrameSpec:
+    """`frame` on `age`, `sex`, the label and every field a `Codes` clause of `rows` reads.
+
+    Its name is `frame`'s with `-supported` after it; every other value is `frame`'s, kept for
+    the columns it keeps.
+    """
+    coded = {c.field for row in rows for c in row.when if isinstance(c, Codes)}
+    kept = {"age", "sex", frame.label} | coded
+
+    def keep(names: Sequence[str]) -> tuple[str, ...]:
+        return tuple(name for name in names if name in kept)
+
+    return FrameSpec(
+        name=f"{frame.name}-supported",
+        features=keep(frame.features),
+        numeric=keep(frame.numeric),
+        fractional=keep(frame.fractional),
+        fraction_digits=frame.fraction_digits,
+        categorical=keep(frame.categorical),
+        codebook={name: codes for name, codes in frame.codebook.items() if name in kept},
+        descriptions={name: text for name, text in frame.descriptions.items() if name in kept},
+        ranges=tuple(bound for bound in frame.ranges if bound.field in kept),
+        label_codes=frame.label_codes,
+        label_meanings=frame.label_meanings,
+        edges=frame.edges,
+        study=frame.study,
+        cohort=frame.cohort,
+        label=frame.label,
+    )
+
+
+VARIANTS: Final[Mapping[Dataset, Variant]] = MappingProxyType(
+    {Dataset.DIABETES_SUPPORTED: Variant(Dataset.DIABETES, supported=True)}
+)
+"""Each variant over its base (ADR `research/dataset-variants`)."""
+
+_SUPPORTED_FRAMES: Final[Mapping[Dataset, FrameSpec]] = MappingProxyType(
+    {Dataset.DIABETES_SUPPORTED: supported_frame(DIABETES_FRAME, DIABETES_FIELD_ROWS)}
+)
+"""Each supported variant's one frame, built once so frame identity checks hold."""
 
 
 class Reach(Protocol):
@@ -188,6 +249,8 @@ def records_split(
 def frame(dataset: Dataset) -> FrameSpec:
     """The frame `load` gives `dataset`'s records, read with no data loaded.
 
+    A supported variant's is its one module-level frame; a row-swap variant's is its base's.
+
     Raises:
         ValueError: For `diabetes-codes`, the TableShift datasets and the catalogued datasets,
             whose frames are built from their records.
@@ -199,6 +262,8 @@ def frame(dataset: Dataset) -> FrameSpec:
             return SYNTHEA_FRAME
         case Dataset.DIABETES:
             return DIABETES_FRAME
+        case Dataset.DIABETES_SUPPORTED:
+            return _SUPPORTED_FRAMES[dataset]
         case (
             Dataset.DIABETES_CODES
             | Dataset.TABLESHIFT_ID
@@ -221,7 +286,7 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
     UCI's are the context's; Synthea's are `SYNTHEA_FIELD_ROWS`, Diabetes 130's
     `DIABETES_FIELD_ROWS`, `diabetes-codes`' `DIABETES_CODES_FIELD_ROWS` and the TableShift
     datasets' `LAB_FIELD_ROWS`, whatever the context's; a catalogued dataset's are its entry's in
-    the context's catalog.
+    the context's catalog. A variant's are its own, else its base's.
     """
     match dataset:
         case Dataset.UCI:
@@ -238,6 +303,9 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             Dataset.SUPPORT2 | Dataset.ACS | Dataset.NHANES | Dataset.NHAMCS | Dataset.PHYSIONET2012
         ):
             return context.catalog[dataset.value].rows
+        case Dataset.DIABETES_SUPPORTED:
+            variant = VARIANTS[dataset]
+            return field_rows(variant.base, context) if variant.rows is None else variant.rows
         case _:
             assert_never(dataset)
 
@@ -247,7 +315,7 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
 
     Every dataset reads the context's releases, HP and MONDO; a dataset whose rows name another
     ontology gets its own map here (ADR `research/ontology-mapping-design`). A catalogued dataset
-    reads its entry's `releases`, the context's when they are None.
+    reads its entry's `releases`, the context's when they are None. A variant reads its base's.
     """
     match dataset:
         case (
@@ -263,6 +331,8 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
             Dataset.SUPPORT2 | Dataset.ACS | Dataset.NHANES | Dataset.NHAMCS | Dataset.PHYSIONET2012
         ):
             return context.catalog[dataset.value].resolved_releases(context.releases)
+        case Dataset.DIABETES_SUPPORTED:
+            return dataset_releases(VARIANTS[dataset].base, context)
         case _:
             assert_never(dataset)
 
@@ -280,11 +350,12 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     split and in-domain or out-of-domain test split, the test split held, checked against the
     `tableshift` frame of every kept row. A catalogued dataset's are its context catalog entry's
     (`bko.ontology.catalog.Catalogued.read`): each source ensured, the records loaded, their frame
-    built from them and checked. Each takes `field_rows(dataset, context)`, and a
-    fetched source's data carries the source's agreement.
+    built from them and checked. A variant's are its base's, its rows swapped or its records
+    projected onto its frame, under its base's source name. Each takes
+    `field_rows(dataset, context)`, and a fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
     records' sha256, with the held ids when there are some: `Data.digest`) and its agreement:
-    `none` for open data, else the agreement's name quoted.
+    `none` for open data, else the agreement's name quoted; a variant logs its own line alone.
 
     Raises:
         DatasetError: As `bko.datasets.fetch.ensure`, `bko.datasets.uci.load_uci` and
@@ -293,6 +364,25 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             `bko.datasets.synthea_run.check_population` and
             `bko.datasets.synthea.load_population`.
         OSError: If the data root cannot be written.
+    """
+    data = _read(dataset, data_dir, context)
+    log_data(
+        logger,
+        dataset=dataset,
+        frame=data.frame,
+        records=len(data.records),
+        records_digest=data.digest,
+        agreement=data.agreement,
+    )
+    return data
+
+
+def _read(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
+    """`load`'s data, logging no line.
+
+    Raises:
+        DatasetError: As `load`.
+        OSError: As `load`.
     """
     rows = field_rows(dataset, context)
     match dataset:
@@ -340,14 +430,24 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             entry = context.catalog[dataset.value]
             records, spec = entry.read(data_dir, open_url=context.open_url)
             data = Data(records, spec, rows, entry.name, entry.agreement)
+        case Dataset.DIABETES_SUPPORTED:
+            data = _read_variant(dataset, rows, data_dir, context)
         case _:
             assert_never(dataset)
-    log_data(
-        logger,
-        dataset=dataset,
-        frame=data.frame,
-        records=len(data.records),
-        records_digest=data.digest,
-        agreement=data.agreement,
-    )
     return data
+
+
+def _read_variant(
+    dataset: Dataset, rows: tuple[FieldMapping, ...], data_dir: Path, context: Reach
+) -> Data:
+    """A variant's data: its base's, under `rows`, projected onto its frame when supported.
+
+    Raises:
+        DatasetError: As `load` of its base.
+        OSError: As `load`.
+    """
+    variant = VARIANTS[dataset]
+    data = _read(variant.base, data_dir, context)
+    spec = frame(dataset) if variant.supported else data.frame
+    records = data.records[list(spec.columns)] if variant.supported else data.records
+    return Data(records, spec, rows, data.name, data.agreement, held=data.held)

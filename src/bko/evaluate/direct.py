@@ -48,6 +48,7 @@ from bko.evaluate.scores import Measure, Score, Source
 from bko.generate.direct import logic_components, sample
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.errors import SamplingError
+from bko.generate.knowledge_draw import kb_check
 from bko.generate.presence import Presence
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
@@ -280,17 +281,22 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
 
     Raises:
         EvaluationError: If a logic-only arm's components cannot be enumerated
-            (`bko.generate.direct.logic_components`), or a perturbing arm's fields are not the
-            frame's pinned ones (`bko.evaluate.perturb.unmapped`); raised before any arm fits.
+            (`bko.generate.direct.logic_components`), a knowledge-only arm's frame holds a value
+            K cannot give (`bko.generate.knowledge_draw.kb_check`), or a perturbing arm's fields
+            are not the frame's pinned ones (`bko.evaluate.perturb.unmapped`); raised before any
+            arm fits.
         As `bko.evaluate.run.run`.
     """
     for name in names:
-        if DIRECT_ARMS[name].presence is Presence.LOGIC:
-            try:
+        spec = DIRECT_ARMS[name]
+        try:
+            if not spec.donors:
+                kb_check(knowledge.field_rows, frame)
+            if spec.presence is Presence.LOGIC:
                 logic_components(knowledge.field_rows, knowledge.ontologies, frame)
-            except ValueError as exc:
-                msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
-                raise EvaluationError(msg) from exc
+        except ValueError as exc:
+            msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
+            raise EvaluationError(msg) from exc
     direct: dict[str, DirectArm | Perturbing] = {}
     for name in names:
         arm = direct_arm(name, knowledge, experiment, sink)
