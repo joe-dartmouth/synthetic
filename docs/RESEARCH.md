@@ -497,8 +497,8 @@ registered `candidate` stays `bko`.
 ### Ablations and comparators
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
-`bko-capped`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`,
-`bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and the guidance
+`bko-capped`, `bko-micro`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`,
+`bko-coherent`, `bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and the guidance
 levels, are ablations: each changes one part of how the BKB guides generation. The retained-data
 methods `row-resample`, `marginals` and `eb-marginals` are ablations of the pooling itself, from
 `label-bootstrap` to one weight per cell fitted by empirical Bayes [`efron-1975`][efron-1975]
@@ -551,6 +551,7 @@ not a test of it.
 | [E17](EVIDENCE.md#e17-coherent-free-fields-on-the-diabetes-130-removal) | Ablation |
 | [E18](EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) | Development result |
 | [E19](EVIDENCE.md#e19-matched-knowledge-controls-on-the-diabetes-130-removal) | Ablation |
+| [E20](EVIDENCE.md#e20-microaggregated-count-fields-on-the-diabetes-130-removal) | Ablation |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -683,7 +684,8 @@ A variant enters `bko-direct-2` when, on each development frame it
 runs on, its target measure improves on `bko-direct`'s (interval excludes 0) and its removed-cell
 recall is non-inferior within the margin above. Each variant registers one parameter value, except
 the `is_a` pseudo-count: of the registered values that pass, the largest enters. `bko-capped`'s
-pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value. The closed arm
+pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value, and `bko-micro`'s
+mean over 3 donors at those limits is another. The closed arm
 `bko-hier-closed` is an ablation and registers no value.
 
 "Improves" means the interval lies wholly on the measure's better side (below 0 for Brier). Each

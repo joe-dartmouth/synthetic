@@ -239,6 +239,17 @@ folder is its record.
 | Result | |
 | Read against | [RESEARCH.md section 11](RESEARCH.md#matched-control-reading), the matched-control reading; an ablation |
 
+## E20. Microaggregated count fields on the Diabetes 130 removal
+
+| Field | Entry |
+|---|---|
+| Status | `not yet run` |
+| Question | On E6's Diabetes 130 frame and removal, does averaging each numeric field but `age` over three pattern-matched donors on top of `bko-capped`'s floor and cap (`bko-micro`) lower the field-group match attack's AUC against `bko-capped`, and at what cost to removed-cell recall? |
+| Configuration | Design: ADR [`research/sampler-donor-limits`](adr/research/sampler-donor-limits.md), Decisions 8 to 16, fixes the averaged units, the donor classes, the fallback, the mean's rounding, the weighted cap and the `micro-field` line. Frame, removal, holdouts, fill target and cutoff: [E6](#e6-diabetes-130-subgroup-removal)'s, the cell `(6-7, male, 1)` thinned by 0.985 and emptied by 1.0. Runs: `e20-thin` (0.985) and `e20-empty` (1.0), each cut into ten slices of consecutive holdouts as E6's are, `e20-thina` to `e20-thinj` and `e20-emptya` to `e20-emptyj`, at E6's settings. Arms: `none`, `real`, `bko-direct`, `bko-capped` and `bko-micro`; candidate `bko-micro`, comparators `bko-direct`, `bko-capped` and `none`; no replica. Primary contrast: `bko-micro` minus `bko-capped` on `bko-capped`'s target measure, `privacy`'s match-attack AUC; `bko-micro` minus `bko-direct` is read beside it. On this frame the averaged fields are the eight count fields, and no mapping clause reads a numeric field, so the cutoff-side guard is inert here. Variance note: during planning, a mean of three label-group donors kept about one third of a count field's donor variance, over 20,000 label-group triples per field; each run's `micro-field` lines carry `sse` and `sst`, from which the kept share is read per cell and field. Manipulation check: the `micro-field` lines' `equal` and `primary` counts, and donor reuse, `donor-max`, counted over every averaged id. Removed-cell recall is read for the [variant inclusion rule](RESEARCH.md#variant-inclusion-rule). No arm calls the API, so the spend ceiling kept from E6 is inert. Privacy reference arm: `bko-direct` |
+| Runs | |
+| Result | |
+| Read against | [RESEARCH.md section 11](RESEARCH.md#variant-inclusion-rule), the variant inclusion rule; an ablation |
+
 ## B1. Classical baselines
 
 | Field | Entry |
