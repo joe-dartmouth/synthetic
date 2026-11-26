@@ -83,7 +83,7 @@ def trace_direct(
         msg = f"holdout {fill.holdout}'s {fill.arm} re-drawn records are not its kept lines"
         raise IdentityError(msg)
     concepts: Callable[[Draw], tuple[Json, ...]]
-    if not spec.mapped or spec.presence is Presence.POOLED:
+    if not spec.reads_concepts:
         concepts = _no_concepts
     elif spec.tree:
         concepts = TreeShares(train, seeded.quota, data=data, ontologies=ontologies).concepts

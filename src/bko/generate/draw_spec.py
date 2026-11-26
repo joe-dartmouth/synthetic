@@ -72,13 +72,17 @@ class DrawSpec:
         """Refuse a field combination the draw cannot read.
 
         Raises:
-            ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false; if a limit
+            ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false (pooled
+                reads rows through `pool` alone, so it keeps `mapped` true); if a limit
                 is below 1; if `hierarchy` is not a finite non-negative float, or is set beside
                 `closed`; if `tree` is set beside `hierarchy` or `closed`; if a field of
                 `_VARIANTS` is off its default without the mapping table or at a presence other
                 than shares; if `pool` is off its default at a presence other than pooled; or if
                 `donors` is false at a presence other than logic.
         """
+        if self.presence is Presence.POOLED and not self.mapped:
+            msg = "presence pooled keeps mapped true: pool, not mapped, says which rows it reads"
+            raise ValueError(msg)
         if self.presence is not Presence.SHARES and not self.mapped:
             msg = f"presence {self.presence.value} has no meaning without the mapping table"
             raise ValueError(msg)
@@ -114,6 +118,11 @@ class DrawSpec:
     def limited(self) -> bool:
         """Whether the draw sets a donor floor above 1 or a reuse cap."""
         return self.min_donors > 1 or self.reuse_cap is not None
+
+    @property
+    def reads_concepts(self) -> bool:
+        """Whether the draw reads concepts from the mapping table: mapped, and not pooled."""
+        return self.mapped and self.presence is not Presence.POOLED
 
     @property
     def conditional(self) -> bool:

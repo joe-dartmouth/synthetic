@@ -155,7 +155,7 @@ def sample(
             tag=tag,
         )
     presence = spec.presence
-    mappings = tuple(rows) if spec.mapped and presence is not Presence.POOLED else ()
+    mappings = tuple(rows) if spec.reads_concepts else ()
     holdout, fill = (-1, "none") if tag is None else tag
     try:
         plan = _Plan(

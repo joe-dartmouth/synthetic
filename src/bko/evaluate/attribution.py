@@ -29,7 +29,6 @@ from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.provenance import log_versions
 from bko.evaluate.run_folder import base
 from bko.generate.draw_spec import DEFAULT_SPEC
-from bko.generate.presence import Presence
 
 
 if TYPE_CHECKING:
@@ -150,7 +149,7 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
     perturb = cast("Mapping[str, list[str]] | None", line.get("perturb"))
     changed = set(perturb["fields"]) if perturb is not None else set()
     rewritten = CHANGED_CLASS.get(name, Attribution.PROMPT)
-    knowledge = spec.mapped and spec.presence is not Presence.POOLED
+    knowledge = spec.reads_concepts
     found = {}
     for field in map(str, record):
         if field in changed:

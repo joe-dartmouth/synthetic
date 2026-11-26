@@ -93,8 +93,16 @@ def test_a_pooled_spec_refuses_what_it_cannot_read():
         DrawSpec(pool=Pool.RANDOM)
     with pytest.raises(ValueError, match="min_donors needs the mapping table and presence shares"):
         DrawSpec(presence=Presence.POOLED, min_donors=2)
-    with pytest.raises(ValueError, match="presence pooled has no meaning without the mapping"):
+    with pytest.raises(ValueError, match="presence pooled keeps mapped true"):
         DrawSpec(presence=Presence.POOLED, mapped=False)
+
+
+@pytest.mark.parametrize("spec", [DONOR, POOL_RANDOM, POOL_ALL])
+def test_a_pooled_draw_reads_no_concept(spec):
+    assert not spec.reads_concepts
+    assert DrawSpec().reads_concepts
+    assert DrawSpec(presence=Presence.LOGIC, donors=False).reads_concepts
+    assert not DrawSpec(mapped=False).reads_concepts
 
 
 def test_a_pooled_spec_logs_its_presence_and_its_pool():

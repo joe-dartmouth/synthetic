@@ -156,3 +156,18 @@ def test_field_rows_nested_in_a_chain_refuse_the_direct_arms_before_any_download
         "HP:9000000 lies inside 2 concepts" in caplog.text
     )
     assert not (tmp_path / "data").exists()
+
+
+def test_the_nested_refusal_names_no_pooled_arm(tmp_path, caplog):
+    ctx, _ = g2_context()
+    chain = tuple(
+        dataclasses.replace(ANGINA, concept=f"HP:900000{index}", when=(Codes("cp", codes),))
+        for index, codes in enumerate((frozenset({1}), frozenset({1, 2}), frozenset({1, 2, 3})))
+    )
+    arms = ("none", DIRECT_ARM, DONOR_ARM, POOL_ALL_ARM)
+    run = dataclasses.replace(BOTH, arms=arms, candidate=DONOR_ARM, comparators=("none",))
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(run)}, field_rows=chain)
+    candidates = tmp_path / "holdout-candidates.jsonl"
+    argv = ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert f"the direct arms {[DIRECT_ARM]} cannot draw dataset uci's rows: " in caplog.text
