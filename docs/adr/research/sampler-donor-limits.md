@@ -196,14 +196,18 @@ of its co-donors' values; and no k-anonymity or differential-privacy claim is ma
 ## Enforcement
 
 - Owner: `src/bko/generate/donors.py` with the spec in `src/bko/generate/draw_spec.py`,
-  `src/bko/generate/direct.py`, `src/bko/evaluate/direct_arms.py`,
-  `src/bko/evaluate/runs_direct.py`
+  `src/bko/generate/direct.py`, the micro draw in `src/bko/generate/micro.py`,
+  `src/bko/evaluate/direct_arms.py`, `src/bko/evaluate/runs_direct.py`
 - Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged),
   `tests/test_generate_capped.py` (the spec's refusals and logging, the cap per unit, the floor,
   the barred cell donors, exhaustion and determinism), `tests/test_evaluate_capped.py` (the arm's
   params, its trace and the refusal of a float cap, donor reuse per unit, E14's runs and their
   reference arm), `tests/test_generate_capped_pinned.py` (a fill of E6's cell completes at
-  both fractions on the pinned data, run with `--releases`)
+  both fractions on the pinned data, run with `--releases`), `tests/test_generate_micro.py`
+  (the micro draw: the cutoff side, distinct donors, the weighted cap, the fallback, the
+  rounding and the `micro-field` line), `tests/test_evaluate_micro.py` (`bko-micro`'s spec, its
+  trace's `averaged` ids, donor reuse over every averaged id and the `donor-mean` attribution),
+  `tests/test_evaluate_micro_runs.py` (E20's runs, their slices and their reference arm)
 
 ## Reversal Conditions
 

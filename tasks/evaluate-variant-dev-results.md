@@ -1,8 +1,8 @@
 ---
 id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
-status: blocked
-depends_on: privacy-value-microaggregation
+status: ready
+depends_on: --
 blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
@@ -24,8 +24,10 @@ says which enter `bko-direct-2`.
 
 **In.**
 
-- The development runs registered by unit
-  [`privacy-value-microaggregation`](privacy-value-microaggregation.md), `bko-capped`'s runs
+- `bko-micro`'s runs `e20-thin` and `e20-empty`, each sliced in ten, `e20-thina` to `e20-thinj`
+  and `e20-emptya` to `e20-emptyj`
+  ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e20-microaggregated-count-fields-on-the-diabetes-130-removal)),
+  `bko-capped`'s runs
   `e14-thin` and `e14-empty`
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e14-donor-floor-and-reuse-cap-on-the-diabetes-130-removal)),
   `bko-tree`'s runs `e15-thin` and `e15-empty`
@@ -51,8 +53,15 @@ says which enter `bko-direct-2`.
 
 - E20's primary contrast is `bko-micro` minus `bko-capped`.
 - `bko-micro`'s count fields carry about one third of their donors' variance, as ADR
-  [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md), once unit
-  `privacy-value-microaggregation` revises it, states; its fidelity reading is read with that.
+  [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md) states; its
+  fidelity reading is read with that.
+- `bko-micro`'s `score` log writes one
+  `micro-field holdout=%d fill=%s key=%s field=%s values=%d equal=%d primary=%d sse=%s sst=%s`
+  line per cell and averaged field, keys `holdout`, `fill`, `key`, `field`, `values`, `equal`,
+  `primary`, `sse` and `sst`; `1 - sse/sst` is the share of the donors' sum of squares the means
+  keep, and `equal` counts values equal to one of their own donors' values. On E6's frame it
+  names the eight count fields. An averaged pick that falls back to the label group is logged on
+  the existing `fallback` line, one line per averaged field.
 
 ## Acceptance
 

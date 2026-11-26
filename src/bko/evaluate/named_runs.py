@@ -66,6 +66,8 @@ from bko.evaluate.runs_direct import (
     E19_SUPPORTED_EMPTY,
     E19_SUPPORTED_THIN,
     E19_THIN,
+    E20_EMPTY,
+    E20_THIN,
 )
 from bko.evaluate.runs_published import P1, P2, P3
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
@@ -323,6 +325,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **_slices("e19", "empty", E19_EMPTY),
         **_slices("e19", "supported-thin", E19_SUPPORTED_THIN, Dataset.DIABETES_SUPPORTED),
         **_slices("e19", "supported-empty", E19_SUPPORTED_EMPTY, Dataset.DIABETES_SUPPORTED),
+        **_slices("e20", "thin", E20_THIN),
+        **_slices("e20", "empty", E20_EMPTY),
         "p1-id": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_ID),
         "p1-ood": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_OOD),
         "p2": NamedRun(P2, SETTINGS),
@@ -334,9 +338,9 @@ Diabetes runs `e6-*`, `e9-*`, the perturbation pilots `e10-pilot-*` and the PRAM
 runs `e15-*` on `diabetes-codes`, the conditional `is_a` runs `e16-*`, the coherent free-field
 runs `e17-*`, Juwara et al.'s removal fractions `p3-*`, the synthetic-share sweep `e18-*`,
 the matched knowledge controls `e19-thin*`, `e19-empty*` and, on `diabetes-supported`,
-`e19-supported-*`, TableShift's `p1-id` and `p1-ood`, and SynthEval's `p2`, each family's
-experiment saying what it is. A variant adds its own entry in its own change, with its arms,
-candidate, comparators and ceiling."""
+`e19-supported-*`, the microaggregation runs `e20-*`, TableShift's `p1-id` and `p1-ood`, and
+SynthEval's `p2`, each family's experiment saying what it is. A variant adds its own entry in its
+own change, with its arms, candidate, comparators and ceiling."""
 
 
 def sliced(part: NamedRun, whole: NamedRun) -> bool:
