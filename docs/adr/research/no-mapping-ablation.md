@@ -71,9 +71,11 @@ parameter on every caller.
 keeps, which is the point of the ablation; the arm's concepts are empty, so its trace explains a
 record by its source ids alone. At a cell of no record, on a frame whose mapping groups are
 single fields with no nesting, `bko-direct` and `bko-nomap` draw one distribution: every share is
-the label group's (`src/bko/gaps/shares.py`, `SharePart.share`), and every unit falls back to the
-label group (`src/bko/generate/donors.py`), so a contrast between the two at full removal reads
-no mapping effect. E6's frame is such a frame.
+the label group's (`src/bko/gaps/shares.py`, `SharePart.share`); `age` falls back to the label
+group's records in the cell's age band and every other unit to the whole label group
+(`src/bko/generate/donors.py`, with the pools of `src/bko/generate/direct.py`, `_Sources.banded`
+and `draw`), and both arms run that one code. A
+contrast between the two at full removal so reads no mapping effect. E6's frame is such a frame.
 
 ## Ruled Out
 

@@ -413,8 +413,8 @@ mapping table and its pinned releases, which are what the matched controls isola
 **What it is.** `bko-direct` mixes a cell's own concept share with its label group's at the fixed
 weight `GROUP_WEIGHT`, 20 (`bko.gaps.shares`). A sweep runs the arm at several weights, or at a
 weight fitted by empirical Bayes as the planned `eb-marginals` control fits one. Weights fitted on
-one holdout of E6's frame during planning on 2026-11-26 sit mostly above 20, so the fixed weight
-may pool less than the data support.
+holdout 0 of E6's frame sit mostly above 20, so the fixed weight may pool less than the data
+support.
 
 **Why it is not in the plan.** A change to `GROUP_WEIGHT` changes `bko-direct`'s draw, which
 `DRAW_DIGEST` (`tests/test_generate_direct.py`) pins, and moves the pooled control arms with it.

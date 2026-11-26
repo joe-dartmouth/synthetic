@@ -642,6 +642,11 @@ structure claim can come only from the arms `bko-hier-0`, `bko-hier-w`, `bko-hie
 control lies wholly below 0); else no superiority hypothesis is registered and the confirmatory run
 reports equivalence, privacy and attribution readings.
 
+On E6's frame, `bko-direct` minus `bko-nomap` at full removal is `equivalent` by construction:
+the two arms draw one distribution there (ADR
+[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md), Consequences), so the
+contrast shows no mapping effect rather than measuring one.
+
 The margin's source is E6's Result: `bko-direct` is "above CTGAN by +0.0595 [+0.0115, +0.1075]"
 ([E6](EVIDENCE.md#e6-diabetes-130-subgroup-removal)); the margin, like the candidate, was taken
 from E6 after its results were read. "Wholly inside the margin" means inside -0.0480 to +0.0480.
