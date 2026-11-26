@@ -13,6 +13,7 @@ import pytest
 from bko.datasets.errors import ContractError
 from bko.datasets.frames import check_records
 from bko.datasets.sources import Source
+from bko.datasets.states import Cutoffs, band_meanings
 from bko.datasets.support2 import (
     AFTER_OUTCOME,
     COLUMNS,
@@ -20,12 +21,11 @@ from bko.datasets.support2 import (
     LEFT_OUT,
     MEMBER,
     WARNED,
-    Cutoffs,
     frame_records,
     load_support2,
     parse_support2,
 )
-from bko.datasets.support2_frame import band_meanings, support2_frame
+from bko.datasets.support2_frame import support2_frame
 from bko.ontology.schema import shown
 from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS
 from tests._datasets_fixtures import archive, pin, plant

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
+from bko.datasets.states import band_meanings
 from bko.datasets.support2 import CITED, TERTILES, frame_records, parse_support2
 from bko.datasets.support2_frame import support2_frame
 from bko.ontology.mapping import CHECKED_ROWS, CONCEPT_ROWS
 from bko.ontology.schema import Codes
-from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS
+from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS, state_row
 from tests._registry import REGISTRY, read, registry_entries
 from tests._support2_fixtures import mixed_rows, text
 
@@ -42,6 +45,43 @@ def test_the_rows_map_these_states_to_these_concepts() -> None:
         ("bili", [2], "HP:0002904", "Hyperbilirubinemia"),
         ("pafi", [1], "HP:0012418", "Hypoxemia"),
     ]
+
+
+def test_each_cutoff_rows_concept_sits_on_its_named_band() -> None:
+    found = [
+        (clause.field, band_meanings(CITED[clause.field])[code], row.label)
+        for row in SUPPORT2_FIELD_ROWS
+        for clause in row.when
+        if isinstance(clause, Codes) and clause.field in CITED
+        for code in clause.codes
+    ]
+    assert found == [
+        ("hrt", "above 90", "Tachycardia"),
+        ("resp", "above 20", "Tachypnea"),
+        ("temp", "above 38", "Fever"),
+        ("temp", "below 36", "Hypothermia"),
+        ("wblc", "above 12", "Increased total leukocyte count"),
+        ("wblc", "below 4", "Decreased total leukocyte count"),
+        ("meanbp", "below 70", "Hypotension"),
+        ("crea", "at least 1.2", "Elevated circulating creatinine concentration"),
+        ("bili", "at least 1.2", "Hyperbilirubinemia"),
+        ("pafi", "below 400", "Hypoxemia"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "band", "match"),
+    [
+        ("edu", "below 11", "^edu's cutoffs cite no source, so no row maps its states$"),
+        ("hrt", "above 100", "^no band 'above 100' among "),
+    ],
+    ids=["tertile-field", "missing-band"],
+)
+def test_state_row_refuses_an_uncited_field_or_a_missing_band(
+    field: str, band: str, match: str
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        state_row(field, band, "HP:0000001", "All", "a criterion")
 
 
 def test_each_row_names_a_coded_field_and_its_codes_not_state_0() -> None:

@@ -18,7 +18,6 @@ import io
 import logging
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -30,7 +29,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import Source
-from bko.datasets.states import coded
+from bko.datasets.states import Cutoffs, coded
 
 
 logger = logging.getLogger(__name__)
@@ -168,22 +167,6 @@ CATEGORIES: Final[Mapping[str, Mapping[str, int]]] = MappingProxyType(
 """Every text column a record reads and its codes."""
 
 
-@dataclass(frozen=True, slots=True)
-class Cutoffs:
-    """Where a measured field's states split (`bko.datasets.states.coded`).
-
-    Attributes:
-        at_or_above: Cutoffs a value at or above reaches.
-        above: Cutoffs only a value strictly above reaches.
-        source: Where the cutoffs come from: a `docs/literature.md` key, or `tertiles` for the
-            published file's tertiles.
-    """
-
-    at_or_above: tuple[float, ...] = ()
-    above: tuple[float, ...] = ()
-    source: str = "tertiles"
-
-
 CITED: Final[Mapping[str, Cutoffs]] = MappingProxyType(
     {
         "hrt": Cutoffs(above=(90.0,), source="singer-2016"),
@@ -212,9 +195,9 @@ TERTILES: Final[Mapping[str, Cutoffs]] = MappingProxyType(
         "urine": Cutoffs(at_or_above=(1430.0, 2595.0)),
     }
 )
-"""The numeric fields with missing values and no cited cutoff, coded at the tertiles of their
-measured values, read at `DECIMALS`, over every record of the published file
-(`bko.datasets.states.tertiles`), each rounded to `DECIMALS`."""
+"""The numeric fields with missing values and no cited cutoff, coded at the tertiles
+(`bko.datasets.states.tertiles`) of their measured values over every record of the published
+file, each value read and each tertile rounded at `DECIMALS`; their cutoffs cite no source."""
 
 MEASURED: Final[Mapping[str, Cutoffs]] = MappingProxyType({**CITED, **TERTILES})
 """Every coded measured field, in record order, and its cutoffs."""

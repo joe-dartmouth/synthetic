@@ -8,13 +8,13 @@ so `support2_frame` takes them. ADR `research/support2-frame` records the frame.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from types import MappingProxyType
 from typing import Final
 
 import pandas as pd
 
 from bko.datasets.cells import LABEL, LABEL_CODES, SEXES
 from bko.datasets.frames import FrameSpec, RangeConstraint
+from bko.datasets.states import band_meanings
 from bko.datasets.support2 import (
     CA_CODES,
     DZGROUP_CODES,
@@ -24,24 +24,7 @@ from bko.datasets.support2 import (
     RACE_CODES,
     SUPPORT2_NAME,
     WHOLE_FIELDS,
-    Cutoffs,
 )
-
-
-def band_meanings(cut: Cutoffs) -> Mapping[int, str]:
-    """Each state of a field coded at `cut` and what it means, state 0 `not measured`."""
-    bounds = sorted([(c, True) for c in cut.at_or_above] + [(c, False) for c in cut.above])
-    meanings = {0: "not measured"}
-    for state in range(len(bounds) + 1):
-        low = bounds[state - 1] if state else None
-        high = bounds[state] if state < len(bounds) else None
-        parts = []
-        if low is not None:
-            parts.append(f"at least {low[0]:g}" if low[1] else f"above {low[0]:g}")
-        if high is not None:
-            parts.append(f"below {high[0]:g}" if high[1] else f"at most {high[0]:g}")
-        meanings[state + 1] = " and ".join(parts) or "measured"
-    return MappingProxyType(meanings)
 
 
 _DESCRIPTIONS: Final[Mapping[str, str]] = {

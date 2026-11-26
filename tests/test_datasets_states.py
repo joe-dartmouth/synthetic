@@ -7,7 +7,7 @@ import math
 import pandas as pd
 import pytest
 
-from bko.datasets.states import coded, tertiles
+from bko.datasets.states import Cutoffs, band_state, coded, tertiles
 
 
 def _states(values: list[float], **cutoffs: tuple[float, ...]) -> list[int]:
@@ -63,3 +63,23 @@ def test_tertiles_ignore_missing_values() -> None:
 def test_tertiles_of_no_measured_value_are_refused() -> None:
     with pytest.raises(ValueError, match="no measured value"):
         tertiles(pd.Series([math.nan, math.nan]))
+
+
+def test_band_state_finds_a_state_by_its_bands_name() -> None:
+    temp = Cutoffs(at_or_above=(36.0,), above=(38.0,))
+    found = [
+        band_state(temp, band) for band in ("below 36", "at least 36 and at most 38", "above 38")
+    ]
+    assert found == [1, 2, 3]
+    assert band_state(Cutoffs(above=(90.0,)), "above 90") == 2
+
+
+def test_band_state_refuses_a_band_the_cutoffs_lack() -> None:
+    with pytest.raises(
+        ValueError, match=r"^no band 'above 91' among \['not measured', 'at most 90', 'above 90'\]$"
+    ):
+        band_state(Cutoffs(above=(90.0,)), "above 91")
+
+
+def test_cutoffs_cite_no_source_by_default() -> None:
+    assert Cutoffs(at_or_above=(1.0,)).source is None

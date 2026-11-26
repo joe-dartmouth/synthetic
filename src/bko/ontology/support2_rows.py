@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from typing import Final
 
-from bko.datasets.support2 import CA_CODES, CITED, DZGROUP_CODES
-from bko.datasets.support2_frame import band_meanings
+from bko.datasets.states import band_state
+from bko.datasets.support2 import CA_CODES, DZGROUP_CODES, MEASURED
 from bko.ontology.schema import Codes, FieldMapping
 
 
@@ -45,16 +45,26 @@ def _comorbidity(field: str, codes: frozenset[int], concept: str, label: str) ->
 _READ_IN: Final = "read in singer-2016's reproduction"
 
 
-def _state(field: str, state: int, concept: str, label: str, criterion: str) -> FieldMapping:
-    """The row of one abnormal state of a field `CITED` codes, its source the reproduction read."""
-    cut = CITED[field]
+def state_row(field: str, band: str, concept: str, label: str, criterion: str) -> FieldMapping:
+    """The row of the state of `field` whose band is `band`, its source the reproduction read.
+
+    The state is found by its band's name (`bko.datasets.states.band_state`), so a changed
+    cutoff refuses the row instead of moving its concept to another band.
+
+    Raises:
+        ValueError: If `field`'s cutoffs cite no source, as tertiles do, or have no such band.
+    """
+    cut = MEASURED[field]
+    if cut.source is None:
+        msg = f"{field}'s cutoffs cite no source, so no row maps its states"
+        raise ValueError(msg)
     return FieldMapping(
-        when=(Codes(field, frozenset({state})),),
+        when=(Codes(field, frozenset({band_state(cut, band)})),),
         concept=concept,
         label=label,
         source=cut.source,
         limits=(
-            f"{field} {band_meanings(cut)[state]} on study day 3, {criterion} ({_READ_IN}); one "
+            f"{field} {band} on study day 3, {criterion} ({_READ_IN}); one "
             "reading, not a diagnosis; a missing value is state 0 and shows nothing"
         ),
     )
@@ -75,16 +85,18 @@ SUPPORT2_FIELD_ROWS: Final[tuple[FieldMapping, ...]] = (
     _comorbidity(
         "ca", frozenset({CA_CODES["yes"], CA_CODES["metastatic"]}), "MONDO:0004992", "cancer"
     ),
-    _state("hrt", 2, "HP:0001649", "Tachycardia", _SIRS),
-    _state("resp", 2, "HP:0002789", "Tachypnea", _SIRS),
-    _state("temp", 3, "HP:0001945", "Fever", _SIRS),
-    _state("temp", 1, "HP:0002045", "Hypothermia", _SIRS),
-    _state("wblc", 3, "HP:0001974", "Increased total leukocyte count", _SIRS),
-    _state("wblc", 1, "HP:0001882", "Decreased total leukocyte count", _SIRS),
-    _state("meanbp", 1, "HP:0002615", "Hypotension", _SOFA),
-    _state("crea", 2, "HP:0003259", "Elevated circulating creatinine concentration", _SOFA),
-    _state("bili", 2, "HP:0002904", "Hyperbilirubinemia", _SOFA),
-    _state("pafi", 1, "HP:0012418", "Hypoxemia", _SOFA),
+    state_row("hrt", "above 90", "HP:0001649", "Tachycardia", _SIRS),
+    state_row("resp", "above 20", "HP:0002789", "Tachypnea", _SIRS),
+    state_row("temp", "above 38", "HP:0001945", "Fever", _SIRS),
+    state_row("temp", "below 36", "HP:0002045", "Hypothermia", _SIRS),
+    state_row("wblc", "above 12", "HP:0001974", "Increased total leukocyte count", _SIRS),
+    state_row("wblc", "below 4", "HP:0001882", "Decreased total leukocyte count", _SIRS),
+    state_row("meanbp", "below 70", "HP:0002615", "Hypotension", _SOFA),
+    state_row(
+        "crea", "at least 1.2", "HP:0003259", "Elevated circulating creatinine concentration", _SOFA
+    ),
+    state_row("bili", "at least 1.2", "HP:0002904", "Hyperbilirubinemia", _SOFA),
+    state_row("pafi", "below 400", "HP:0012418", "Hypoxemia", _SOFA),
 )
 """The SUPPORT2 frame's field rows: the disease groups, the comorbidities, then the abnormal
 states of the SIRS fields and the SOFA fields."""
