@@ -86,7 +86,8 @@ validity cannot be read;
 3 the data, a method's output, a scores file, a replay or a stopped log that cannot be resumed
 contradicts its contract, or a `shared`, `rows`, `panel`, `privacy`, `truth`,
 `representativeness`, `syntheval` or `trace` run folder or store fails an identity check, a
-`trace` re-draw included, or a `contradictions --rows` store does.
+`trace` re-draw and a `representativeness` folder's `scores.csv` whose sha256 is not its
+`scores` line's included, or a `contradictions --rows` store does.
 """
 
 from __future__ import annotations

@@ -1426,15 +1426,19 @@ concept, both empty for an arm with no row in the cell; `cell_share` the cell's 
 arm's training set, the training split plus the fill; `real_share` the same for `real`, whose
 fill is the removed records; and `recall` the arm's regression recall on the flagged subgroups of
 its augmented training set, read from the store's folder's `scores.csv`, which on E6's cell is
-removed-cell recall. Its `representativeness.log` opens with the `versions commit=` line, then
-the data's fetch, cohort and `data` lines, then `representativeness run=%s stores=%d holdouts=%d
-root=%s`, one `representativeness store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`
-line per store, and per holdout one `representativeness holdout=%d arm=%s key=%s rows=%d
-gap=%.4f concept=%s cell_share=%.6f real_share=%.6f recall=%.4f` line per arm and flagged cell
-and `representativeness holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`. The last line is
-`representativeness lines=%d sha256=%s seconds=%.1f`, the CSV's rows and sha256. `--runs-dir`
-and `--data-dir` read as `privacy`'s do. It exits 2 for a run without `real` or a store whose
-folder holds no `scores.csv`, and 3 for a store that fails `privacy`'s store checks.
+removed-cell recall; it reads that file only once its sha256 is the one the folder's `scores`
+line logs, as `rows` does. Its `representativeness.log` opens with the `versions commit=` line,
+then the data's fetch, cohort and `data` lines, then `representativeness run=%s stores=%d
+holdouts=%d root=%s`, one `representativeness store=%s run=%s folder=%s log_sha256=%s
+holdouts=%s sha256=%s` line per store, and per holdout, the first time it reads a store,
+`representativeness scores folder=%s sha256=%s`, the sha256 of its folder's `scores.csv`, then
+one `representativeness holdout=%d arm=%s key=%s rows=%d gap=%.4f concept=%s cell_share=%.6f
+real_share=%.6f recall=%.4f` line per arm and flagged cell and `representativeness holdout=%d
+done=%d/%d seconds=%.1f elapsed=%.1f`. The last line is `representativeness lines=%d sha256=%s
+seconds=%.1f`, the CSV's rows and sha256. `--runs-dir` and `--data-dir` read as `privacy`'s do.
+It exits 2 for a run without `real` or a store whose folder holds no `scores.csv`, and 3 for a
+store that fails `privacy`'s store checks or whose folder's `scores.csv` is not the one its
+`scores` line logs.
 
 **SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
 metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR

@@ -33,7 +33,8 @@ from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment, flagged
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.privacy_stores import Store, checked, read, read_fills
-from bko.evaluate.scores import Measure, Scope, Source, parse
+from bko.evaluate.rows import SCORES_CSV, folder_scores
+from bko.evaluate.scores import Measure, Scope, Source
 from bko.gaps.observe import cell_key, record_shows
 from bko.gaps.quota import fused_shares
 from bko.ontology.schema import FieldMapping
@@ -56,9 +57,6 @@ REPRESENTATIVENESS_COLUMNS: Final = (
 
 Row = tuple[int, str, str, int, float, str, float, float, float]
 """One CSV row, in `REPRESENTATIVENESS_COLUMNS`' order."""
-
-SCORES: Final = "scores.csv"
-"""The file in each store's folder the arms' recall is read from."""
 
 
 def share_gap(
@@ -93,17 +91,22 @@ def representativeness(
     """Read each arm's gap fill of `run` against its cells' fused shares; return the CSV.
 
     It logs `representativeness run=%s stores=%d holdouts=%d root=%s`, `read`'s store lines,
-    then per holdout one `representativeness holdout=%d arm=%s key=%s rows=%d gap=%.4f
-    concept=%s cell_share=%.6f real_share=%.6f recall=%.4f` line per arm and flagged cell and
+    then per holdout, the first time it reads a store, `representativeness scores folder=%s
+    sha256=%s`, the sha256 of the store's folder's `scores.csv`, then one
+    `representativeness holdout=%d arm=%s key=%s rows=%d gap=%.4f concept=%s cell_share=%.6f
+    real_share=%.6f recall=%.4f` line per arm and flagged cell and
     `representativeness holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`; then
     `representativeness lines=%d sha256=%s seconds=%.1f`, `lines` the CSV's rows. `recall` is
     the arm's regression recall on the flagged subgroups of its augmented training set, from the
-    store's folder's `scores.csv`; NaN where that file holds no such score.
+    store's folder's `scores.csv` once its sha256 is the one the folder's `scores` line logs
+    (`bko.evaluate.rows.folder_scores`); NaN where that file holds no such score.
 
     Raises:
         EvaluationError: If the experiment lacks `REAL_ARM`, whose training set the cell share
             is read beside, or a store's folder holds no `scores.csv`.
-        IdentityError: As `read`, `checked` and `read_fills`, naming the store.
+        IdentityError: As `read`, `checked` and `read_fills`, naming the store, or as
+            `folder_scores`, if a folder's `scores.csv` is not the one its log names.
+        ScoresFormatError: As `folder_scores`.
     """
     begun = time.perf_counter()
     if REAL_ARM not in experiment.arms:
@@ -150,14 +153,17 @@ def _recalls(store: Store) -> dict[tuple[int, str], float]:
 
     Raises:
         EvaluationError: If the folder holds no `scores.csv`.
+        IdentityError, ScoresFormatError: As `folder_scores`.
     """
-    path = store.folder.path / SCORES
-    if not path.is_file():
-        msg = f"the store {store.path}'s folder {store.folder.path} holds no {SCORES}"
+    folder = store.folder
+    if not (folder.path / SCORES_CSV).is_file():
+        msg = f"the store {store.path}'s folder {folder.path} holds no {SCORES_CSV}"
         raise EvaluationError(msg)
+    scores = folder_scores(folder)
+    logger.info("representativeness scores folder=%s sha256=%s", folder.path, folder.scores_sha256)
     return {
         (score.holdout, score.arm): score.value
-        for score in parse(path.read_text(encoding="utf-8"))
+        for score in scores
         if (score.source, score.measure, score.scope)
         == (Source.AUGMENTED, Measure.RECALL, Scope.FLAGGED)
     }
