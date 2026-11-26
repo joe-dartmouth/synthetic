@@ -1,7 +1,8 @@
 """Offline PhysioNet 2012 inputs: stays, outcomes files and the three sets' archives, in memory.
 
-The real data here is `REAL_STAY` and `REAL_OUTCOME`, set A's stay 134845 and its outcome line
-byte for byte, kept so the parser is proven against the real layout. Every other stay is built
+The real data here is `REAL_STAY` and `REAL_OUTCOME`, set A's stay 134845 and its outcome line,
+and `REAL_DIED_STAY` and `REAL_DIED_OUTCOME`, set A's stay 137928, who died, and its outcome line,
+each byte for byte, kept so the parser is proven against the real layout. Every other stay is built
 by `stay` with invented observations.
 """
 
@@ -260,6 +261,69 @@ REAL_OUTCOME: Final = "134845,16,10,5,223,0"
 
 REAL_ID: Final = 134845
 
+REAL_DIED_STAY: Final = (
+    "Time,Parameter,Value\n"
+    "00:00,RecordID,137928\n"
+    "00:00,Age,58\n"
+    "00:00,Gender,1\n"
+    "00:00,Height,-1\n"
+    "00:00,ICUType,3\n"
+    "00:00,Weight,-1\n"
+    "01:29,pH,7.54\n"
+    "01:29,PaCO2,34\n"
+    "01:29,PaO2,124\n"
+    "01:29,SaO2,97\n"
+    "10:28,Albumin,2.8\n"
+    "10:28,ALP,138\n"
+    "10:28,ALT,31\n"
+    "10:28,AST,184\n"
+    "10:28,Bilirubin,2.4\n"
+    "10:28,BUN,18\n"
+    "10:28,Creatinine,0.6\n"
+    "10:28,Glucose,140\n"
+    "10:28,HCO3,26\n"
+    "10:28,HCT,24.7\n"
+    "10:28,Mg,2.1\n"
+    "10:28,Platelets,24\n"
+    "10:28,K,3.8\n"
+    "10:28,Na,134\n"
+    "10:28,WBC,1\n"
+    "26:59,pH,7.55\n"
+    "26:59,PaCO2,28\n"
+    "26:59,PaO2,64\n"
+    "27:32,HCT,24.1\n"
+    "27:32,Platelets,16\n"
+    "27:32,WBC,1.8\n"
+    "27:59,Lactate,2.9\n"
+    "40:05,ALP,145\n"
+    "40:05,ALT,30\n"
+    "40:05,AST,343\n"
+    "40:05,Bilirubin,3.3\n"
+    "40:05,BUN,23\n"
+    "40:05,Creatinine,0.8\n"
+    "40:05,Glucose,87\n"
+    "40:05,HCO3,24\n"
+    "40:05,HCT,21.7\n"
+    "40:05,Mg,1.9\n"
+    "40:05,Platelets,13\n"
+    "40:05,K,4\n"
+    "40:05,Na,138\n"
+    "40:05,WBC,2\n"
+    "47:21,pH,7.48\n"
+    "47:21,PaCO2,32\n"
+    "47:21,PaO2,53\n"
+    "47:21,SaO2,87\n"
+)
+"""Set A's stay 137928, byte for byte: a man of 58 in a medical ICU, who died in hospital."""
+
+REAL_DIED_OUTCOME: Final = "137928,-1,5,12,3,1"
+"""The outcome line of stay 137928 in `Outcomes-a.txt`, byte for byte."""
+
+REAL_DIED_ID: Final = 137928
+
+HR_CUTOFF: Final = 90
+"""`hr_max`'s cutoff, "Heart rate >90/min" (Singer et al., Box 1): the one place tests state it."""
+
 
 def stay(
     record_id: int,
@@ -289,12 +353,14 @@ def outcomes(*rows: tuple[int, int]) -> str:
 
 
 def zipped(label: str, stays: Mapping[int, str]) -> bytes:
-    """Set `label`'s zip: its directory entry, then each stay as `set-x/<RecordID>.txt`."""
+    """Set `label`'s zip: its directory entry, then each stay as `set-x/<RecordID>.txt`, deflated
+    as the published zips' members are."""
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
+    with zipfile.ZipFile(buffer, "w") as bundle:
         bundle.writestr(zipfile.ZipInfo(f"set-{label}/", date_time=(2012, 5, 8, 1, 5, 0)), "")
         for record_id, text in stays.items():
             info = zipfile.ZipInfo(f"set-{label}/{record_id}.txt", date_time=(2012, 5, 8, 1, 23, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
             bundle.writestr(info, text)
     return buffer.getvalue()
 
@@ -389,7 +455,9 @@ def planted(
 
 
 def real_sets() -> dict[str, dict[int, tuple[str, int]]]:
-    """`mixed()` with `REAL_STAY` added to set A, its death read from `REAL_OUTCOME`."""
+    """`mixed()` with `REAL_STAY` and `REAL_DIED_STAY` added to set A, each death read from its
+    outcome line."""
     sets = mixed()
     sets["a"][REAL_ID] = (REAL_STAY, int(REAL_OUTCOME.split(",")[5]))
+    sets["a"][REAL_DIED_ID] = (REAL_DIED_STAY, int(REAL_DIED_OUTCOME.split(",")[5]))
     return sets

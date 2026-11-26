@@ -16,8 +16,8 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.frames import check_records, digest
 from bko.datasets.physionet2012 import (
-    FEATURES,
     MEASURED,
+    READ,
     frame_records,
     load_physionet2012,
     parse_outcomes,
@@ -27,6 +27,10 @@ from bko.datasets.physionet2012_frame import physionet2012_frame
 from bko.ontology.physionet2012_rows import PHYSIONET2012_FIELD_ROWS
 from bko.ontology.schema import Codes, shown
 from tests._physionet2012_fixtures import (
+    HR_CUTOFF,
+    REAL_DIED_ID,
+    REAL_DIED_OUTCOME,
+    REAL_DIED_STAY,
     REAL_ID,
     REAL_OUTCOME,
     REAL_STAY,
@@ -79,15 +83,38 @@ def test_the_real_stay_reads_as_its_literal_fields() -> None:
     }
 
 
-def test_the_real_outcome_line_reads_as_its_death() -> None:
-    assert parse_outcomes(outcomes() + REAL_OUTCOME + "\n", "o") == {REAL_ID: 0}
+def test_the_real_died_stay_reads_as_its_literal_fields() -> None:
+    record = records((REAL_DIED_STAY, 1)).loc[REAL_DIED_ID]
+    assert record.to_dict() == {
+        "age": 58,
+        "sex": 1,
+        "ICUType": 3,
+        "hr_max": 0,
+        "resprate_max": 0,
+        "temp_max": 0,
+        "temp_min": 0,
+        "wbc_max": 1,
+        "wbc_min": 1,
+        "map_min": 0,
+        "creatinine_max": 1,
+        "bilirubin_max": 2,
+        "platelets_min": 1,
+        "gcs_min": 0,
+        "mechvent": 0,
+        LABEL: 1,
+    }
+
+
+def test_the_real_outcome_lines_read_as_their_deaths() -> None:
+    text = outcomes() + REAL_OUTCOME + "\n" + REAL_DIED_OUTCOME + "\n"
+    assert parse_outcomes(text, "o") == {REAL_ID: 0, REAL_DIED_ID: 1}
 
 
 def test_each_variable_is_reduced_to_its_minimum_and_maximum() -> None:
     record = one(
-        ("00:10", "HR", "88"),
-        ("12:00", "HR", "91"),
-        ("47:59", "HR", "90"),
+        ("00:10", "HR", str(HR_CUTOFF - 2)),
+        ("12:00", "HR", str(HR_CUTOFF + 1)),
+        ("47:59", "HR", str(HR_CUTOFF)),
         ("01:00", "Temp", "35.9"),
         ("02:00", "Temp", "37"),
         ("40:00", "Temp", "38.1"),
@@ -107,7 +134,7 @@ def test_each_variable_is_reduced_to_its_minimum_and_maximum() -> None:
 
 def test_each_coded_field_is_at_its_cutoffs() -> None:
     assert {name: (cut.at_or_above, cut.above) for name, cut in MEASURED.items()} == {
-        "hr_max": ((), (90.0,)),
+        "hr_max": ((), (float(HR_CUTOFF),)),
         "resprate_max": ((), (20.0,)),
         "temp_max": ((), (38.0,)),
         "temp_min": ((36.0,), ()),
@@ -120,9 +147,11 @@ def test_each_coded_field_is_at_its_cutoffs() -> None:
         "gcs_min": ((15.0,), ()),
     }
     assert {cut.source for cut in MEASURED.values()} == {"singer-2016"}
-    at = one(("01:00", "HR", "90"), ("01:00", "RespRate", "20"), ("01:00", "MAP", "70"))
+    at = one(("01:00", "HR", str(HR_CUTOFF)), ("01:00", "RespRate", "20"), ("01:00", "MAP", "70"))
     assert (at["hr_max"], at["resprate_max"], at["map_min"]) == (1, 1, 2)
-    past = one(("01:00", "HR", "90.5"), ("01:00", "RespRate", "21"), ("01:00", "MAP", "69.9"))
+    past = one(
+        ("01:00", "HR", f"{HR_CUTOFF}.5"), ("01:00", "RespRate", "21"), ("01:00", "MAP", "69.9")
+    )
     assert (past["hr_max"], past["resprate_max"], past["map_min"]) == (2, 2, 1)
 
 
@@ -256,6 +285,12 @@ def test_a_malformed_stay_is_refused(edit, match: str) -> None:
         parse_stay("set-a/1.txt", edit(stay(1)))
 
 
+def test_a_descriptor_once_but_not_at_0000_is_refused() -> None:
+    text = stay(1).replace("00:00,Age,60\n", "") + "01:00,Age,60\n"
+    with pytest.raises(ContractError, match=r"set-a/1\.txt line 7: Age must appear once, at 00:00"):
+        parse_stay("set-a/1.txt", text)
+
+
 def test_a_member_that_is_not_a_stays_name_is_refused() -> None:
     with pytest.raises(ContractError, match=r"notes\.txt: not a stay's name"):
         parse_stay("notes.txt", stay(1))
@@ -277,28 +312,77 @@ def test_a_malformed_outcomes_file_is_refused(text: str, match: str) -> None:
         parse_outcomes(text, "o")
 
 
-def test_the_severity_scores_never_enter_the_frame() -> None:
+def test_the_severity_scores_never_enter_the_frame(tmp_path: Path) -> None:
     severe = outcomes((1, 0)).replace("1,12,4,9,-1,0", "1,80,24,90,30,0")
     assert parse_outcomes(severe, "o") == parse_outcomes(outcomes((1, 0)), "o") == {1: 0}
-    found = records((stay(1), 0))
-    for name in ("SAPS-I", "SOFA", "Length_of_stay", "Survival", "In-hospital_death"):
-        assert name not in found.columns
+    sets = mixed()
+    ordinary = {
+        label: outcomes(*((rid, death) for rid, (_, death) in held.items()))
+        for label, held in sets.items()
+    }
+    extreme = {
+        label: text.replace(",12,4,9,-1,", ",71,23,64,2,") for label, text in ordinary.items()
+    }
+    assert extreme != ordinary
+    first = load_physionet2012(tmp_path / "1", sources=planted(tmp_path / "1", sets))
+    again = load_physionet2012(
+        tmp_path / "2", sources=planted(tmp_path / "2", sets, outcome_texts=extreme)
+    )
+    pd.testing.assert_frame_equal(first, again)
 
 
-def test_the_excluded_columns_never_enter_the_frame() -> None:
-    found = records((REAL_STAY, 0))
-    assert tuple(found.columns) == (*FEATURES, LABEL)
-    for name in ("Height", "Weight", "Lactate", "PaCO2", "FiO2", "NIMAP", "MAP", "HR", "GCS"):
-        assert name not in found.columns
+def test_the_excluded_variables_never_change_a_record() -> None:
+    read = {"HR", "RespRate", "Temp", "WBC", "MAP", "NIMAP", "Creatinine", "Bilirubin"}
+    assert read | {"Platelets", "GCS", "MechVent"} == READ
+    excluded = ("Lactate", "PaCO2", "FiO2", "SysABP", "Urine", "Weight", "TroponinT", "pH")
+    changed = REAL_STAY.replace("00:00,Height,-1\n", "00:00,Height,250\n") + "".join(
+        f"47:00,{name},999\n" for name in excluded
+    )
+    pd.testing.assert_frame_equal(records((changed, 0)), records((REAL_STAY, 0)))
 
 
 def test_load_reads_every_set_and_its_outcomes(tmp_path: Path) -> None:
     found = load_physionet2012(tmp_path, sources=planted(tmp_path, real_sets()))
-    assert len(found) == 13
+    assert len(found) == 14
     assert found.index.is_monotonic_increasing
-    assert int(found[LABEL].sum()) == 3
+    assert found.index[found[LABEL] == 1].tolist() == [REAL_DIED_ID, 140000, 140005, 140010]
     assert found.loc[REAL_ID, "bilirubin_max"] == 2
-    assert found.loc[140011, "ICUType"] == 4
+    assert found.loc[140000].to_dict() == {
+        "age": 40,
+        "sex": 0,
+        "ICUType": 1,
+        "hr_max": 1,
+        "resprate_max": 0,
+        "temp_max": 1,
+        "temp_min": 1,
+        "wbc_max": 1,
+        "wbc_min": 1,
+        "map_min": 1,
+        "creatinine_max": 0,
+        "bilirubin_max": 0,
+        "platelets_min": 1,
+        "gcs_min": 2,
+        "mechvent": 1,
+        LABEL: 1,
+    }
+    assert found.loc[140011].to_dict() == {
+        "age": 85,
+        "sex": 1,
+        "ICUType": 4,
+        "hr_max": 2,
+        "resprate_max": 2,
+        "temp_max": 2,
+        "temp_min": 2,
+        "wbc_max": 2,
+        "wbc_min": 2,
+        "map_min": 2,
+        "creatinine_max": 0,
+        "bilirubin_max": 0,
+        "platelets_min": 2,
+        "gcs_min": 1,
+        "mechvent": 0,
+        LABEL: 0,
+    }
     assert found.dtypes.unique().tolist() == ["int64"]
 
 
@@ -348,10 +432,14 @@ def _truncated(label: str) -> bytes:
     [
         ("a", b"not a zip archive", "physionet2012-set-a: cannot read the archive: BadZipFile"),
         ("b", None, "physionet2012-set-b: cannot read the archive: BadZipFile"),
-        ("c", None, r"physionet2012-set-c: cannot read the archive: \w+"),
-        ("c", b"\x1f\x8b not gzip", r"physionet2012-set-c: cannot read the archive: \w+"),
-        ("a", archived("c", {1: stay(1)}), "physionet2012-set-a: cannot read the archive"),
-        ("c", archived("a", {1: stay(1)}), "physionet2012-set-c: cannot read the archive"),
+        ("c", None, "physionet2012-set-c: cannot read the archive: EOFError: Compressed file"),
+        ("c", b"\x1f\x8b not gzip", "physionet2012-set-c: cannot read the archive: ReadError"),
+        ("a", archived("c", {1: stay(1)}), "physionet2012-set-a: cannot read the archive: BadZip"),
+        (
+            "c",
+            archived("a", {1: stay(1)}),
+            "physionet2012-set-c: cannot read the archive: ReadError",
+        ),
     ],
     ids=["not-a-zip", "truncated-zip", "truncated-tar", "bad-gzip", "tar-as-a", "zip-as-c"],
 )
@@ -431,7 +519,7 @@ def test_each_abnormal_state_shows_its_concept() -> None:
         "Reduced consciousness",
     }
     high = one(
-        ("01:00", "HR", "91"),
+        ("01:00", "HR", str(HR_CUTOFF + 1)),
         ("01:00", "RespRate", "21"),
         ("01:00", "Temp", "38.5"),
         ("01:00", "WBC", "12.5"),
@@ -447,7 +535,7 @@ def test_each_abnormal_state_shows_its_concept() -> None:
         "Hyperbilirubinemia",
     }
     normal = one(
-        ("01:00", "HR", "90"),
+        ("01:00", "HR", str(HR_CUTOFF)),
         ("01:00", "RespRate", "20"),
         ("01:00", "Temp", "36"),
         ("02:00", "Temp", "38"),
@@ -482,7 +570,11 @@ def test_the_frame_holds_exactly_the_named_fields() -> None:
         3: "Medical ICU",
         4: "Surgical ICU",
     }
-    assert dict(frame.codebook["hr_max"]) == {0: "not measured", 1: "at most 90", 2: "above 90"}
+    assert dict(frame.codebook["hr_max"]) == {
+        0: "not measured",
+        1: f"at most {HR_CUTOFF}",
+        2: f"above {HR_CUTOFF}",
+    }
     assert dict(frame.codebook["temp_min"]) == {0: "not measured", 1: "below 36", 2: "at least 36"}
     assert dict(frame.codebook["mechvent"]) == {0: "no ventilation recorded", 1: "ventilated"}
     assert dict(frame.codebook["sex"]) == {0: "female", 1: "male"}

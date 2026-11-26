@@ -9,8 +9,10 @@ from __future__ import annotations
 import functools
 import hashlib
 import io
+import logging
 import re
 import zipfile
+from collections import Counter
 
 import pandas as pd
 import pytest
@@ -18,15 +20,29 @@ import pytest
 from bko.datasets.archive import members, tar_members
 from bko.datasets.fetch import default_data_dir, read_verified
 from bko.datasets.frames import FrameSpec, digest
+from bko.datasets.physionet2012 import (
+    SETS,
+    TARRED,
+    Stay,
+    frame_records,
+    parse_outcomes,
+    parse_stay,
+)
 from bko.datasets.sources import (
     PHYSIONET2012,
     PHYSIONET2012_OUTCOMES_A,
     PHYSIONET2012_SET_A,
-    PHYSIONET2012_SET_C,
 )
 from bko.datasets.split import split
 from bko.ontology.catalog import CATALOG
-from tests._physionet2012_fixtures import REAL_ID, REAL_OUTCOME, REAL_STAY
+from tests._physionet2012_fixtures import (
+    REAL_DIED_ID,
+    REAL_DIED_OUTCOME,
+    REAL_DIED_STAY,
+    REAL_ID,
+    REAL_OUTCOME,
+    REAL_STAY,
+)
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
@@ -35,6 +51,39 @@ pytestmark = [pytest.mark.releases, pytest.mark.integration]
 @functools.cache
 def _loaded() -> tuple[pd.DataFrame, FrameSpec]:
     return CATALOG["physionet2012"].read(default_data_dir(), open_url=_no_fetch)
+
+
+@functools.cache
+def _texts() -> dict[str, dict[str, str]]:
+    """Each set's members by name, read from its pinned archive."""
+    texts = {}
+    for label, source in zip(SETS, PHYSIONET2012, strict=False):
+        read = tar_members if label in TARRED else members
+        data = read_verified(source, default_data_dir())
+        texts[label] = dict(read(data, re.compile(rf"set-{label}/[0-9]+\.txt"), source))
+    return texts
+
+
+@functools.cache
+def _lines() -> tuple[tuple[str, str, str, str], ...]:
+    """Every observation line of every stay: its set, its member, its `Parameter` and `Value`."""
+    return tuple(
+        (label, name, *line.split(",")[1:])
+        for label, held in _texts().items()
+        for name, text in held.items()
+        for line in text.split("\n")[1:-1]
+    )
+
+
+@functools.cache
+def _stays() -> tuple[Stay, ...]:
+    return tuple(
+        parse_stay(name, text) for held in _texts().values() for name, text in held.items()
+    )
+
+
+def _values(parameter: str) -> list[str]:
+    return [value for _, _, name, value in _lines() if name == parameter]
 
 
 def _no_fetch(url: str, timeout: float) -> io.BytesIO:
@@ -61,17 +110,70 @@ def test_each_set_holds_4000_stays() -> None:
     zipped = read_verified(PHYSIONET2012_SET_A, default_data_dir())
     names = zipfile.ZipFile(io.BytesIO(zipped)).namelist()
     assert (names[0], len(names)) == ("set-a/", 4001)
-    tarred = read_verified(PHYSIONET2012_SET_C, default_data_dir())
-    pattern = re.compile(r"set-c/\d+\.txt")
-    assert sum(1 for _ in tar_members(tarred, pattern, PHYSIONET2012_SET_C)) == 4000
+    assert {label: len(held) for label, held in _texts().items()} == {
+        "a": 4000,
+        "b": 4000,
+        "c": 4000,
+    }
 
 
-def test_the_fixtures_real_stay_and_outcome_are_the_files() -> None:
-    zipped = read_verified(PHYSIONET2012_SET_A, default_data_dir())
-    stays = dict(members(zipped, re.compile(r"set-a/\d+\.txt"), PHYSIONET2012_SET_A))
+def test_the_descriptors_hold_the_adrs_figures() -> None:
+    ages = Counter(float(value) for value in _values("Age"))
+    assert (min(ages), max(ages), ages[90.0], ages[89.0], ages[-1.0]) == (15, 90, 464, 120, 0)
+    assert Counter(_values("Gender"))["-1"] == 12
+    assert set(_values("ICUType")) == {"1", "2", "3", "4"}
+
+
+def test_the_values_hold_the_adrs_figures() -> None:
+    assert Counter(_values("MechVent")) == {"1": 91644}
+    below = [value for value in _values("Temp") if float(value) < 0 and value != "-1"]
+    assert (len(below), below.count("-17.8")) == (59, 55)
+    assert sum("e" in value for _, _, _, value in _lines()) == 83
+    unnamed = [(label, name) for label, name, parameter, _ in _lines() if not parameter]
+    assert Counter(label for label, _ in unnamed) == {"c": 2403}
+    assert len(set(unnamed)) == 1594
+
+
+def test_the_recorded_zeros_are_the_adrs() -> None:
+    kept = [stay for stay in _stays() if -1.0 not in {stay.age, stay.gender}]
+    zeros = {
+        (variable, how): sum(stay.reduced(variable, how) == 0 for stay in kept)
+        for variable, how in (
+            *(("Temp", "min"), ("MAP", "min"), ("HR", "max")),
+            *(("RespRate", "max"), ("WBC", "min"), ("Bilirubin", "max")),
+        )
+    }
+    assert zeros == {
+        ("Temp", "min"): 102,
+        ("MAP", "min"): 108,
+        ("HR", "max"): 0,
+        ("RespRate", "max"): 0,
+        ("WBC", "min"): 1,
+        ("Bilirubin", "max"): 1,
+    }
+
+
+def test_the_cohort_line_and_the_records_are_the_adrs(caplog) -> None:
+    deaths: dict[int, int] = {}
+    for source in PHYSIONET2012[len(SETS) :]:
+        text = read_verified(source, default_data_dir()).decode("ascii")
+        deaths.update(parse_outcomes(text, source.name))
+    with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
+        records = frame_records(list(_stays()), deaths)
+    assert caplog.messages[-1].startswith(
+        "cohort dataset=physionet2012 stays=12000 unknown_age=0 unknown_sex=12 left_out=12 "
+        "records=11988 died=1706 unnamed=2403 below_zero=59 "
+    )
+    assert digest(records) == "5ca824f645d6a37af0aa99c29d37556f8994ba3cde2941cdac61b807b0678f48"
+
+
+def test_the_fixtures_real_stays_and_outcomes_are_the_files() -> None:
+    stays = _texts()["a"]
     assert stays[f"set-a/{REAL_ID}.txt"] == REAL_STAY
+    assert stays[f"set-a/{REAL_DIED_ID}.txt"] == REAL_DIED_STAY
     outcomes = read_verified(PHYSIONET2012_OUTCOMES_A, default_data_dir()).decode("ascii")
     assert f"\n{REAL_OUTCOME}\n" in outcomes
+    assert f"\n{REAL_DIED_OUTCOME}\n" in outcomes
 
 
 def test_the_real_stay_loads_as_its_record() -> None:

@@ -23,12 +23,14 @@ from bko.ontology.mapping import CONCEPT_ROWS
 from bko.ontology.physionet2012_rows import PHYSIONET2012_FIELD_ROWS, state_row
 from bko.ontology.schema import Codes
 from tests._ontology_fixtures import RoutingOpener
-from tests._physionet2012_fixtures import built
+from tests._physionet2012_fixtures import HR_CUTOFF, built, mixed
 
 
 FILES = built()
 SOURCES = tuple(source for source, _ in FILES)
 BODIES = {source.url: data for source, data in FILES}
+RECORDS = sum(len(held) for held in mixed().values())
+"""The fixture's stays, every one a record: no age or sex is unknown."""
 
 
 def _refusing_opener(url: str, timeout: float) -> BinaryIO:
@@ -50,7 +52,7 @@ def test_the_physionet2012_dataset_loads_and_logs_its_data_line(tmp_path: Path, 
     assert Dataset.PHYSIONET2012.value == "physionet2012"
     assert data.frame.name == "physionet2012"
     assert tuple(data.records.columns) == data.frame.columns
-    assert len(data.records) == 12
+    assert len(data.records) == RECORDS
     assert (data.field_rows, data.name, data.agreement, data.held) == (
         PHYSIONET2012_FIELD_ROWS,
         "physionet2012",
@@ -58,7 +60,7 @@ def test_the_physionet2012_dataset_loads_and_logs_its_data_line(tmp_path: Path, 
         None,
     )
     line = (
-        f"data dataset=physionet2012 frame=physionet2012 records=12 "
+        f"data dataset=physionet2012 frame=physionet2012 records={RECORDS} "
         f"digest={digest(data.records)} agreement=none"
     )
     assert line in caplog.messages
@@ -122,9 +124,9 @@ def test_every_cutoff_row_cites_singer_and_names_the_original() -> None:
         assert "(read in singer-2016's reproduction)" in row.limits, row
         assert ("bone-1992" in row.limits) != ("vincent-1996" in row.limits), row
     assert PHYSIONET2012_FIELD_ROWS[0].limits == (
-        "hr_max above 90, the stay's highest HR over its first 48 hours, a SIRS criterion of "
-        "bone-1992 (read in singer-2016's reproduction); one reading, not a diagnosis; a stay "
-        "that never measured it is state 0 and shows nothing"
+        f"hr_max above {HR_CUTOFF}, the stay's highest HR over its first 48 hours, a SIRS "
+        "criterion of bone-1992 (read in singer-2016's reproduction); one reading, not a "
+        "diagnosis; a stay that never measured it is state 0 and shows nothing"
     )
     assert "the stay's lowest MAP over" in PHYSIONET2012_FIELD_ROWS[6].limits
 
@@ -134,12 +136,12 @@ def test_the_rows_are_in_the_checked_table() -> None:
 
 
 def test_a_row_on_cutoffs_that_cite_nothing_is_refused(monkeypatch) -> None:
-    uncited = MappingProxyType({"hr_max": ("HR", "max", Cutoffs(above=(90.0,)))})
+    uncited = MappingProxyType({"hr_max": ("HR", "max", Cutoffs(above=(float(HR_CUTOFF),)))})
     monkeypatch.setattr(physionet2012_rows, "REDUCED", uncited)
     with pytest.raises(ValueError, match="hr_max's cutoffs cite no source"):
-        state_row("hr_max", "above 90", "HP:0001649", "Tachycardia", "t")
+        state_row("hr_max", f"above {HR_CUTOFF}", "HP:0001649", "Tachycardia", "t")
 
 
 def test_a_row_on_a_band_the_cutoffs_lack_is_refused() -> None:
-    with pytest.raises(ValueError, match="no band 'above 100'"):
-        state_row("hr_max", "above 100", "HP:0001649", "Tachycardia", "t")
+    with pytest.raises(ValueError, match=f"no band 'above {HR_CUTOFF + 10}'"):
+        state_row("hr_max", f"above {HR_CUTOFF + 10}", "HP:0001649", "Tachycardia", "t")

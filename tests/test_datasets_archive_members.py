@@ -10,6 +10,7 @@ import gzip
 import io
 import re
 import stat
+import struct
 import tarfile
 import zipfile
 from collections.abc import Callable, Iterator
@@ -31,9 +32,11 @@ Reader = Callable[[bytes, re.Pattern[str], Source], Iterator[tuple[str, str]]]
 def zipped(*entries: tuple[str, str]) -> bytes:
     """A zip holding each `(name, text)`, a name ending in `/` written as a directory entry."""
     buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
+    with zipfile.ZipFile(buffer, "w") as bundle:
         for name, text in entries:
-            bundle.writestr(zipfile.ZipInfo(name, date_time=(2012, 5, 8, 1, 23, 0)), text)
+            info = zipfile.ZipInfo(name, date_time=(2012, 5, 8, 1, 23, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            bundle.writestr(info, text)
     return buffer.getvalue()
 
 
@@ -147,6 +150,18 @@ def test_a_member_over_the_cap_is_refused_before_it_is_read(kind: str, monkeypat
 
 
 @KINDS
+def test_a_member_of_exactly_the_cap_is_read_and_one_byte_more_refused(
+    kind: str, monkeypatch
+) -> None:
+    monkeypatch.setattr("bko.datasets.archive.MEMBER_LIMIT", 100)
+    data, read = build(kind, ("set-a/1.txt", "x" * 100))
+    assert list(read(data, PATTERN, SOURCE)) == [("set-a/1.txt", "x" * 100)]
+    data, read = build(kind, ("set-a/1.txt", "x" * 101))
+    with pytest.raises(ContractError, match=r"set-a/1\.txt: 101 bytes, over the 100-byte cap"):
+        list(read(data, PATTERN, SOURCE))
+
+
+@KINDS
 def test_a_total_over_the_cap_is_refused(kind: str, monkeypatch) -> None:
     data, read = build(kind, ("set-a/1.txt", "x" * 60), ("set-a/2.txt", "y" * 60))
     monkeypatch.setattr("bko.datasets.archive.TOTAL_LIMIT", 100)
@@ -203,41 +218,67 @@ def _latin1_tar() -> bytes:
 @pytest.mark.parametrize(
     ("make", "match"),
     [
-        (lambda: b"not a gzip stream", r"physionet2012-set-a: cannot read the archive: \w+"),
+        (lambda: b"not a gzip stream", "ReadError: not a gzip file"),
         (
             lambda: _truncated(tarred(*((f"set-a/{n}.txt", f"{n}\n" * 400) for n in range(30)))),
-            r"physionet2012-set-a: cannot read the archive: \w+",
+            "EOFError: Compressed file ended before the end-of-stream marker was reached",
         ),
         (
             lambda: tarred(("set-a/1.txt", "a\n")).replace(b"\x1f\x8b", b"\x1f\x8c", 1),
-            r"physionet2012-set-a: cannot read the archive: \w+",
+            "ReadError: not a gzip file",
         ),
-        (_latin1_tar, "UnicodeDecodeError"),
+        (_latin1_tar, "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe9"),
     ],
     ids=["not-a-gzip", "truncated", "bad-magic", "not-utf-8"],
 )
 def test_a_damaged_tar_is_a_contract_error(make, match: str) -> None:
-    with pytest.raises(ContractError, match=match):
+    with pytest.raises(
+        ContractError, match=re.escape(f"physionet2012-set-a: cannot read the archive: {match}")
+    ):
         list(tar_members(make(), PATTERN, SOURCE))
 
 
-def _bad_crc(data: bytes, name: str) -> bytes:
-    """Flip the first stored byte after `name`'s local header, so its CRC no longer matches."""
-    start = data.index(name.encode()) + len(name)
-    return data[:start] + bytes([data[start] ^ 0xFF]) + data[start + 1 :]
+def _bad_crc(data: bytes) -> bytes:
+    """Flip the first byte of the first central directory entry's CRC-32, which a read checks the
+    member's bytes against."""
+    at = data.index(b"PK\x01\x02") + 16
+    return data[:at] + bytes([data[at] ^ 0xFF]) + data[at + 1 :]
+
+
+def _bad_deflate(data: bytes) -> bytes:
+    """Set the first byte of the first member's deflate stream to `0xff`, a block of the reserved
+    type 3."""
+    name, extra = struct.unpack("<HH", data[26:30])
+    at = 30 + name + extra
+    return data[:at] + b"\xff" + data[at + 1 :]
 
 
 @pytest.mark.parametrize(
     ("make", "match"),
     [
-        (lambda: b"not a zip archive", "BadZipFile"),
-        (lambda: _truncated(zipped(("set-a/1.txt", "a\n" * 2000))), "BadZipFile"),
-        (lambda: _bad_crc(zipped(("set-a/1.txt", "a\n" * 2000)), "set-a/1.txt"), r"\w+"),
+        (lambda: b"not a zip archive", "BadZipFile: File is not a zip file"),
+        (
+            lambda: _truncated(zipped(("set-a/1.txt", "a\n" * 2000))),
+            "BadZipFile: File is not a zip file",
+        ),
+        (
+            lambda: _bad_crc(zipped(("set-a/1.txt", "a\n" * 2000))),
+            "BadZipFile: Bad CRC-32 for file 'set-a/1.txt'",
+        ),
+        (
+            lambda: _bad_deflate(zipped(("set-a/1.txt", "a\n" * 2000))),
+            "error: Error -3 while decompressing data: invalid block type",
+        ),
     ],
-    ids=["not-a-zip", "truncated", "bad-crc"],
+    ids=["not-a-zip", "truncated", "bad-crc", "bad-deflate"],
 )
 def test_a_damaged_zip_is_a_contract_error(make, match: str) -> None:
     with pytest.raises(
-        ContractError, match=rf"physionet2012-set-a: cannot read the archive: {match}"
+        ContractError, match=re.escape(f"physionet2012-set-a: cannot read the archive: {match}")
     ):
         list(members(make(), PATTERN, SOURCE))
+
+
+def test_the_zip_fixture_deflates_its_members() -> None:
+    bundle = zipfile.ZipFile(io.BytesIO(zipped(("set-a/1.txt", "a\n"))))
+    assert [info.compress_type for info in bundle.infolist()] == [zipfile.ZIP_DEFLATED]

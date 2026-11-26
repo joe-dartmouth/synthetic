@@ -17,7 +17,7 @@ from bko.ontology.catalog import CATALOG
 from bko.ontology.schema import Codes, FieldMapping
 from tests._gaps_fixtures import ladder_releases
 from tests._ontology_fixtures import RoutingOpener
-from tests._physionet2012_fixtures import built, stay
+from tests._physionet2012_fixtures import HR_CUTOFF, built, stay
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -29,7 +29,7 @@ TACHYCARDIA = FieldMapping(
     source="t",
     limits="t",
 )
-DIED = FieldMapping(
+DEATH = FieldMapping(
     when=(Codes(LABEL, frozenset({1})),),
     concept="MONDO:9000004",
     label="coronary stenosis",
@@ -41,13 +41,26 @@ DIED = FieldMapping(
 CELLS = 4 * 2 * 2
 """The grid: four age bands (edges 50, 65 and 80), two sexes and two labels."""
 
+FAST = str(HR_CUTOFF + 5)
+SLOW = str(HR_CUTOFF - 20)
 STAYS = {
-    "a": {n: (stay(n, ("01:00", "HR", "95"), age="70", gender="1"), 0) for n in range(1, 21)},
-    "b": {n: (stay(n, ("01:00", "HR", "70"), age="70", gender="0"), 0) for n in range(21, 41)},
+    "a": {n: (stay(n, ("01:00", "HR", FAST), age="70", gender="1"), 0) for n in range(1, 21)},
+    "b": {n: (stay(n, ("01:00", "HR", SLOW), age="70", gender="0"), 0) for n in range(21, 41)},
     "c": {41: (stay(41, age="40"), 1)},
 }
-"""A heart rate above 90 in every man of 65 to 79 who survived, in no such woman, and one death
-under 50."""
+"""A heart rate above the cutoff in every man of 65 to 79 who survived, in no such woman, and one
+death under 50."""
+
+RECORDS = sum(len(held) for held in STAYS.values())
+"""Every stay is a record: no age or sex is unknown."""
+
+DIED = sum(death for held in STAYS.values() for _, death in held.values())
+
+MEASURED_HR = len(STAYS["a"]) + len(STAYS["b"])
+"""The stays holding a heart rate."""
+
+TRAIN, TEST = 33, 8
+"""The seed-0 split of the `RECORDS` records, as its `split` line reads."""
 
 
 def make_context(**change) -> Context:
@@ -56,7 +69,7 @@ def make_context(**change) -> Context:
     entry = dataclasses.replace(
         CATALOG["physionet2012"],
         sources=tuple(source for source, _ in files),
-        rows=(TACHYCARDIA, DIED),
+        rows=(TACHYCARDIA, DEATH),
     )
     context = Context(
         open_url=RoutingOpener({**served, **{source.url: data for source, data in files}}),
@@ -86,7 +99,7 @@ def test_gaps_physionet2012_lists_the_training_splits_gaps(tmp_path: Path, caplo
     assert (
         "frequency-aware,hpo,HP:9000003,Angina pectoris,HP:9000002,Chest pain,65-79,female,0,"
     ) in lines
-    assert "observed dataset=physionet2012 records=33 " in caplog.text
+    assert f"observed dataset=physionet2012 records={TRAIN} " in caplog.text
     assert any(m.startswith(f"gaps rows={len(lines) - 1} sha256=") for m in caplog.messages)
 
 
@@ -100,12 +113,13 @@ def test_gaps_physionet2012_logs_its_records_and_its_split_once(tmp_path: Path, 
     ]
     assert [name for name, _ in found] == ["bko.datasets.physionet2012", "bko.gaps", "bko.datasets"]
     assert found[0][1].startswith(
-        "cohort dataset=physionet2012 stays=41 unknown_age=0 unknown_sex=0 left_out=0 records=41 "
-        "died=1 unnamed=0 below_zero=0 measured_hr_max=40 "
+        f"cohort dataset=physionet2012 stays={RECORDS} unknown_age=0 unknown_sex=0 left_out=0 "
+        f"records={RECORDS} died={DIED} unnamed=0 below_zero=0 measured_hr_max={MEASURED_HR} "
     )
+    assert TRAIN + TEST == RECORDS
     assert found[1:] == [
-        ("bko.gaps", "data dataset=physionet2012 frame=physionet2012 records=41"),
-        ("bko.datasets", "split seed=0 train=33 test=8"),
+        ("bko.gaps", f"data dataset=physionet2012 frame=physionet2012 records={RECORDS}"),
+        ("bko.datasets", f"split seed=0 train={TRAIN} test={TEST}"),
     ]
 
 
