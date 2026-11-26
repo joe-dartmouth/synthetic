@@ -32,7 +32,7 @@ from bko.evaluate.data import Data
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import REAL_ARM, Experiment
 from bko.evaluate.fidelity import ReportScores, quality_report, report_scores
-from bko.evaluate.named_runs import DEFAULT_RUN, NamedRun
+from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.privacy_stores import Store, checked, read, read_fills
 
 
@@ -75,11 +75,14 @@ def truth(
 ) -> str:
     """Read each arm's fill of `run` against its removed records from `stores`; return the CSV.
 
-    It logs `truth run=%s stores=%d holdouts=%d cell=%s fraction=%s root=%s`, `read`'s store
-    lines, then per holdout `prepared`'s `removal` line, `truth holdout=%d removed=%d`, one
-    `truth holdout=%d arm=%s rows=%d column_shapes=%.4f pair_trends=%.4f` line per arm, at
-    WARNING when its scores are NaN, and `truth holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`;
-    then `truth rows=%d sha256=%s seconds=%.1f`.
+    It logs `truth run=%s stores=%d holdouts=%d cell=%s fraction=%s min_rows=%d root=%s`,
+    `read`'s store lines, then per holdout `prepared`'s `removal` line,
+    `truth holdout=%d removed=%d`, one `truth holdout=%d arm=%s rows=%d column_shapes=%.4f
+    pair_trends=%.4f` line per arm, and `truth holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`;
+    then `truth lines=%d sha256=%s seconds=%.1f`, `lines` the CSV's rows. An arm line whose side
+    holds fewer than `MIN_ROWS` rows ends ` short=added`, ` short=removed` or
+    ` short=added,removed` and logs at INFO; one with a NaN score and enough rows on both sides
+    logs at WARNING.
 
     Raises:
         EvaluationError: If the experiment removes no cell.
@@ -92,12 +95,13 @@ def truth(
         raise EvaluationError(msg)
     total = len(experiment.holdout_seeds)
     logger.info(
-        "truth run=%s stores=%d holdouts=%d cell=%s fraction=%s root=%s",
+        "truth run=%s stores=%d holdouts=%d cell=%s fraction=%s min_rows=%d root=%s",
         run,
         len(stores),
         total,
         "/".join(str(value) for value in removal.cell),
         removal.fraction,
+        MIN_ROWS,
         root,
     )
     held = read(run, stores, data, experiment=experiment, runs=runs, root=root, verb="truth")
@@ -119,7 +123,9 @@ def truth(
         )
     text = pd.DataFrame(rows, columns=list(TRUTH_COLUMNS)).to_csv(index=False, lineterminator="\n")
     sha = hashlib.sha256(text.encode()).hexdigest()
-    logger.info("truth rows=%d sha256=%s seconds=%.1f", len(rows), sha, time.perf_counter() - begun)
+    logger.info(
+        "truth lines=%d sha256=%s seconds=%.1f", len(rows), sha, time.perf_counter() - begun
+    )
     return text
 
 
@@ -144,17 +150,22 @@ def _holdout(
     for arm, added in read_fills(seed, store, arms, frame).items():
         inside = added.loc[scopes(added, cell, edges=frame.edges)["cell"]]
         found = truth_scores(inside, removed, frame=frame)
-        level = logging.WARNING if math.isnan(found.shapes) else logging.INFO
+        count = len(inside)
+        short = [
+            side for side, held in (("added", count), ("removed", len(removed))) if held < MIN_ROWS
+        ]
+        unscored = math.isnan(found.shapes) or math.isnan(found.pair_trends)
+        level = logging.WARNING if unscored and not short else logging.INFO
         logger.log(
             level,
-            "truth holdout=%d arm=%s rows=%d column_shapes=%.4f pair_trends=%.4f",
+            "truth holdout=%d arm=%s rows=%d column_shapes=%.4f pair_trends=%.4f%s",
             seed,
             arm,
-            len(inside),
+            count,
             found.shapes,
             found.pair_trends,
+            f" short={','.join(short)}" if short else "",
         )
-        count = len(inside)
         rows += [
             (seed, arm, count, "column-shapes", "", found.shapes),
             (seed, arm, count, "column-pair-trends", "", found.pair_trends),
@@ -168,7 +179,7 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     reading = commands.add_parser(
         "truth", help="read each fill of a run with a removal against the records it removed"
     )
-    reading.add_argument("run", nargs="?", default=DEFAULT_RUN, help="the named run; default: e1")
+    reading.add_argument("run", help="the named run, one with a removal")
     reading.add_argument(
         "--rows",
         dest="stores",

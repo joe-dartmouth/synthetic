@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import io
 import logging
@@ -109,14 +110,26 @@ def test_a_store_of_another_run_is_refused(tmp_path, caplog):
     assert "not a slice of" in errors[-1]
 
 
+def _messages(caplog, prefix: str) -> list[logging.LogRecord]:
+    return [r for r in caplog.records if r.getMessage().startswith(prefix)]
+
+
 def test_real_is_left_out(tmp_path, caplog):
     _, store = _stored(tmp_path, caplog)
-    caplog.set_level(logging.INFO)
+    code, text = _truth(tmp_path, store)
+    assert code == 0
+    table = pd.read_csv(io.StringIO(text), keep_default_na=False)
+    assert set(table["arm"]) == {"none", "smote"}
+    logged = [r.getMessage() for r in caplog.records]
+    assert not any(f"arm={REAL_ARM} " in line for line in logged if line.startswith("truth "))
+
+
+def test_the_csv_and_its_log_follow_the_contract(tmp_path, caplog):
+    _, store = _stored(tmp_path, caplog)
     code, text = _truth(tmp_path, store)
     assert code == 0
     table = pd.read_csv(io.StringIO(text), keep_default_na=False)
     assert tuple(table.columns) == TRUTH_COLUMNS
-    assert set(table["arm"]) == {"none", "smote"}
     measures = ["column-shapes", "column-pair-trends", *["column-shape"] * len(UCI_FRAME.columns)]
     columns = ["", "", *UCI_FRAME.columns]
     for (seed, arm), rows in table.groupby(["holdout", "arm"], sort=False):
@@ -130,13 +143,66 @@ def test_real_is_left_out(tmp_path, caplog):
             assert all(0 <= float(value) <= 1 for value in rows["value"]), seed
     logged = [r.getMessage() for r in caplog.records]
     assert logged[0].startswith("versions commit=")
-    header = f"truth run=e1 stores=1 holdouts=2 cell=<55/female/1 fraction=0.5 root={tmp_path}"
+    header = (
+        f"truth run=e1 stores=1 holdouts=2 cell=<55/female/1 fraction=0.5 min_rows=2 "
+        f"root={tmp_path}"
+    )
     assert header in logged
     assert f"truth store={store} run=e1 folder=run log_sha256=" in caplog.text
-    assert not any(f"arm={REAL_ARM} " in line for line in logged if line.startswith("truth "))
     assert re.search(r"truth holdout=0 removed=\d+$", caplog.text, re.MULTILINE)
-    (empty,) = [r for r in caplog.records if r.getMessage().startswith("truth holdout=0 arm=none")]
-    assert empty.levelno == logging.WARNING
     assert re.search(r"truth holdout=1 done=2/2 seconds=\S+ elapsed=\S+", caplog.text)
     sha = hashlib.sha256(text.encode()).hexdigest()
-    assert f"truth rows={len(table)} sha256={sha} seconds=" in logged[-1]
+    assert f"truth lines={len(table)} sha256={sha} seconds=" in logged[-1]
+
+
+def test_an_arm_with_too_few_added_rows_logs_at_info_with_its_reason(tmp_path, caplog):
+    _, store = _stored(tmp_path, caplog)
+    assert _truth(tmp_path, store)[0] == 0
+    (empty,) = _messages(caplog, "truth holdout=0 arm=none ")
+    assert empty.levelno == logging.INFO
+    assert empty.getMessage().endswith(" short=added")
+    (scored,) = _messages(caplog, "truth holdout=0 arm=smote ")
+    assert scored.levelno == logging.INFO
+    assert "short=" not in scored.getMessage()
+
+
+def test_too_few_removed_records_log_at_info_with_their_reason(tmp_path, caplog, monkeypatch):
+    _, store = _stored(tmp_path, caplog)
+    real = truth_module.checked
+
+    def one_removed(*args, **kwargs):
+        found = real(*args, **kwargs)
+        return dataclasses.replace(found, removed=found.removed.iloc[:1])
+
+    monkeypatch.setattr(truth_module, "checked", one_removed)
+    assert _truth(tmp_path, store)[0] == 0
+    (scored,) = _messages(caplog, "truth holdout=0 arm=smote ")
+    assert scored.levelno == logging.INFO
+    assert scored.getMessage().endswith(" short=removed")
+    (empty,) = _messages(caplog, "truth holdout=0 arm=none ")
+    assert empty.getMessage().endswith(" short=added,removed")
+
+
+def test_a_nan_score_with_enough_rows_logs_a_warning(tmp_path, caplog, monkeypatch):
+    _, store = _stored(tmp_path, caplog)
+    real = truth_module.truth_scores
+
+    def pairless(added: pd.DataFrame, removed: pd.DataFrame, *, frame: FrameSpec) -> ReportScores:
+        found = real(added, removed, frame=frame)
+        return dataclasses.replace(found, pair_trends=math.nan)
+
+    monkeypatch.setattr(truth_module, "truth_scores", pairless)
+    assert _truth(tmp_path, store)[0] == 0
+    (scored,) = _messages(caplog, "truth holdout=0 arm=smote ")
+    assert scored.levelno == logging.WARNING
+    assert "short=" not in scored.getMessage()
+    (empty,) = _messages(caplog, "truth holdout=0 arm=none ")
+    assert empty.levelno == logging.INFO
+
+
+def test_the_run_is_required(tmp_path, capsys):
+    argv = ["truth", "--rows", str(tmp_path / "run.jsonl"), "--data-dir", str(tmp_path / "data")]
+    with pytest.raises(SystemExit) as exited:
+        main(argv, context=_context(tmp_path), out=io.StringIO())
+    assert exited.value.code == 2
+    assert "run" in capsys.readouterr().err
