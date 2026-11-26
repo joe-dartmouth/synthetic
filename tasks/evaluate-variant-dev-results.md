@@ -59,6 +59,12 @@ says which enter `bko-direct-2`.
 - `bko-micro`'s `score` log writes the `micro-field` lines whose format and keys
   [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) holds; on E6's frame they name the
   eight count fields.
+- A free slice of `e20-thina` (PR 4's evidence, not a run of record) read, summed over its ten
+  holdouts' `micro-field` lines: `classless` on 98.5% of each count field's values, since the
+  thin cell's 19 records fill few means under the cap, so nearly every mean is drawn from the
+  label group; `under` 0; `1 - sse/sst` from 0.324 to 0.336; and `equal` from 0.075
+  (`num_lab_procedures`) to 0.923 (`number_emergency`), so on the zero-heavy fields most means
+  equal one of their donors. The reading states these beside the privacy contrast.
 
 ## Acceptance
 
