@@ -552,6 +552,7 @@ not a test of it.
 | [E18](EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) | Development result |
 | [E19](EVIDENCE.md#e19-matched-knowledge-controls-on-the-diabetes-130-removal) | Ablation |
 | [E20](EVIDENCE.md#e20-microaggregated-count-fields-on-the-diabetes-130-removal) | Ablation |
+| [E21](EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal) | Development result |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -609,6 +610,19 @@ non-inferior to `real` within the recall margin, and whether its privacy reading
 than each comparator's. ADR
 [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md) holds the design
 and [E18](EVIDENCE.md#e18-synthetic-share-sweep-on-the-diabetes-130-frame) the runs. It is a
+development reading and registers no confirmatory claim.
+
+### Share-based quota
+
+Every run before E21 asks each flagged cell for a fixed fill, `fill_to` less its training
+records. E21 asks the cell for a count read from the cell instead: coverage, the rows at which
+every concept of fused share at least 0.02 appears with probability at least 0.95, and its
+multiples by 2, 4 and 8; the expected size, the cell's size were its label odds its band's other
+sex's; and the larger of the two. On E12's arms, splits and seeds, it reads per count how far
+each arm's added rows sit from the fused shares, the cell's share of the training set beside
+`real`'s, and removed-cell recall against the fixed fill. ADR
+[`research/share-based-quota`](adr/research/share-based-quota.md) holds the design and
+[E21](EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal) the runs. It is a
 development reading and registers no confirmatory claim.
 
 ### Language-model classifier

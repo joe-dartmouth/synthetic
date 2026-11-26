@@ -854,7 +854,10 @@ start or the supervisor cannot run.
   data with that seed and gives every arm the split's training rows and the request that fills
   each cell under the threshold up to the fill target (`Experiment.threshold` and
   `Experiment.fill_to`, both 20 in `E1`), or only the cell `Experiment.flagged_cell` names when
-  it is set. Under `Experiment.synthetic_share` the request asks each cell for the training rows
+  it is set. Under an `Experiment.quota_rule` other than `fill-to`, each flagged cell is asked
+  its rule's count less its training records instead (`bko.gaps.quota`; ADR
+  [`research/share-based-quota`](adr/research/share-based-quota.md)), and a cell asked 0 leaves
+  the request. Under `Experiment.synthetic_share` the request asks each cell for the training rows
   the share drops there (`bko.datasets.split.dropped`), every arm fits on the whole training
   split, the real rows a classifier fits on leave the dropped rows out, `real` adds them back, and
   every distance reads the whole split (ADR
@@ -975,7 +978,10 @@ start or the supervisor cannot run.
   replica fill near that many rows in all: each cell asks its `kept_count` at the share
   `replica_rows` over the training rows, so the rounded cells may sum to a few rows off it;
   `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's
-  0.5, the probability at which utility calls a record positive; `spend_ceiling=` is the named
+  0.5, the probability at which utility calls a record positive; `quota_rule=<rule>` follows
+  `fill_to=` and `cutoff=` only when the run's `Experiment.quota_rule` is not `fill-to`, the rule
+  that asks each flagged cell for a count read from the cell (ADR
+  [`research/share-based-quota`](adr/research/share-based-quota.md)); `spend_ceiling=` is the named
   run's own, a resume under `--ceiling` included), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
@@ -1232,7 +1238,12 @@ start or the supervisor cannot run.
   `real`, `bko-direct`, `bko-capped` and the candidate `bko-micro`, comparators `bko-direct`,
   `bko-capped` and `none`, no replica, the ceiling inert, `REFERENCE` `bko-capped`) and their
   slices `e20-thina` to `e20-thinj` and `e20-emptya` to `e20-emptyj`, sliced as E6's are;
-  `docs/EVIDENCE.md`, E20, describes them. `RUNS` also holds P1's runs,
+  `docs/EVIDENCE.md`, E20, describes them. `RUNS` holds the quota sweep, `e21-<rule>-thin` and
+  `e21-<rule>-empty` for each rule `coverage`, `coverage-x2`, `coverage-x4`, `coverage-x8`,
+  `expected-size` and `recommended` (`bko.evaluate.runs_direct.E21`: `E12_THIN` and `E12_EMPTY`
+  with `quota_rule` set to the rule, the ceiling inert, `REFERENCE` `real`) and their slices
+  `e21-<rule>-thina` to `e21-<rule>-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E21,
+  describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
@@ -1998,6 +2009,15 @@ stores, gap and replica fills alike. `<run>` is the named run whose slices' stor
 - **The gate does not run it.** `make check` runs it over run folders and stores built in
   `tmp_path`, UCI- and Diabetes-shaped (`tests/test_contradictions_added.py`,
   `tests/test_contradictions_added_diabetes.py`).
+
+**Share-based quota counts.** `bko.gaps.quota` holds the counts a run under a share-based
+`Experiment.quota_rule` asks each flagged cell for (ADR
+[`research/share-based-quota`](adr/research/share-based-quota.md)): `coverage`, the smallest
+count at which every concept of fused share at least `SHARE_FLOOR` appears with probability at
+least 1 - `MISS_CHANCE`, by a union bound; `expected_size`, the cell's other label scaled by the
+label odds of its band's other values of the second cell axis; and `recommended`, the larger of
+the two less the cell's count. It has no command of its own: `score` reads it through the gap
+request, and every reader that rebuilds that request reads it the same way.
 
 ## Generation
 
