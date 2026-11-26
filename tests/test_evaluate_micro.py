@@ -1,6 +1,6 @@
 """The `bko-micro` arm and its readers: trace, attribution and donor reuse name every donor.
 
-ADR `research/sampler-donor-limits` fixes the draw; ADR `research/record-explainability` the
+ADR `research/microaggregated-donors` fixes the draw; ADR `research/record-explainability` the
 trace's `averaged` ids and the `donor-mean` attribution.
 """
 

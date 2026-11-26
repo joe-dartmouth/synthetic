@@ -1,6 +1,6 @@
 """The micro draw: `DrawSpec.microaggregate` averages a unit's numeric fields over k donors.
 
-ADR `research/sampler-donor-limits` fixes the rule each test reads.
+ADR `research/microaggregated-donors` fixes the rule each test reads.
 """
 
 from __future__ import annotations

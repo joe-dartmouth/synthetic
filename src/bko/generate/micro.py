@@ -4,7 +4,7 @@ At a spec that sets `microaggregate`, a unit holding a numeric field other than 
 averaged: `Means.pick` draws a primary donor and k-1 more from the primary's key class, copies
 the unit's coded fields from the primary and averages each numeric field over the k donors. Every
 other unit is picked as `bko.generate.donors._pick_limited` picks it. `Means.log` writes one
-`micro-field` line per cell and averaged field (ADR `research/sampler-donor-limits`).
+`micro-field` line per cell and averaged field (ADR `research/microaggregated-donors`).
 """
 
 from __future__ import annotations

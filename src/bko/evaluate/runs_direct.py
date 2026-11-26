@@ -246,4 +246,4 @@ E20_THIN, E20_EMPTY = (
 )
 """E20's runs: `E9_THIN` and `E9_EMPTY` with `bko-micro` in place of `bko-logic` as the candidate
 against `bko-direct`, `bko-capped` and `none`, and no replica, as E14's (ADR
-`research/sampler-donor-limits`). No arm calls the API, so the ceiling is inert."""
+`research/microaggregated-donors`). No arm calls the API, so the ceiling is inert."""

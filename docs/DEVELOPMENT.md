@@ -369,21 +369,30 @@ cell held fewer matching records than the floor, at least one, and the picks who
 held a donor at the cap. A fill whose pools run out is refused and retried at a derived seed.
 
 The microaggregation direct arm `bko-micro` draws as `bko-capped` does, but writes each numeric
-field other than `age` as the mean of three distinct donors that share the unit's coded values,
-the side of each of its cutoffs and each numeric field's missingness, rounded half-even to a whole
-number for an integer field and to the frame's `fraction_digits` otherwise; coded fields come
-from the primary donor, and each mean donor counts one third of a use against the cap (ADR
-[`research/sampler-donor-limits`](adr/research/sampler-donor-limits.md), Decisions 8 to 16). On
-E6's frame it averages the eight count fields. The runs `e20-thin` and `e20-empty` hold it. Its
-`direct` and `fallback` lines read ` min_donors=2 reuse_cap=1 microaggregate=3 presence=shares`,
-its `arm` line's params add `"min_donors": 2`, `"reuse_cap": 1` and `"microaggregate": 3`, its
-`direct arm=` line ends in `fallback_draws=%d`, and it writes `bko-capped`'s `limits` line. An
-averaged pick whose pool holds no class of three free donors reads the label group, logged on
-the `fallback` line, one line per averaged field. Beside the `limits` line, the sampler writes
-one `micro-field holdout=%d fill=%s key=%s field=%s values=%d equal=%d primary=%d sse=%s sst=%s`
-line per cell and averaged field: the values written, those equal to at least one of their own
-three donors' values, those equal to the primary's, and the donors' within-group and total sums
-of squares; `1 - sse/sst` is the share of the donors' sum of squares the means keep.
+field other than `age` as the mean of three distinct donors that share the unit's coded values
+and the side of each of its cutoffs, rounded half-even to a whole number for an integer field and
+to the frame's `fraction_digits` otherwise, never -0; a NaN in an averaged field is refused.
+Coded fields come from the primary donor. Each other donor of a mean counts one third of a use
+against the cap, and the primary of a unit holding a coded field counts a whole use, so a donor
+already in any of that unit's means is never its primary (ADR
+[`research/microaggregated-donors`](adr/research/microaggregated-donors.md)). On E6's frame it
+averages the eight count fields. The runs `e20-thin` and `e20-empty` hold it. Its `direct` and
+`fallback` lines read ` min_donors=2 reuse_cap=1 microaggregate=3 presence=shares`, its `arm`
+line's params add `"min_donors": 2`, `"reuse_cap": 1` and `"microaggregate": 3`, its
+`direct arm=` line ends in `fallback_draws=%d`, and it writes `bko-capped`'s `limits` line, a cap
+skip counted at the pick's own weight. An averaged pick whose cell pool is under the floor of
+three, or holds no class of three free donors, reads the label group, logged on the `fallback`
+line, one line per averaged field; a fill whose label group holds no class either is refused,
+naming the holdout and the fill, and retried at a derived seed. After the `limits` line, the
+sampler writes one
+`micro-field holdout=%d fill=%s key=%s field=%s floor=%d values=%d equal=%d primary=%d under=%d classless=%d sse=%s sst=%s`
+line per cell and numeric field but `age`, written for a field no draw averaged too: the
+effective floor `max(min_donors, microaggregate)`; the values written; those equal to at least
+one of their own three donors' values; those equal to the primary's; the averaged picks that fell
+back because the cell pool was under the floor (`under`) or held no class of three
+(`classless`), which together make the `fallback` line's count for the field; and the donors'
+within-group and total sums of squares, `1 - sse/sst` the share of the donors' sum of squares
+the means keep.
 
 The tree-share direct arm `bko-tree` draws as `bko-direct` does but for each tree field, a column
 whose rows partition its codes, which it draws as one leaf of its ontology tree at its
@@ -1498,20 +1507,19 @@ at the node and its parent, the weight, the conditional and the share. A `bko-hi
 broad concepts add `hierarchy` beside their share facts: the narrow concept `given`, the weighted
 counts `both` and `narrow`, the `pseudo`-count (null when closed), the `conditional`, the
 `complement` (null when the narrow concept's share is within one float of 1) and whether it was
-`clamped`. A `bko-micro` record adds `averaged`, each averaged field's three donor training
-record ids, the primary's first, its `sources` entry the primary's; a record with no averaged field writes no
-`averaged` key. `bko-direct-pram`,
-`bko-direct-perturbed` and `bko-coherent` rebuild their rows from their candidate lines and re-draw
-underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
-`perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
-line names a call, `kept` when it names none, and PRAM's `changed` or `unchanged`); `fields`, the
-fields that differ from the draw; and `drawn`, the draw's values for them. `bko-coherent` then
-re-runs its change at the fill's seed, which reads its own stream, refuses unless the changed rows
-are the lines' records, and names each free field's leaf donor in `sources`. The other arm kinds
-read their facts from the run folder, a Messages arm's from its `calls.jsonl`. It writes
-`trace.jsonl`, one sorted-key JSON line per record (one per fill for a baseline), which holds source
-training record ids; keep the file in its run folder. `<run-id>` is the folder read, `<run>` the
-named run, `<h>` the holdout and `<arm>` the arm:
+`clamped`. A `bko-micro` record adds `averaged`, each averaged field's three donor training record
+ids, the primary's first, its `sources` entry the primary's; a record with no averaged field writes
+no `averaged` key. `bko-direct-pram`, `bko-direct-perturbed` and `bko-coherent` rebuild their rows
+from their candidate lines and re-draw underneath, and each of their records gets a `perturb`
+object: `result`, the line's schema-4 `perturb` value (on a schema-3 line, `perturbed` or
+`unchanged` by comparison with the draw when the line names a call, `kept` when it names none, and
+PRAM's `changed` or `unchanged`); `fields`, the fields that differ from the draw; and `drawn`, the
+draw's values for them. `bko-coherent` then re-runs its change at the fill's seed, which reads its
+own stream, refuses unless the changed rows are the lines' records, and names each free field's leaf
+donor in `sources`. The other arm kinds read their facts from the run folder, a Messages arm's from
+its `calls.jsonl`. It writes `trace.jsonl`, one sorted-key JSON line per record (one per fill for a
+baseline), which holds source training record ids; keep the file in its run folder. `<run-id>` is
+the folder read, `<run>` the named run, `<h>` the holdout and `<arm>` the arm:
 
     mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 

@@ -496,10 +496,10 @@ registered `candidate` stays `bko`.
 
 ### Ablations and comparators
 
-The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
-`bko-capped`, `bko-micro`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`,
-`bko-coherent`, `bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and
-the guidance levels, are ablations: each changes one part of how the BKB guides generation. The retained-data
+The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`, `bko-capped`,
+`bko-micro`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`,
+`bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and the guidance
+levels, are ablations: each changes one part of how the BKB guides generation. The retained-data
 methods `row-resample`, `marginals` and `eb-marginals` are ablations of the pooling itself, from
 `label-bootstrap` to one weight per cell fitted by empirical Bayes [`efron-1975`][efron-1975]
 (ADR [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). The

@@ -53,16 +53,12 @@ says which enter `bko-direct-2`.
 
 - E20's primary contrast is `bko-micro` minus `bko-capped`, which `privacy` reads per holdout
   with `bko-capped` the reference arm; `bko-direct` minus `bko-capped` is read beside it.
-- `bko-micro`'s count fields carry about one third of their donors' variance, as ADR
-  [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md) states; its
-  fidelity reading is read with that.
-- `bko-micro`'s `score` log writes one
-  `micro-field holdout=%d fill=%s key=%s field=%s values=%d equal=%d primary=%d sse=%s sst=%s`
-  line per cell and averaged field, keys `holdout`, `fill`, `key`, `field`, `values`, `equal`,
-  `primary`, `sse` and `sst`; `1 - sse/sst` is the share of the donors' sum of squares the means
-  keep, and `equal` counts values equal to one of their own donors' values. On E6's frame it
-  names the eight count fields. An averaged pick that falls back to the label group is logged on
-  the existing `fallback` line, one line per averaged field.
+- `bko-micro`'s count fields carry the share of their donors' variance ADR
+  [`research/microaggregated-donors`](../docs/adr/research/microaggregated-donors.md) states
+  (Rationale); its fidelity reading is read with that.
+- `bko-micro`'s `score` log writes the `micro-field` lines whose format and keys
+  [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) holds; on E6's frame they name the
+  eight count fields.
 
 ## Acceptance
 

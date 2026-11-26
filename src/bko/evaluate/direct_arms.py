@@ -37,7 +37,7 @@ unit (ADR `research/sampler-donor-limits`)."""
 
 MICRO_ARM: Final = "bko-micro"
 """The free arm that draws as `CAPPED_ARM` does with each numeric field but `age` the mean of 3
-distinct donors of one key class (`bko.generate.micro`; ADR `research/sampler-donor-limits`)."""
+distinct donors of one key class (`bko.generate.micro`; ADR `research/microaggregated-donors`)."""
 
 TREE_ARM: Final = "bko-tree"
 """The free arm that draws as `DIRECT_ARM` does with each tree field drawn as one leaf of its

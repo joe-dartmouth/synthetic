@@ -53,7 +53,7 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      fallback field.
    * `bko-micro`: as `bko-capped`, and each averaged field names, under `averaged`, the k
      training record ids its mean was taken over, the primary's first; its source is the
-     primary's id (ADR `research/sampler-donor-limits`, Decisions 11 to 14). `averaged` is
+     primary's id (ADR `research/microaggregated-donors`, Decision 7). `averaged` is
      written only when non-empty, so every other arm's trace line keeps its bytes.
    * `bko-tree`: as `bko-direct` for every concept no tree field reads, then, per tree field, its
      drawn leaf with each level's counts, weight, conditional and share (ADR
