@@ -53,6 +53,7 @@ ARGS = {
     Method.ROW_RESAMPLE: ["--rows", "5"],
     Method.MARGINALS: ["--rows", "5"],
     Method.EB_MARGINALS: ["--rows", "5"],
+    Method.HB_MARGINALS: ["--rows", "5"],
 }
 """Each built method's arguments in these tests."""
 

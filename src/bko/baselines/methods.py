@@ -14,6 +14,7 @@ from bko.baselines.classical import cart, gaussian_copula
 from bko.baselines.controls import class_weighting, no_augmentation
 from bko.baselines.diffusion import tabddpm
 from bko.baselines.errors import BaselineError
+from bko.baselines.multilevel import hb_marginals
 from bko.baselines.oversample import adasyn, smote
 from bko.baselines.pooling import eb_marginals, marginals, row_resample
 from bko.baselines.records import Baseline, check
@@ -40,6 +41,7 @@ METHODS: Final[Mapping[Method, Runner]] = MappingProxyType(
         Method.ROW_RESAMPLE: row_resample,
         Method.MARGINALS: marginals,
         Method.EB_MARGINALS: eb_marginals,
+        Method.HB_MARGINALS: hb_marginals,
     }
 )
 """Each built method's runner; the command offers exactly these."""

@@ -57,7 +57,8 @@ also change predictive utility.
     `eb holdout=%d fill=%s kappa=%s`;
   - `hb-marginals`: a hierarchical partial-pooling competitor, per column a baseline-category
     multinomial logit with main effects, every two-way interaction and a cell effect, its scales
-    chosen on a fixed grid by Laplace evidence, logged per column as
+    chosen by Laplace evidence on the fixed grid `TAU_GRID` (0, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2,
+    1 and 2, a scale of 0 dropping its terms), logged per column as
     `hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`, `key`
     naming the stratum as the direct arms' lines do. Its
     specification is fixed before any E19 holdout is scored; a change is a new arm name.

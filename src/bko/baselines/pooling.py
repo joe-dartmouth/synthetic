@@ -102,7 +102,7 @@ def row_resample(train: pd.DataFrame, request: Request) -> Baseline:
     Raises:
         BaselineError: If the request is by label, or a cell's banded label group is empty.
     """
-    _refuse_label(request, "row-resample")
+    refuse_label(request, "row-resample")
     return _fill(train, request, kappa=float(GROUP_WEIGHT), stream=ROW_RESAMPLE_STREAM, whole=True)
 
 
@@ -112,7 +112,7 @@ def marginals(train: pd.DataFrame, request: Request) -> Baseline:
     Raises:
         BaselineError: If the request is by label, or a cell's banded label group is empty.
     """
-    _refuse_label(request, "marginals")
+    refuse_label(request, "marginals")
     return _fill(train, request, kappa=float(GROUP_WEIGHT), stream=MARGINALS_STREAM, whole=False)
 
 
@@ -127,19 +127,24 @@ def eb_marginals(train: pd.DataFrame, request: Request) -> Baseline:
     Raises:
         BaselineError: If the request is by label, or a cell's banded label group is empty.
     """
-    _refuse_label(request, "eb-marginals")
+    refuse_label(request, "eb-marginals")
     kappa = fit_kappa(_evidence(train, request))
     logger.info("eb holdout=%d fill=%s kappa=%s", *fill_names(), kappa)
     return _fill(train, request, kappa=kappa, stream=EB_MARGINALS_STREAM, whole=False)
 
 
-def _refuse_label(request: Request, method: str) -> None:
+def refuse_label(request: Request, method: str) -> None:
+    """Refuse a request by label, which names no band, on behalf of `method`.
+
+    Raises:
+        BaselineError: If the request is not keyed by cell.
+    """
     if request.strata is not Strata.CELL:
         msg = f"{method} needs a request keyed by cell, not by {request.strata}"
         raise BaselineError(msg)
 
 
-def _drawn(request: Request) -> list[str]:
+def drawn_columns(request: Request) -> list[str]:
     """The columns a donor gives: every column but `sex` and the label, in frame order."""
     frame = request.frame
     return [name for name in frame.columns if name not in {"sex", frame.label}]
@@ -151,7 +156,7 @@ def _evidence(train: pd.DataFrame, request: Request) -> list[list[Term[Hashable]
     cells = cell_keys(train, edges=frame.edges)
     labels = sorted({int(stratum[-1]) for stratum in request.quota})
     columns: list[list[Term[Hashable]]] = []
-    for name in _drawn(request):
+    for name in drawn_columns(request):
         terms: list[Term[Hashable]] = []
         for label in labels:
             inside = cells[LABEL] == label
@@ -191,18 +196,18 @@ def _fill(
     """Draw every cell's quota by the pooled rule at `kappa`, one donor per row or per column."""
     frame = request.frame
     cells = cell_keys(train, edges=frame.edges)
-    drawn = _drawn(request)
+    drawn = drawn_columns(request)
     slots = 1 if whole else len(drawn)
     rng = np.random.default_rng([request.seed, stream])
     parts: list[pd.DataFrame] = []
     pools: dict[str, dict[str, int]] = {}
     for stratum, rows in request.quota.items():
         key = "/".join(map(str, stratum))
-        own, group = _pools(cells, stratum, key)
+        own, group = banded_pools(cells, stratum, key)
         pools[key] = {"own": len(own), "banded": len(group)}
         weight = cell_weight(len(own), kappa)
         donors = np.array(
-            [[_donor(rng, own, group, weight) for _ in range(slots)] for _ in range(rows)],
+            [[pooled_donor(rng, own, group, weight) for _ in range(slots)] for _ in range(rows)],
             dtype="int64",
         ).reshape(rows, slots)
         if whole:
@@ -219,7 +224,7 @@ def _fill(
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
 
-def _pools(cells: pd.DataFrame, stratum: Stratum, key: str) -> tuple[np.ndarray, np.ndarray]:
+def banded_pools(cells: pd.DataFrame, stratum: Stratum, key: str) -> tuple[np.ndarray, np.ndarray]:
     """The training positions of the cell's own records and of its banded label group.
 
     Raises:
@@ -238,7 +243,9 @@ def _pools(cells: pd.DataFrame, stratum: Stratum, key: str) -> tuple[np.ndarray,
     return own, group
 
 
-def _donor(rng: np.random.Generator, own: np.ndarray, group: np.ndarray, weight: float) -> int:
+def pooled_donor(
+    rng: np.random.Generator, own: np.ndarray, group: np.ndarray, weight: float
+) -> int:
     """One donor's position by the pooled rule: a coin at `weight`, then a uniform pool record."""
     pool = own if rng.random() < weight else group
     return int(pool[int(rng.integers(len(pool)))])

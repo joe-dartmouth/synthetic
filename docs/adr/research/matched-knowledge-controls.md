@@ -83,12 +83,20 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    label-group modal category:
    `eta_v(a,s,y) = mu_v + A_v[a] + S_v[s] + Y_v[y] + AS_v[a,s] + AY_v[a,y] + SY_v[s,y] + E_v[a,s,y]`.
    Priors: `mu`, `A`, `S` and `Y` normal at scale 10; the two-way terms at `tau2`; `E` at `tau3`,
-   0 at an emptied cell. `TAU_GRID = (0.125, 0.25, 0.5, 1.0, 2.0)` for each of `tau2` and `tau3`.
-   The fit is the posterior mode by L-BFGS-B from zeros with the analytic gradient (`gtol` 1e-8,
-   `maxiter` 1000); the pair with the largest Laplace log evidence, rounded to 6 decimals, wins,
-   ties going to the smaller `tau2`, then the smaller `tau3`. A value is its category for a coded
-   column, and for a numeric one a uniform banded label-group record of that category, else a
-   label-group record. Non-convergence or a failed Cholesky raises `BaselineError`. One line per
+   0 at an emptied cell. `TAU_GRID = (0, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2)` for each of
+   `tau2` and `tau3`; a scale of 0 drops its terms from the model, the two-way terms at `tau2` 0
+   and every `E` at `tau3` 0, so evidence can choose main effects alone for a column. On a real
+   Diabetes 130 fill a grid floored at 0.125 bound most columns at that floor, with evidence gaps to
+   the extended grid's best pair of up to 35 nats. The fit is the posterior mode by L-BFGS-B from
+   zeros with the analytic gradient (`gtol` 1e-8, `maxiter` 1000), then at most 20 Newton steps on
+   the analytic Hessian, each halved at most 30 times while it lowers neither the objective nor
+   the largest gradient entry, until every gradient entry is below 1e-8: L-BFGS-B alone stops on
+   its relative-reduction test with entries up to about 0.07 left, enough to move a rounded
+   evidence and the chosen pair. The pair with the largest Laplace log evidence, rounded to 6
+   decimals, wins, ties going to the smaller `tau2`, then the smaller `tau3`. A value is its
+   category for a coded column, and for a numeric one a uniform banded label-group record of that
+   category, else a label-group record. Non-convergence, a gradient still at or above 1e-8 after
+   the Newton steps, or a failed Cholesky raises `BaselineError`. One line per
    column:
    `hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`. Its
    specification is fixed before any E19 holdout is scored, and a change to it is a new arm name.
@@ -212,7 +220,7 @@ data-only model of an emptied cell a reviewer would name: a multilevel model wit
 interaction reads the band-by-label and sex-by-label signal a main-effects model discards
 ([`gelman-2006`](../../literature.md#partial-pooling),
 [`bishop-1975`](../../literature.md#partial-pooling)). A posterior mode with a fixed start, an
-analytic gradient, a fixed grid and evidence rounded to 6 decimals gives the same fit on every
+analytic gradient, Newton steps to a gradient tolerance, a fixed grid and evidence rounded to 6 decimals gives the same fit on every
 machine.
 
 `bko-kb` reads no training record, so it measures what K's structure alone gives. Uniform presence
@@ -243,7 +251,8 @@ pooled methods refuse a label-keyed request.
 | The banded label group as the direct arms' pool | A second difference from `bko-direct`, whose shares read the whole label group | 2026-11-26 |
 | Duplicates of `label-bootstrap` and `prior-shift` | E19 registers both as they are | 2026-11-26 |
 | A probabilistic-programming dependency for `hb-marginals` | A posterior mode by L-BFGS-B needs only scipy, which the lock holds; see Rationale | 2026-11-26 |
-| A main-effects-only model | Discards the label-by-subgroup signal an emptied cell is predicted from | 2026-11-26 |
+| A main-effects-only model for every column | Discards the label-by-subgroup signal an emptied cell is predicted from; the grid's 0 lets evidence drop the terms per column instead | 2026-11-26 |
+| A grid floored at 0.125 | On a real Diabetes 130 fill the floor bound most columns, and the extended grid's best pair beat it by up to 35 nats of evidence | 2026-11-26 |
 | One-vs-rest fits | Not a likelihood model of a column's categories | 2026-11-26 |
 | One `kappa` per column | Eight label cells give noisy fits, and a one-category column picks the grid's smallest value | 2026-11-26 |
 | An `Experiment.features` field | Placeholder values in place of a dataset name; ADR `research/dataset-variants` holds the projection | 2026-11-26 |

@@ -44,7 +44,7 @@ class Method(enum.StrEnum):
     The first six are docs/RESEARCH.md section 4's comparison set; the classical synthesizers
     follow (ADR `research/baseline-augmentation-design`), then the Bayesian network (ADR
     `research/bayesian-network-baseline`), then TabDDPM, the label bootstrap and the pooled
-    retained-data methods (ADR `research/matched-knowledge-controls`).
+    retained-data methods and the multilevel baseline (ADR `research/matched-knowledge-controls`).
     """
 
     NONE = "none"
@@ -61,6 +61,7 @@ class Method(enum.StrEnum):
     ROW_RESAMPLE = "row-resample"
     MARGINALS = "marginals"
     EB_MARGINALS = "eb-marginals"
+    HB_MARGINALS = "hb-marginals"
 
     @property
     def adds_rows(self) -> bool:
