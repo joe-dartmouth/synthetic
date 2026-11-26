@@ -53,8 +53,8 @@ def trace_direct(
     concepts are its share facts (`bko.evaluate.redraw.Shares`); a `Presence.LOGIC` record's are
     its closed draw (`closed_facts`), since a logic-only draw reads no share; a tree draw's are
     `TreeShares`'; a conditional `is_a` draw's are its share facts with each broad concept's
-    pair parts (`bko.generate.hierarchy.PairPart`); a record drawn without the mapping table has
-    none.
+    pair parts (`bko.generate.hierarchy.PairPart`); a record drawn without the mapping table, or
+    at `Presence.POOLED`, has none.
 
     Raises:
         IdentityError: If the `arm` line's params are not a JSON object or a spec field it logs
@@ -82,7 +82,7 @@ def trace_direct(
         msg = f"holdout {fill.holdout}'s {fill.arm} re-drawn records are not its kept lines"
         raise IdentityError(msg)
     concepts: Callable[[Draw], tuple[Json, ...]]
-    if not spec.mapped:
+    if not spec.mapped or spec.presence is Presence.POOLED:
         concepts = _no_concepts
     elif spec.tree:
         concepts = TreeShares(train, seeded.quota, data=data, ontologies=ontologies).concepts
@@ -148,7 +148,7 @@ def arm_spec(fill: Fill, data: Data, ontologies: Mapping[str, Ontology]) -> Draw
 
 
 def _no_concepts(draw: Draw) -> tuple[Json, ...]:
-    """A draw without the mapping table names no concept."""
+    """A draw without the mapping table, or a pooled one, names no concept."""
     del draw
     return ()
 

@@ -412,8 +412,10 @@ groups hold, drawn at random once per fill, and `bko-pool-all` every feature but
 the run `e19-thin` and its slices hold all three. Their `direct` and `fallback` lines read
 ` presence=pooled`, ` pool=random presence=pooled` and ` pool=all presence=pooled`, their `arm`
 lines' params add `"presence": "pooled"` and, for the last two, `"pool": "random"` or
-`"pool": "all"`, and their `direct arm=` lines end in `fallback_draws=%d`. `bko-pool-random`
-writes one `pool-random holdout=%d fill=%s fields=%s` line per fill, naming the fields it drew.
+`"pool": "all"`, and their `direct arm=` lines end in `fallback_draws=%d`, a pooled field read
+from the label group's branch of the rule counting as fallen back. `bko-pool-random` writes one
+`pool-random holdout=%d fill=%s fields=%s` line per fill attempt, before its `direct` lines,
+naming the fields it drew at the attempt's seed, comma-joined in column order.
 
 The knowledge-only direct arm `bko-kb` copies no training value: presence per logic component is
 uniform over what the ontology allows, each mapping group's coded fields uniform over the codebook

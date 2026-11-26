@@ -2,10 +2,11 @@
 
 `bko.generate.direct.sample` takes a `DrawSpec`. Its default is `bko-direct`'s draw; each other
 field value names an ablation or a variant (ADRs `research/logic-only-ablation`,
-`research/no-mapping-ablation`, `research/sampler-donor-limits`, `research/ancestor-shrunk-shares`
-and `research/bkb-direct-generation`, Decision 12). `params` and `tokens` hold only the fields
-that differ from their defaults, so the default spec's sampler lines and `arm` params keep their
-bytes; `values` holds every field, so `attribution spec=` gains each field the spec gains.
+`research/no-mapping-ablation`, `research/sampler-donor-limits`, `research/ancestor-shrunk-shares`,
+`research/bkb-direct-generation`, Decision 12, and `research/matched-knowledge-controls`).
+`params` and `tokens` hold only the fields that differ from their defaults, so the default spec's
+sampler lines and `arm` params keep their bytes; `values` holds every field, so
+`attribution spec=` gains each field the spec gains.
 """
 
 from __future__ import annotations
@@ -17,6 +18,19 @@ from dataclasses import dataclass
 from typing import Final
 
 from bko.generate.presence import Presence
+
+
+class Pool(enum.StrEnum):
+    """Which fields a `Presence.POOLED` draw copies by the pooled rule (`bko.generate.pooling`)."""
+
+    MAPPED = "mapped"
+    """Each mapping group, whole."""
+
+    RANDOM = "random"
+    """As many fields as the mapping's groups hold, drawn at random once per fill."""
+
+    ALL = "all"
+    """Every feature but `age` and `sex`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +52,7 @@ class DrawSpec:
             at its share.
         closed: Whether each `is_a` pair's broad concept is drawn present whenever its narrow
             one is, the conditional set to 1.
+        pool: Which fields a `Presence.POOLED` draw pools; off its default it needs that presence.
     """
 
     presence: Presence = Presence.SHARES
@@ -47,6 +62,7 @@ class DrawSpec:
     tree: bool = False
     hierarchy: float | None = None
     closed: bool = False
+    pool: Pool = Pool.MAPPED
 
     def __post_init__(self) -> None:
         """Refuse a field combination the draw cannot read.
@@ -54,9 +70,9 @@ class DrawSpec:
         Raises:
             ValueError: If `presence` is not `Presence.SHARES` and `mapped` is false; if a limit
                 is below 1; if `hierarchy` is not a finite non-negative float, or is set beside
-                `closed`; if `tree` is set beside `hierarchy` or `closed`; or if a field of
+                `closed`; if `tree` is set beside `hierarchy` or `closed`; if a field of
                 `_VARIANTS` is off its default without the mapping table or at a presence other
-                than shares.
+                than shares; or if `pool` is off its default at a presence other than pooled.
         """
         if self.presence is not Presence.SHARES and not self.mapped:
             msg = f"presence {self.presence.value} has no meaning without the mapping table"
@@ -81,6 +97,9 @@ class DrawSpec:
         changed = [name for name in _VARIANTS if getattr(self, name) != defaults[name]]
         if changed and (self.presence is not Presence.SHARES or not self.mapped):
             msg = f"{', '.join(changed)} needs the mapping table and presence shares"
+            raise ValueError(msg)
+        if self.pool is not Pool.MAPPED and self.presence is not Presence.POOLED:
+            msg = f"pool {self.pool.value} needs presence pooled"
             raise ValueError(msg)
 
     @property

@@ -4,7 +4,8 @@
 `_pick` draws a donor record from a cell's matches, else from its label group's (ADRs
 `research/bkb-direct-generation` and `research/data-contradiction-handling`). `_pick_limited`
 draws under a donor floor and a reuse cap, and `_Limits` holds one fill attempt's counts (ADR
-`research/sampler-donor-limits`).
+`research/sampler-donor-limits`). `_pick_pooled` draws by the pooled rule (ADR
+`research/matched-knowledge-controls`).
 """
 
 from __future__ import annotations
@@ -55,6 +56,32 @@ def _pick(
     if other:
         return other[int(rng.integers(len(other)))], True
     msg = f"{cell_key(cell)} cannot draw {'+'.join(fields)}: no training record matches the draw"
+    raise SamplingError(msg)
+
+
+def _pick_pooled(
+    cell: Cell,
+    fields: tuple[str, ...],
+    own: Sequence[_Source],
+    other: Sequence[_Source],
+    rng: np.random.Generator,
+    *,
+    weight: int,
+) -> tuple[_Source, bool]:
+    """A record by the pooled rule, with its id, and whether it came from `other`.
+
+    One uniform keeps `own`, the cell's n records, with probability n/(n + `weight`); one more
+    picks uniformly from `own`, else from `other`, the whole label group.
+
+    Raises:
+        SamplingError: If the pool the uniform chose is empty, which only `other` can be.
+    """
+    count = len(own)
+    if rng.random() < (count / (count + weight) if count else 0.0):
+        return own[int(rng.integers(count))], False
+    if other:
+        return other[int(rng.integers(len(other)))], True
+    msg = f"{cell_key(cell)} cannot draw {'+'.join(fields)}: the label group holds no record"
     raise SamplingError(msg)
 
 

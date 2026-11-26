@@ -30,7 +30,8 @@ class Draw:
         closed: `concepts` closed upward under `is_a` within each concept's release; recorded,
             and read into a field only by `Presence.LOGIC`.
         fallback: The fields read from the label group's records because the cell's showed no
-            record matching the draw.
+            record matching the draw, or, for a pooled unit, by the pooled rule's label-group
+            branch (`bko.generate.donors._pick_pooled`).
         sources: The training record id each copied field was read from; `sex` and the label
             follow the cell and have none.
     """

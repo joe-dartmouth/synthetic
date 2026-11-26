@@ -15,7 +15,9 @@ set's closure is forced into the fields (ADR `research/logic-only-ablation`). At
 `tree=True`, each tree field is drawn as one leaf of its ontology tree at its ancestor-shrunk share
 (`bko.generate.tree` and `bko.generate.tree_draw`; ADR `research/ancestor-shrunk-shares`). At a
 spec with `hierarchy` or `closed`, each `is_a` pair's broad concept is drawn given its narrow one
-(`bko.generate.hierarchy`; ADR `research/bkb-direct-generation`, Decision 12).
+(`bko.generate.hierarchy`; ADR `research/bkb-direct-generation`, Decision 12). With
+`Presence.POOLED`, `sample` draws as `mapped=False` does but for the units `bko.generate.pooling`
+pools, each copied by the pooled rule (ADR `research/matched-knowledge-controls`).
 """
 
 from __future__ import annotations
@@ -32,13 +34,14 @@ import pandas as pd
 from bko.datasets.cells import SEXES, cell_keys
 from bko.datasets.frames import FrameSpec
 from bko.gaps.observe import Cell, CellRecords, by_concept, cell_key, record_cells
-from bko.gaps.shares import label_only, nested, shares
+from bko.gaps.shares import GROUP_WEIGHT, label_only, nested, shares
 from bko.generate.donors import (
     _Group,
     _label_groups,
     _Limits,
     _observe_group,  # ruff: ignore[unused-import]  (re-exported)
     _pick,
+    _pick_pooled,
     _Source,
     cell_records,
     label_group,  # ruff: ignore[unused-import]  (re-exported)
@@ -56,6 +59,7 @@ from bko.generate.fields import (
 )
 from bko.generate.hierarchy import Hierarchy, PairPart, log_pairs
 from bko.generate.logic import Component, components, logic_assignment
+from bko.generate.pooling import pooled_for
 from bko.generate.presence import Presence
 from bko.generate.tree import column_trees, leaf_concept
 from bko.generate.tree_draw import Placed, TreeDraw, leaf_at, log_trees
@@ -121,7 +125,8 @@ def sample(
             the cells and label groups count each `is_a` pair of drawn concepts, every concept
             takes its uniform in the order above, and presence is decided narrow before broad,
             a pair's broad concept at its `bko.generate.hierarchy.PairPart` chance; a
-            `hier` line per cell counts the pairs and the clamped complements.
+            `hier` line per cell counts the pairs and the clamped complements. At
+            `Presence.POOLED`, the draw reads `rows` only for `bko.generate.pooling.pooled_for`.
 
     Returns:
         Each cell's draws, in quota order.
@@ -137,11 +142,17 @@ def sample(
             `bko.generate.hierarchy.Hierarchy`, naming the dataset, the frame, the holdout and
             the fill.
     """
-    mappings = tuple(rows) if spec.mapped else ()
     presence = spec.presence
+    mappings = tuple(rows) if spec.mapped and presence is not Presence.POOLED else ()
     holdout, fill = (-1, "none") if tag is None else tag
     try:
-        plan = _Plan(mappings, ontologies, frame, spec)
+        plan = _Plan(
+            mappings,
+            ontologies,
+            frame,
+            spec,
+            pooled_for(rows, frame, spec, seed=seed, tag=(holdout, fill)),
+        )
     except ValueError as exc:
         msg = f"{name} frame={frame.name} holdout={holdout} fill={fill} cannot draw: {exc}"
         raise ValueError(msg) from exc
@@ -257,8 +268,9 @@ class _Plan:
         ontologies: Mapping[str, Ontology],
         frame: FrameSpec,
         spec: DrawSpec,
+        pooled: Sequence[tuple[str, ...]] = (),
     ) -> None:
-        """`spec` is the draw's."""
+        """`spec` is the draw's; `pooled` holds the units the pooled rule copies."""
         self._frame = frame
         self._spec = spec
         self.limits = _Limits(spec.min_donors, spec.reuse_cap) if spec.limited else None
@@ -274,7 +286,9 @@ class _Plan:
         )
         groups = field_groups(rows, frame=frame)
         self._first = {group.fields[0]: group for group in groups}
-        self._free = frozenset(free_fields(rows, frame=frame)) - self.trees.keys()
+        self._pooled = {unit[0]: unit for unit in pooled}
+        held = {field for unit in pooled for field in unit}
+        self._free = frozenset(free_fields(rows, frame=frame)) - self.trees.keys() - held
         self._ontologies = ontologies
         self._drawn = frozenset(self._order)
         self.components: tuple[Component, ...] | None = None
@@ -336,6 +350,11 @@ class _Plan:
                 fields = (column,)
                 own, other = _showing(sources.trees[column], cell, rng, shown)
                 (source, chosen), fell = self._choose(cell, fields, own, other, rng)
+            elif column in self._pooled:
+                fields, own, other = self._pooled[column], sources.own, sources.group
+                (source, chosen), fell = _pick_pooled(
+                    cell, fields, own, other, rng, weight=GROUP_WEIGHT
+                )
             elif column in self._first:
                 fields = self._first[column].fields
                 shows = self._pattern(self._first[column], present)
