@@ -285,7 +285,10 @@ command per method, inside `.venv`:
 - **Reproducibility**: a seed gives the same bytes on one machine with the same lock; CTGAN, TVAE
   and TabDDPM promise no more, so the logged sha256 is the record. The Gaussian copula gives the
   same rows at every seed, since SDV fixes its sampling seed; sequential CART's and the Bayesian
-  network's rows follow the seed alone, as the label bootstrap's do.
+  network's rows follow the seed alone, as the label bootstrap's do. `row-resample`, `marginals`,
+  `eb-marginals` and `hb-marginals` each read one generator of their own stream at the seed, so
+  their rows follow it alone; `eb-marginals`' `kappa` and `hb-marginals`' fits read the training
+  split alone, and the fits give the same scales on one machine with the same lock.
 
 ## Evaluation
 
@@ -1435,15 +1438,16 @@ It reads the data the run used from the data root, and for a direct or perturbat
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
 Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`, `bko-capped`,
 `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`, `bko-donor`,
-`bko-pool-random`, `bko-pool-all`, `bko-kb`) re-draws at its `arm`
-line's seed with that arm's draw spec and no extra random draw; a `bko-logic` record's concepts are
-its closed draw, not share priors, a `bko-nomap` record names no concept, nor does a pooled direct arm's, and a `bko-tree` record's
-concepts end in one entry per tree field: its `field`, `leaf`, `concept` and `label`, and `parts`,
-each level's node from the top's child down to the leaf with both counts at the node and its parent,
-the weight, the conditional and the share. A `bko-hier` record's broad concepts add `hierarchy`
-beside their share facts: the narrow concept `given`, the weighted counts `both` and `narrow`, the
-`pseudo`-count (null when closed), the `conditional`, the `complement` (null when the narrow
-concept's share is within one float of 1) and whether it was `clamped`. `bko-direct-pram`,
+`bko-pool-random`, `bko-pool-all`, `bko-kb`) re-draws at its `arm` line's seed with that arm's
+draw spec and no extra random draw; a `bko-logic` or `bko-kb` record's concepts are its closed
+draw, not share priors, a `bko-nomap` record names no concept, nor does a pooled direct arm's,
+and a `bko-tree` record's concepts end in one entry per tree field: its `field`, `leaf`, `concept`
+and `label`, and `parts`, each level's node from the top's child down to the leaf with both counts
+at the node and its parent, the weight, the conditional and the share. A `bko-hier` record's
+broad concepts add `hierarchy` beside their share facts: the narrow concept `given`, the weighted
+counts `both` and `narrow`, the `pseudo`-count (null when closed), the `conditional`, the
+`complement` (null when the narrow concept's share is within one float of 1) and whether it was
+`clamped`. `bko-direct-pram`,
 `bko-direct-perturbed` and `bko-coherent` rebuild their rows from their candidate lines and re-draw
 underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
 `perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the

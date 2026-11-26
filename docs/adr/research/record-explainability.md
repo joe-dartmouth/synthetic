@@ -36,7 +36,7 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
      `bko.ontology.fragments.INDIVIDUAL`; tail `(__Source__[concept], <source>)`); per field, the
      source training record id; the fallback fields; the closure; and the validation outcome.
    * `bko-logic`: as `bko-direct`, drawn with presence `LOGIC`; its concepts are the closed draw
-     (`bko.generate.direct.Draw.closed`), not share priors.
+     (`bko.generate.draws.Draw.closed`), not share priors.
    * `bko-nomap`: as `bko-direct`, drawn with an empty mapping table (ADR
      `research/no-mapping-ablation`); its `concepts` and `closed` are empty, and each copied
      column names its source training record id.
@@ -156,7 +156,7 @@ folder.
 - Owner: `src/bko/evaluate/trace.py`, with the trace lines in `src/bko/evaluate/trace_lines.py`,
   the direct arms' in `src/bko/evaluate/trace_direct.py`, the perturbation arms' in
   `src/bko/evaluate/trace_perturb.py`, the call log's reading in
-  `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/direct.py`,
+  `src/bko/evaluate/call_prompts.py`, `Draw.sources` in `src/bko/generate/draws.py`,
   `sections` in `src/bko/generate/prompt.py` and the app's frames in
   `src/bko/app/provenance_frames.py`; decision 6's `perturb` key and each arm's results in
   `src/bko/evaluate/holdout_candidates.py`; decision 7's reading in

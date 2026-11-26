@@ -27,7 +27,7 @@ an identifier reads `identifier not given in source` in place of the link. Title
 the citing source, ellipses included; the Santos et al. and `seedat-2024` titles, and those of the
 works ADR `research/classifier-panel` and `docs/RESEARCH.md` section 7 cite, are verbatim from
 their verified metadata; so are those of `llms-2024`, `gruenbaum-2026` and the works under Missing
-data and imputation, read from the works themselves; and those of `dennis-1991`,
+data and imputation but `little-1986`, read from the works themselves; and those of `dennis-1991`,
 `mccallum-1998`, `elemam-2021`, `karr-2006`, `bone-1992`, `vincent-1996`, `singer-2016` and
 `knaus-1995` are verbatim from their records, as are those of `ding-2021`, `occo-2025` and
 `muntner-2018`, and that of `nhlbi-2001` from its cover; and that of
@@ -189,7 +189,7 @@ is the citing source's claim, not a checked one.
 
 ## Partial pooling
 
-- `bishop-1975` · identifier not given in source · `not-fetched` · Yvonne M. M. Bishop, Stephen E. Fienberg & Paul W. Holland, "Discrete Multivariate Analysis: Theory and Practice", MIT Press (1975; metadata unchecked against any record). Log-linear models of multi-way contingency tables. Cited in: ADR `research/matched-knowledge-controls`.
+- `bishop-1975` · identifier not given in source · `not-fetched` · Yvonne M. M. Bishop, Stephen E. Fienberg & Paul W. Holland, Discrete Multivariate Analysis: Theory and Practice, MIT Press (1975; metadata unchecked against any record). Log-linear models of multi-way contingency tables. Cited in: ADR `research/matched-knowledge-controls`.
 - `efron-1975` · [doi:10.1080/01621459.1975.10479864](https://doi.org/10.1080/01621459.1975.10479864) · `not-fetched` · Bradley Efron & Carl Morris, "Data Analysis Using Stein's Estimator and its Generalizations", Journal of the American Statistical Association 70(350):311-319 (1975; metadata checked against Crossref, 2026-11-26). Empirical-Bayes shrinkage of many means toward a common value. Cited in: ADR `research/matched-knowledge-controls`; `docs/RESEARCH.md` section 11.
 - `fay-1979` · [doi:10.1080/01621459.1979.10482505](https://doi.org/10.1080/01621459.1979.10482505) · `not-fetched` · Robert E. Fay & Roger A. Herriot, "Estimates of Income for Small Places: An Application of James-Stein Procedures to Census Data", Journal of the American Statistical Association 74(366a):269-277 (1979; metadata checked against Crossref, 2026-11-26). Small-area estimates that weigh each area's own estimate against a regression prediction. Cited in: ADR `research/matched-knowledge-controls`.
 - `gelman-2006` · [doi:10.1017/cbo9780511790942](https://doi.org/10.1017/cbo9780511790942) · `not-fetched` · Andrew Gelman & Jennifer Hill, "Data Analysis Using Regression and Multilevel/Hierarchical Models", Cambridge University Press (2006; metadata checked against Crossref, 2026-11-26, whose record dates the print edition 2006-12-18). Multilevel regression with partial pooling across groups. Cited in: ADR `research/matched-knowledge-controls`; `docs/RESEARCH.md` section 11.
