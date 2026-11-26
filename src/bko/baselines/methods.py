@@ -15,6 +15,7 @@ from bko.baselines.controls import class_weighting, no_augmentation
 from bko.baselines.diffusion import tabddpm
 from bko.baselines.errors import BaselineError
 from bko.baselines.oversample import adasyn, smote
+from bko.baselines.pooling import eb_marginals, marginals, row_resample
 from bko.baselines.records import Baseline, check
 from bko.baselines.request import Method, Request
 from bko.baselines.synthesizers import ctgan, tvae
@@ -36,6 +37,9 @@ METHODS: Final[Mapping[Method, Runner]] = MappingProxyType(
         Method.BAYES_NET: bayes_net,
         Method.TABDDPM: tabddpm,
         Method.LABEL_BOOTSTRAP: label_bootstrap,
+        Method.ROW_RESAMPLE: row_resample,
+        Method.MARGINALS: marginals,
+        Method.EB_MARGINALS: eb_marginals,
     }
 )
 """Each built method's runner; the command offers exactly these."""

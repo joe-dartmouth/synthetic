@@ -50,6 +50,9 @@ ARGS = {
     Method.BAYES_NET: ["--rows", "5"],
     Method.TABDDPM: ["--rows", "5"],
     Method.LABEL_BOOTSTRAP: ["--rows", "5"],
+    Method.ROW_RESAMPLE: ["--rows", "5"],
+    Method.MARGINALS: ["--rows", "5"],
+    Method.EB_MARGINALS: ["--rows", "5"],
 }
 """Each built method's arguments in these tests."""
 
