@@ -26,7 +26,7 @@ _DESCRIPTIONS: Final[Mapping[str, str]] = {
     "LBXGH": "glycohemoglobin, %",
     "LBXTC": "total cholesterol, mg/dL",
     "LBDHDD": "direct HDL cholesterol, mg/dL",
-    "BMXBMI": "body mass index, kg/m2, coded at the published file's tertiles",
+    "BMXBMI": "body mass index, kg/m2, coded at the kept records' tertiles",
     LABEL: (
         "ever told by a doctor or other health professional of congestive heart failure, coronary "
         "heart disease, a heart attack or a stroke"

@@ -2,9 +2,10 @@
 
 `load_physionet2012` reads the three sets' stays from their verified archives, never extracting
 them (`bko.datasets.archive`), and each set's outcomes file. A stay is an ASCII CSV of
-`Time,Parameter,Value` lines over its first 48 hours; `-1` means missing. Each variable is reduced
-over the whole 48 hours and over the values at or above 0 to its minimum and its maximum, and each
-field the frame names is coded at its cited cutoff (`bko.datasets.states.coded`), `0` = not
+`Time,Parameter,Value` lines over its first 48 hours; `-1` means missing, and a 0 of a variable
+of `IMPLAUSIBLE_ZERO` is no reading. Each field reduces its variables' readings, over the whole 48
+hours and over the values at or above 0, to their minimum or their maximum, `map_min` over `MAP`
+and `NIMAP` together, and is coded at its cited cutoff (`bko.datasets.states.coded`), `0` = not
 measured. A stay whose `Age` or `Gender` is -1 is left out and counted; an empty `Parameter`,
 which names no variable, is skipped and counted. The outcome-related descriptors but the label
 never enter. ADR `research/physionet2012-frame` records the frame.
@@ -79,38 +80,41 @@ MISSING: Final = -1.0
 """The value the files write for missing or unknown data."""
 
 _SINGER: Final = "singer-2016"
-REDUCED: Final[Mapping[str, tuple[str, str, Cutoffs]]] = MappingProxyType(
+REDUCED: Final[Mapping[str, tuple[tuple[str, ...], str, Cutoffs]]] = MappingProxyType(
     {
-        "hr_max": ("HR", "max", Cutoffs(above=(90.0,), source=_SINGER)),
-        "resprate_max": ("RespRate", "max", Cutoffs(above=(20.0,), source=_SINGER)),
-        "temp_max": ("Temp", "max", Cutoffs(above=(38.0,), source=_SINGER)),
-        "temp_min": ("Temp", "min", Cutoffs(at_or_above=(36.0,), source=_SINGER)),
-        "wbc_max": ("WBC", "max", Cutoffs(above=(12.0,), source=_SINGER)),
-        "wbc_min": ("WBC", "min", Cutoffs(at_or_above=(4.0,), source=_SINGER)),
-        "map_min": ("MAP", "min", Cutoffs(at_or_above=(70.0,), source=_SINGER)),
-        "creatinine_max": ("Creatinine", "max", Cutoffs(at_or_above=(1.2,), source=_SINGER)),
-        "bilirubin_max": ("Bilirubin", "max", Cutoffs(at_or_above=(1.2,), source=_SINGER)),
-        "platelets_min": ("Platelets", "min", Cutoffs(at_or_above=(150.0,), source=_SINGER)),
-        "gcs_min": ("GCS", "min", Cutoffs(at_or_above=(15.0,), source=_SINGER)),
+        "hr_max": (("HR",), "max", Cutoffs(above=(90.0,), source=_SINGER)),
+        "resprate_max": (("RespRate",), "max", Cutoffs(above=(20.0,), source=_SINGER)),
+        "temp_max": (("Temp",), "max", Cutoffs(above=(38.0,), source=_SINGER)),
+        "temp_min": (("Temp",), "min", Cutoffs(at_or_above=(36.0,), source=_SINGER)),
+        "wbc_max": (("WBC",), "max", Cutoffs(above=(12.0,), source=_SINGER)),
+        "wbc_min": (("WBC",), "min", Cutoffs(at_or_above=(4.0,), source=_SINGER)),
+        "map_min": (("MAP", "NIMAP"), "min", Cutoffs(at_or_above=(70.0,), source=_SINGER)),
+        "creatinine_max": (("Creatinine",), "max", Cutoffs(at_or_above=(1.2,), source=_SINGER)),
+        "bilirubin_max": (("Bilirubin",), "max", Cutoffs(at_or_above=(1.2,), source=_SINGER)),
+        "platelets_min": (("Platelets",), "min", Cutoffs(at_or_above=(150.0,), source=_SINGER)),
+        "gcs_min": (("GCS",), "min", Cutoffs(at_or_above=(15.0,), source=_SINGER)),
     }
 )
-"""Each coded field: the variable it reduces, `max` or `min`, and its cutoffs, the SIRS criteria
-(`bone-1992`) and SOFA's first abnormal score (`vincent-1996`) as Singer et al. reproduce them
-(`singer-2016`, Box 1 and Table 1)."""
+"""Each coded field: the variables whose readings together it reduces, `max` or `min`, and its
+cutoffs, the SIRS criteria (`bone-1992`) and SOFA's first abnormal score (`vincent-1996`) as
+Singer et al. reproduce them (`singer-2016`, Box 1 and Table 1)."""
 
 MEASURED: Final[Mapping[str, Cutoffs]] = MappingProxyType(
     {name: cut for name, (_, _, cut) in REDUCED.items()}
 )
 """Every coded field, in record order, and its cutoffs."""
 
-FALLBACK: Final[Mapping[str, str]] = MappingProxyType({"MAP": "NIMAP"})
-"""A variable read in place of another on a stay that has no value of it at or above 0."""
+IMPLAUSIBLE_ZERO: Final = (
+    *("HR", "Temp", "WBC", "MAP", "NIMAP", "Creatinine", "Bilirubin", "Platelets", "GCS"),
+)
+"""The read variables whose recorded 0 is physiologically implausible, so no reading: `GCS`'s
+scale runs from 3. `RespRate` keeps its 0, which a ventilated patient can record."""
 
 MECHVENT: Final = "MechVent"
 """The variable `mechvent` reads: 1 when the stay holds a value of 1, else 0."""
 
 READ: Final = frozenset(
-    {variable for variable, _, _ in REDUCED.values()} | set(FALLBACK.values()) | {MECHVENT}
+    {variable for variables, _, _ in REDUCED.values() for variable in variables} | {MECHVENT}
 )
 """The time series the frame reads."""
 
@@ -126,7 +130,7 @@ _NUMBER: Final = re.compile(r"-?[0-9]+(\.[0-9]+)?(e\+[0-9]+)?")
 
 @dataclass(slots=True)
 class Stay:
-    """One stay as read: its descriptors and the values at or above 0 of each variable it reads.
+    """One stay as read: its descriptors and the readings of each variable it reads.
 
     Attributes:
         label: Its set, `a`, `b` or `c`, from its member's name.
@@ -134,12 +138,14 @@ class Stay:
         age: `Age`, -1 when unknown.
         gender: `Gender`, -1 when unknown.
         icu_type: `ICUType`.
-        values: Each read variable's values at or above 0, in file order.
+        values: Each read variable's readings, in file order: its values at or above 0, but a
+            0 of `IMPLAUSIBLE_ZERO`.
         unnamed: Its lines with an empty `Parameter`, skipped.
         missing: Its lines of a read variable whose value is -1, missing by the page's rule.
         below_zero: Its lines of a read variable whose value is below 0 but not -1. Only
             `MechVent`'s values are checked against a set of codes; any other read variable's
             value below 0 is counted here, not refused, and no value is checked against a range.
+        zeros: Per variable of `IMPLAUSIBLE_ZERO` holding one, its lines whose value is 0.
     """
 
     label: str
@@ -151,14 +157,11 @@ class Stay:
     unnamed: int = 0
     missing: int = 0
     below_zero: int = 0
+    zeros: dict[str, int] = field(default_factory=dict)
 
-    def fell_back(self, variable: str) -> bool:
-        """Whether `reduced(variable, ...)` reads its fallback: no value of it, one of that."""
-        return not self.values.get(variable) and bool(self.values.get(FALLBACK.get(variable, "")))
-
-    def reduced(self, variable: str, how: str) -> float:
-        """The minimum or maximum of `variable`'s values, then of its fallback's; NaN if none."""
-        values = self.values.get(variable) or self.values.get(FALLBACK.get(variable, ""), [])
+    def reduced(self, variables: tuple[str, ...], how: str) -> float:
+        """The minimum or maximum of `variables`' readings together; NaN if none."""
+        values = [value for variable in variables for value in self.values.get(variable, [])]
         if not values:
             return math.nan
         return max(values) if how == "max" else min(values)
@@ -182,6 +185,25 @@ def _minute(where: str, text: str) -> int:
         msg = f"{where}: time {text!r} is not hh:mm from 00:00 to 48:00"
         raise ContractError(msg)
     return minute
+
+
+def _read(
+    where: str,
+    parameter: str,
+    value: float,
+    into: tuple[dict[str, list[float]], dict[str, int], dict[str, int]],
+) -> None:
+    """File one value of a read variable: a reading, a listed 0, a -1 or another value below 0."""
+    values, counts, zeros = into
+    if parameter == MECHVENT and value not in {0.0, 1.0, MISSING}:
+        msg = f"{where}: MechVent is {value:g}, not 0, 1 or -1"
+        raise ContractError(msg)
+    if value == 0 and parameter in IMPLAUSIBLE_ZERO:
+        zeros[parameter] = zeros.get(parameter, 0) + 1
+    elif value >= 0:
+        values[parameter].append(value)
+    else:
+        counts["missing" if value == MISSING else "below_zero"] += 1
 
 
 def parse_stay(name: str, text: str) -> Stay:
@@ -212,6 +234,7 @@ def parse_stay(name: str, text: str) -> Stay:
     found: dict[str, float] = {}
     values: dict[str, list[float]] = {variable: [] for variable in READ}
     counts = {"unnamed": 0, "missing": 0, "below_zero": 0}
+    zeros: dict[str, int] = {}
     for number, line in enumerate(lines[1:], start=2):
         where = f"{name} line {number}"
         fields = line.split(",")
@@ -231,14 +254,10 @@ def parse_stay(name: str, text: str) -> Stay:
             msg = f"{where}: {parameter!r} is no descriptor or time series"
             raise ContractError(msg)
         elif parameter in READ:
-            if parameter == MECHVENT and value not in {0.0, 1.0, MISSING}:
-                msg = f"{where}: MechVent is {value:g}, not 0, 1 or -1"
-                raise ContractError(msg)
-            if value >= 0:
-                values[parameter].append(value)
-            else:
-                counts["missing" if value == MISSING else "below_zero"] += 1
-    return _checked(name, (named[1], int(named[2])), found, values, counts)
+            _read(where, parameter, value, (values, counts, zeros))
+    stay = _checked(name, (named[1], int(named[2])), found, values, counts)
+    stay.zeros = zeros
+    return stay
 
 
 def _checked(
@@ -333,11 +352,13 @@ def _matched(label: str, stays: Sequence[Stay], deaths: Mapping[int, int]) -> No
 def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFrame:
     """Return the records of the stays whose age and sex are known, in `RecordID` order.
 
-    Logs one `cohort` line: the stays, in all and per set, those of unknown age and of unknown
-    sex, the stays left out, the records and their deaths, the skipped empty-`Parameter` lines,
-    the read values of -1 and those below 0 but not -1, per coded field the records it was
-    measured on, the records whose `map_min` reads `NIMAP` for want of `MAP`, and the records
-    ventilated.
+    Logs a `zeros` line per variable of `IMPLAUSIBLE_ZERO`, its 0 lines and the records holding
+    one, then one `cohort` line: the stays, in all and per set, those of unknown age and of
+    unknown sex, the stays left out, the records and their deaths, the skipped empty-`Parameter`
+    lines, the read values of -1 and those below 0 but not -1, per coded field the records it was
+    measured on, the records whose `map_min` is a `NIMAP` reading with no `MAP` reading
+    (`map_min_nimap`), those holding both whose lowest `NIMAP` is the lower
+    (`map_min_nimap_lower`) and those with neither (`map_unmeasured`), and the records ventilated.
 
     Returns:
         `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
@@ -353,19 +374,30 @@ def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFr
         "ICUType": pd.Series([stay.icu_type for stay in kept], index=index),
         **{
             name: coded(
-                pd.Series([stay.reduced(variable, how) for stay in kept], index=index),
+                pd.Series([stay.reduced(variables, how) for stay in kept], index=index),
                 at_or_above=cut.at_or_above,
                 above=cut.above,
             )
-            for name, (variable, how, cut) in REDUCED.items()
+            for name, (variables, how, cut) in REDUCED.items()
         },
         "mechvent": pd.Series([int(1.0 in stay.values[MECHVENT]) for stay in kept], index=index),
         LABEL: pd.Series([deaths[stay.record_id] for stay in kept], index=index),
     }
     records = pd.DataFrame(columns, index=index).astype("int64")
+    for variable in IMPLAUSIBLE_ZERO:
+        logger.info(
+            "zeros dataset=%s field=%s readings=%d records=%d",
+            PHYSIONET2012_NAME,
+            variable,
+            sum(stay.zeros.get(variable, 0) for stay in kept),
+            sum(variable in stay.zeros for stay in kept),
+        )
+    arterial = [bool(stay.values["MAP"]) for stay in kept]
+    cuff = [bool(stay.values["NIMAP"]) for stay in kept]
     logger.info(
         "cohort dataset=%s stays=%d %s unknown_age=%d unknown_sex=%d left_out=%d records=%d "
-        "died=%d unnamed=%d missing=%d below_zero=%d %s map_from_nimap=%d mechvent=%d",
+        "died=%d unnamed=%d missing=%d below_zero=%d %s map_min_nimap=%d map_min_nimap_lower=%d "
+        "map_unmeasured=%d mechvent=%d",
         PHYSIONET2012_NAME,
         len(stays),
         " ".join(f"stays_{label}={sum(s.label == label for s in stays)}" for label in SETS),
@@ -378,7 +410,12 @@ def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFr
         sum(stay.missing for stay in stays),
         sum(stay.below_zero for stay in stays),
         " ".join(f"measured_{name}={int((records[name] != 0).sum())}" for name in MEASURED),
-        sum(stay.fell_back("MAP") for stay in kept),
+        sum(c and not a for a, c in zip(arterial, cuff, strict=True)),
+        sum(
+            a and c and min(stay.values["NIMAP"]) < min(stay.values["MAP"])
+            for stay, a, c in zip(kept, arterial, cuff, strict=True)
+        ),
+        sum(not (a or c) for a, c in zip(arterial, cuff, strict=True)),
         int(records["mechvent"].sum()),
     )
     return records

@@ -1,8 +1,9 @@
 """No `RUNS` entry reads a frame whose field rows a unit edits under its own dataset name.
 
 `tasks/direct-index.md`, What every unit relies on, lets a unit edit an existing dataset's field
-rows only when no `RUNS` entry reads the dataset; unit `datasets-frame-rule-revisions` edits
-SUPPORT2's, NHANES's and PhysioNet 2012's under that exception.
+rows only when no `RUNS` entry reads the dataset. ADRs `research/support2-frame`,
+`research/nhanes-frame` and `research/physionet2012-frame` record SUPPORT2's, NHANES's and
+PhysioNet 2012's frames changing under their own names by that exception.
 """
 
 from __future__ import annotations

@@ -16,8 +16,10 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.frames import check_records, digest
 from bko.datasets.physionet2012 import (
+    IMPLAUSIBLE_ZERO,
     MEASURED,
     READ,
+    REDUCED,
     frame_records,
     load_physionet2012,
     parse_outcomes,
@@ -174,9 +176,48 @@ def test_a_value_below_0_is_no_reading_and_is_counted_apart_from_minus_1(caplog)
     assert " missing=2 below_zero=2 " in caplog.messages[-1]
 
 
-def test_a_recorded_0_is_a_reading() -> None:
-    record = one(("01:00", "Temp", "0"), ("02:00", "MAP", "0"))
-    assert (record["temp_min"], record["temp_max"], record["map_min"]) == (1, 1, 1)
+def test_the_zero_list_is_the_variables_whose_0_is_implausible() -> None:
+    assert (
+        *("HR", "Temp", "WBC", "MAP", "NIMAP", "Creatinine", "Bilirubin", "Platelets", "GCS"),
+    ) == IMPLAUSIBLE_ZERO
+    read = {variable for variables, _, _ in REDUCED.values() for variable in variables}
+    assert set(IMPLAUSIBLE_ZERO) == read - {"RespRate"}
+
+
+@pytest.mark.parametrize(
+    "field", [name for name, (read, _, _) in REDUCED.items() if set(read) <= set(IMPLAUSIBLE_ZERO)]
+)
+def test_a_zero_in_each_listed_field_codes_not_measured(field: str) -> None:
+    variables, _, _ = REDUCED[field]
+    record = one(*((f"0{n}:00", variable, "0") for n, variable in enumerate(variables, 1)))
+    assert record[field] == 0
+
+
+@pytest.mark.parametrize("variable", IMPLAUSIBLE_ZERO)
+def test_a_listed_zero_is_counted_on_its_stay(variable: str) -> None:
+    text = stay(1, ("01:00", variable, "0"), ("02:00", variable, "0"), ("03:00", variable, "5"))
+    parsed = parse_stay("set-a/1.txt", text)
+    assert parsed.values[variable] == [5.0]
+    assert parsed.zeros == {variable: 2}
+
+
+def test_a_zero_in_an_unlisted_field_still_codes_as_measured() -> None:
+    assert "RespRate" not in IMPLAUSIBLE_ZERO
+    record = one(("01:00", "RespRate", "0"))
+    assert record["resprate_max"] == 1
+
+
+def test_a_stay_whose_only_reading_is_zero_is_not_measured() -> None:
+    record = one(("01:00", "Temp", "0"), ("02:00", "Temp", "37"), ("03:00", "MAP", "0"))
+    assert (record["temp_min"], record["temp_max"], record["map_min"]) == (2, 1, 0)
+
+
+def test_map_min_reads_map_and_nimap_together() -> None:
+    lower_cuff = one(("01:00", "MAP", "75"), ("02:00", "NIMAP", "65"))
+    assert lower_cuff["map_min"] == 1
+    zero_line = one(("01:00", "MAP", "0"), ("02:00", "NIMAP", "80"))
+    assert zero_line["map_min"] == 2
+    assert REDUCED["map_min"][0] == ("MAP", "NIMAP")
 
 
 def test_a_stay_without_a_variable_shows_it_not_measured() -> None:
@@ -186,9 +227,7 @@ def test_a_stay_without_a_variable_shows_it_not_measured() -> None:
     assert record["mechvent"] == 0
 
 
-def test_map_falls_back_to_the_non_invasive_reading() -> None:
-    both = one(("01:00", "MAP", "75"), ("02:00", "NIMAP", "60"))
-    assert both["map_min"] == 2
+def test_map_min_reads_the_cuff_alone_where_the_stay_has_no_arterial_reading() -> None:
     cuff = one(("02:00", "NIMAP", "60"), ("03:00", "MAP", "-1"))
     assert cuff["map_min"] == 1
     neither = one(("02:00", "NISysABP", "60"))
@@ -240,20 +279,43 @@ def test_the_cohort_line_counts_measured_fields_and_ventilation(caplog) -> None:
         records((stay(1, ("01:00", "HR", "70"), ("02:00", "MechVent", "1")), 0), (stay(2), 1))
     message = caplog.messages[-1]
     assert " measured_hr_max=1 measured_resprate_max=0 " in message
-    assert message.endswith(" measured_gcs_min=0 map_from_nimap=0 mechvent=1")
+    assert message.endswith(
+        " measured_gcs_min=0 map_min_nimap=0 map_min_nimap_lower=0 map_unmeasured=2 mechvent=1"
+    )
 
 
-def test_the_cohort_line_counts_the_records_whose_map_is_the_cuffs(caplog) -> None:
+def test_the_cohort_line_counts_the_three_map_cases(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
         records(
             (stay(1, ("01:00", "MAP", "80"), ("02:00", "NIMAP", "60")), 0),
             (stay(2, ("01:00", "NIMAP", "60")), 0),
-            (stay(3, ("01:00", "MAP", "-1"), ("02:00", "NIMAP", "65")), 0),
+            (stay(3, ("01:00", "MAP", "0"), ("02:00", "NIMAP", "65")), 0),
             (stay(4, ("01:00", "NIMAP", "65"), gender="-1"), 0),
-            (stay(5), 1),
+            (stay(5, ("01:00", "MAP", "60"), ("02:00", "NIMAP", "70")), 0),
+            (stay(6, ("01:00", "MAP", "0")), 0),
+            (stay(7), 1),
         )
-    assert " measured_map_min=3 " in caplog.messages[-1]
-    assert " map_from_nimap=2 " in caplog.messages[-1]
+    message = caplog.messages[-1]
+    assert " measured_map_min=4 " in message
+    assert " map_min_nimap=2 map_min_nimap_lower=1 map_unmeasured=2 " in message
+    assert "map_from_nimap=" not in message
+
+
+def test_each_loader_logs_a_zero_count_per_listed_field(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
+        records(
+            (stay(1, ("01:00", "HR", "0"), ("02:00", "HR", "0"), ("03:00", "MAP", "0")), 0),
+            (stay(2, ("01:00", "HR", "0"), ("02:00", "RespRate", "0")), 0),
+            (stay(3, ("01:00", "Temp", "0"), gender="-1"), 1),
+        )
+    counts = {"HR": (3, 2), "MAP": (1, 1)}
+    assert caplog.messages[:-1] == [
+        "zeros dataset=physionet2012 field={} readings={} records={}".format(
+            variable, *counts.get(variable, (0, 0))
+        )
+        for variable in IMPLAUSIBLE_ZERO
+    ]
+    assert caplog.messages[-1].startswith("cohort dataset=physionet2012 ")
 
 
 def test_the_cohort_line_counts_each_sets_stays(tmp_path: Path, caplog) -> None:

@@ -18,8 +18,8 @@ import pytest
 
 from bko.datasets.fetch import default_data_dir, read_verified
 from bko.datasets.frames import FrameSpec
-from bko.datasets.nhanes import COMPONENTS, DECIMALS, TERTILES, measured, read_component
-from bko.datasets.sources import NHANES, NHANES_BMX_L
+from bko.datasets.nhanes import COMPONENTS, DECIMALS, TERTILES, read_component, tertile_base
+from bko.datasets.sources import NHANES
 from bko.datasets.split import split
 from bko.datasets.states import tertiles
 from bko.ontology.catalog import CATALOG
@@ -114,9 +114,15 @@ def test_the_adult_frame_the_composite_and_the_training_split() -> None:
     assert f"{train['target'].mean():.4f}" == "0.1207"
 
 
-def test_the_tertile_cutoffs_are_the_published_files() -> None:
-    """ADR `research/nhanes-frame` point 5's `BMXBMI` tertiles, 23.4 and 29.6, over BMX_L."""
-    raw = read_component(read_verified(NHANES_BMX_L, default_data_dir()), "BMX_L")
+def test_the_tertile_cutoffs_are_the_kept_records() -> None:
+    """`BMXBMI`'s tertiles, 25.9 and 31.6, over the 5,946 kept adults measured in it."""
+    read = {
+        name: read_component(read_verified(source, default_data_dir()), name)
+        for name, source in zip(COMPONENTS, NHANES, strict=True)
+    }
+    base = tertile_base(read)
     for name, cut in TERTILES.items():
-        low, high = tertiles(measured(raw[name]))
+        low, high = tertiles(base[name])
         assert (round(low, DECIMALS), round(high, DECIMALS)) == cut.at_or_above, name
+    assert {name: len(values) for name, values in base.items()} == {"BMXBMI": 5946}
+    assert TERTILES["BMXBMI"].at_or_above == (25.9, 31.6)

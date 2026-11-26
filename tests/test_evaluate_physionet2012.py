@@ -128,7 +128,7 @@ def test_every_cutoff_row_cites_singer_and_names_the_original() -> None:
         "criterion of bone-1992 (read in singer-2016's reproduction); one reading, not a "
         "diagnosis; a stay that never measured it is state 0 and shows nothing"
     )
-    assert "the stay's lowest MAP over" in PHYSIONET2012_FIELD_ROWS[6].limits
+    assert "the stay's lowest MAP and NIMAP over" in PHYSIONET2012_FIELD_ROWS[6].limits
 
 
 def test_the_rows_are_in_the_checked_table() -> None:
@@ -136,7 +136,7 @@ def test_the_rows_are_in_the_checked_table() -> None:
 
 
 def test_a_row_on_cutoffs_that_cite_nothing_is_refused(monkeypatch) -> None:
-    uncited = MappingProxyType({"hr_max": ("HR", "max", Cutoffs(above=(float(HR_CUTOFF),)))})
+    uncited = MappingProxyType({"hr_max": (("HR",), "max", Cutoffs(above=(float(HR_CUTOFF),)))})
     monkeypatch.setattr(physionet2012_rows, "REDUCED", uncited)
     with pytest.raises(ValueError, match="hr_max's cutoffs cite no source"):
         state_row("hr_max", f"above {HR_CUTOFF}", "HP:0001649", "Tachycardia", "t")

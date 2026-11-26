@@ -21,6 +21,7 @@ from bko.datasets.archive import members, tar_members
 from bko.datasets.fetch import default_data_dir, read_verified
 from bko.datasets.frames import FrameSpec, digest
 from bko.datasets.physionet2012 import (
+    IMPLAUSIBLE_ZERO,
     SETS,
     TARRED,
     Stay,
@@ -136,21 +137,25 @@ def test_the_values_hold_the_adrs_figures() -> None:
 
 
 def test_the_recorded_zeros_are_the_adrs() -> None:
+    """Each listed variable's 0 lines over the kept stays, and the stays holding one."""
     kept = [stay for stay in _stays() if -1.0 not in {stay.age, stay.gender}]
     zeros = {
-        (variable, how): sum(stay.reduced(variable, how) == 0 for stay in kept)
-        for variable, how in (
-            *(("Temp", "min"), ("MAP", "min"), ("HR", "max")),
-            *(("RespRate", "max"), ("WBC", "min"), ("Bilirubin", "max")),
+        variable: (
+            sum(stay.zeros.get(variable, 0) for stay in kept),
+            sum(variable in stay.zeros for stay in kept),
         )
+        for variable in IMPLAUSIBLE_ZERO
     }
     assert zeros == {
-        ("Temp", "min"): 102,
-        ("MAP", "min"): 108,
-        ("HR", "max"): 0,
-        ("RespRate", "max"): 0,
-        ("WBC", "min"): 1,
-        ("Bilirubin", "max"): 1,
+        "HR": (45, 35),
+        "Temp": (104, 102),
+        "WBC": (1, 1),
+        "MAP": (86, 73),
+        "NIMAP": (115, 103),
+        "Creatinine": (0, 0),
+        "Bilirubin": (1, 1),
+        "Platelets": (0, 0),
+        "GCS": (0, 0),
     }
 
 
@@ -166,7 +171,10 @@ def test_the_cohort_line_and_the_records_are_the_adrs(caplog) -> None:
         "unknown_age=0 unknown_sex=12 left_out=12 records=11988 died=1706 unnamed=2403 missing=0 "
         "below_zero=59 "
     )
-    assert digest(records) == "5ca824f645d6a37af0aa99c29d37556f8994ba3cde2941cdac61b807b0678f48"
+    assert caplog.messages[-1].endswith(
+        " map_min_nimap=3408 map_min_nimap_lower=3136 map_unmeasured=181 mechvent=7576"
+    )
+    assert digest(records) == "4361361dc2ebaeca5c53d246302012dad3ea5407eeb612133986dfff93943187"
 
 
 def test_the_fixtures_real_stays_and_outcomes_are_the_files() -> None:
@@ -208,4 +216,4 @@ def test_the_records_and_the_training_splits_death_rate() -> None:
     train = split(records, seed=0, edges=frame.edges).train
     assert (len(train), int(train["target"].sum())) == (9590, 1364)
     assert f"{train['target'].mean():.4f}" == "0.1422"
-    assert digest(train) == "b99bf9acdc084ad965060ed868b24db828fe216bc08260c45544536a203b72e2"
+    assert digest(train) == "44566e0ef8113eaa9c230d5db93d0de0214a7ce995abb4541ed926253822a814"
