@@ -2,12 +2,12 @@
 
 `load_physionet2012` reads the three sets' stays from their verified archives, never extracting
 them (`bko.datasets.archive`), and each set's outcomes file. A stay is an ASCII CSV of
-`Time,Parameter,Value` lines over its first 48 hours; `-1` means missing. Each variable is reduced over the whole
-48 hours and over the values at or above 0 to its minimum and its maximum, and each field the
-frame names is coded at its cited cutoff (`bko.datasets.states.coded`), `0` = not measured. A
-stay whose `Age` or `Gender` is -1 is left out and counted; an empty `Parameter`, which names no
-variable, is skipped and counted. The outcome-related descriptors but the label never enter. ADR
-`research/physionet2012-frame` records the frame.
+`Time,Parameter,Value` lines over its first 48 hours; `-1` means missing. Each variable is reduced
+over the whole 48 hours and over the values at or above 0 to its minimum and its maximum, and each
+field the frame names is coded at its cited cutoff (`bko.datasets.states.coded`), `0` = not
+measured. A stay whose `Age` or `Gender` is -1 is left out and counted; an empty `Parameter`,
+which names no variable, is skipped and counted. The outcome-related descriptors but the label
+never enter. ADR `research/physionet2012-frame` records the frame.
 """
 
 from __future__ import annotations
