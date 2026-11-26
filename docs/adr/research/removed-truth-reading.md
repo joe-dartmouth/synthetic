@@ -49,24 +49,24 @@ slice (ADR [`research/membership-inference-reading`](membership-inference-readin
 
 ## Rationale
 
-The removed records are the cell's records before the removal, less those the removal kept, so
-a fill that resembles them restores what the removal took; that is the resemblance the question
+The removed records are the cell's records before the removal, less those the removal kept, so a
+fill that resembles them restores what the removal took; that is the resemblance the question
 asks about. Reusing the replica's fidelity measures keeps one definition of resemblance in the
 project: a reader who knows what a replica's column shapes score means knows what this one
 means, and SDMetrics' report already sets its thresholds so the same column pairs count every
-time. The cell's age band, sex and label are near constant in both tables, so their column
-shapes read near 1 for every arm; the other columns carry the contrast, which is why each
-column's shape is written beside the overall scores. Reading the stores through the privacy
-reading's checks scores exactly the fills the run's `arm` lines hash.
+time. The cell's sex and label are constant in both tables, so their column shapes read 1 for
+every arm, and `age` varies only within the cell's band; the other columns carry the contrast,
+which is why each column's shape is written beside the overall scores. Reading the stores
+through the privacy reading's checks scores exactly the fills the run's `arm` lines hash.
 
 ## Consequences
 
 **Gained**: a free reading, per holdout and arm, of how closely each fill restores the records
 its removal took, in the units of the replica fidelity the run already reports.
-**Accepted**: a removed cell holds few records (a thin cell's removal leaves a handful), so each
-holdout's score is noisy; the reading is descriptive and carries no interval. At a removal
-fraction below 1 the kept records stay in the training split, and an arm that copies them can
-read close to the removed records without having seen them.
+**Accepted**: each E6 holdout removes over a thousand records, but some arms add few rows or
+none in the removed cell, so their scores are noisy or blank; the reading is descriptive and
+carries no interval. At a removal fraction below 1 the kept records stay in the training split, and an arm
+that copies them can read close to the removed records without having seen them.
 
 ## Ruled Out
 
@@ -79,12 +79,17 @@ read close to the removed records without having seen them.
 ## Enforcement
 
 - Owner: `src/bko/evaluate/truth.py` (`truth_scores`, `truth`), `src/bko/evaluate/prepare.py`,
-  `src/bko/evaluate/fidelity.py`, `src/bko/evaluate/privacy_stores.py` (`read`)
+  `src/bko/evaluate/fidelity.py` (`report_scores`), `src/bko/evaluate/privacy_stores.py`
+  (`read`, `checked`)
 - Pinned by: `tests/test_evaluate_truth.py` (identical rows score 1, a shifted two-code column
-  reads the complement of its total variation distance, fewer than two rows read NaN, the
-  reference is each holdout's removed records and the arm's rows lie in the removed cell, a run
-  with no removal refused, a store of another run refused, `real` left out and the CSV and log
-  lines)
+  reads the complement of its total variation distance, fewer than two rows read NaN and two on
+  each side are scored, the reference is each holdout's removed records and the arm's rows lie
+  in the removed cell, `rows` counts the arm's rows in the cell, `column-shapes` is the mean of
+  its column shapes, a run with no removal refused, a store of another run or whose split line
+  the data does not reproduce refused, the run required, `real` left out, the CSV and log
+  contract, a short arm logged at INFO with its cause and a NaN score with enough rows at
+  WARNING); `tests/test_evaluate_fidelity.py` (`report_scores` reads a missing property or
+  column as NaN)
 
 ## Reversal Conditions
 

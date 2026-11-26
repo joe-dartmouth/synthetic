@@ -1288,30 +1288,31 @@ no rows; a fill with rows but no donation reads `donor-max` 0 and `donor-p95` Na
 direct or perturbation arm it loads the pinned releases of the dataset's mapped concepts, as `trace`
 does, fetching an absent one into the data root, and re-draws each such arm's gap fill at its `arm`
 line's seed to read each row's donors; a perturbation fill's candidate lines are paired with their
-draws as `trace` pairs them, and a `bko-coherent` fill's change is re-run so each free field
-donates from its leaf donor. Its `privacy.log` opens with the `versions commit=` line, then `privacy
-run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs root read, one `privacy
-store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per store, the sha256 of the
-bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs, for an arm with rows
-whose match attack is undefined in a scope, a WARNING `privacy holdout=%d arm=%s scope=match-%s
-undefined members=%d nonmembers=%d` line (INFO for a cell scope with no member); for each direct or
-perturbation arm `privacy donor holdout=%d arm=%s donors=%d max=%.0f p95=%.2f seconds=%.1f`, `max`
-and `p95` the values the CSV holds and `seconds` the re-draw's; then, per arm, `privacy holdout=%d
-arm=%s added=%d` (WARNING for an arm that adds no row) and a WARNING `privacy holdout=%d arm=%s
-scope=%s undefined ...` line for an arm with rows whose distance attack is undefined in a scope
-(INFO for a cell scope with no member); and last `privacy holdout=%d done=%d/%d seconds=%.1f
-elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line with the mean, the contrast
-against the run family's reference arm, set in `REFERENCE` of `bko.evaluate.reference` (a slice
-reads its run's), its corrected interval, its family, the holdouts read, the holdouts `undefined` (NaN
-contrasts), and `leaks_more=`: `true` when an attack statistic's interval lies above 0 or a DCR or
-NNDR quantile's below 0, `undefined` with fewer than two finite contrasts. Each scope's attack
-statistics, each scope's match statistics (`scope=match-outside`, `match-cell`, `match-label`) and
-the DCR and NNDR quantiles are separate families at family-wise 0.95, sized by their pairs of arm
-and measure with a defined interval; the cell scope's lines are descriptive, and where the cell
-keeps no training record (f = 1.0) its scope reads family=0 and every value NaN. `mi-tpr001` and
-`match-tpr001` have no line, nor do the donor measures. The last line is `privacy rows=%d sha256=%s
-readings=%d undefined=%d seconds=%.1f`, `undefined` counting the readings with no interval.
-`leaks_more` is a reading rule and no criterion.
+draws as `trace` pairs them, and a `bko-coherent` fill's change is re-run so each free field donates
+from its leaf donor. Its `privacy.log` opens with the `versions commit=` line, then the data's
+fetch, cohort and `data` lines, for a run with a direct or perturbation arm the releases' fetch
+lines, then `privacy run=%s stores=%d holdouts=%d reference=%s cell=%s root=%s`, `root` the runs
+root read, one `privacy store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s` line per
+store, the sha256 of the bytes read, and `privacy read stores=%d holdouts=%d`. Per holdout it logs,
+for an arm with rows whose match attack is undefined in a scope, a WARNING `privacy holdout=%d
+arm=%s scope=match-%s undefined members=%d nonmembers=%d` line (INFO for a cell scope with no
+member); for each direct or perturbation arm `privacy donor holdout=%d arm=%s donors=%d max=%.0f
+p95=%.2f seconds=%.1f`, `max` and `p95` the values the CSV holds and `seconds` the re-draw's; then,
+per arm, `privacy holdout=%d arm=%s added=%d` (WARNING for an arm that adds no row) and a WARNING
+`privacy holdout=%d arm=%s scope=%s undefined ...` line for an arm with rows whose distance attack
+is undefined in a scope (INFO for a cell scope with no member); and last `privacy holdout=%d
+done=%d/%d seconds=%.1f elapsed=%.1f`. Then, per scope, arm and measure, one `privacy arm=` line
+with the mean, the contrast against the run family's reference arm, set in `REFERENCE` of
+`bko.evaluate.reference` (a slice reads its run's), its corrected interval, its family, the holdouts
+read, the holdouts `undefined` (NaN contrasts), and `leaks_more=`: `true` when an attack statistic's
+interval lies above 0 or a DCR or NNDR quantile's below 0, `undefined` with fewer than two finite
+contrasts. Each scope's attack statistics, each scope's match statistics (`scope=match-outside`,
+`match-cell`, `match-label`) and the DCR and NNDR quantiles are separate families at family-wise
+0.95, sized by their pairs of arm and measure with a defined interval; the cell scope's lines are
+descriptive, and where the cell keeps no training record (f = 1.0) its scope reads family=0 and
+every value NaN. `mi-tpr001` and `match-tpr001` have no line, nor do the donor measures. The last
+line is `privacy rows=%d sha256=%s readings=%d undefined=%d seconds=%.1f`, `undefined` counting the
+readings with no interval. `leaks_more` is a reading rule and no criterion.
 
 Each store's folder is the header's folder name directly under the runs root, `--runs-dir DIR`
 (resolved to an absolute path; an empty value is refused) or else `runs/` beside the code; a name
@@ -1340,15 +1341,19 @@ quality report, as a replica's fidelity is scored. `real` is left out: its rows 
 records. The `truth.csv` columns are `holdout,arm,rows,measure,column,value`: `rows` the arm's
 added rows in the cell, `measure` `column-shapes` or `column-pair-trends` with `column` empty, then
 `column-shape` once per frame column with `column` the column's name; `value` is empty (NaN) for an
-arm with fewer than two rows in the cell or a holdout with fewer than two removed records. Its
-`truth.log` opens with the `versions commit=` line, then `truth run=%s stores=%d holdouts=%d
-cell=%s fraction=%s root=%s`, one `truth store=%s run=%s folder=%s log_sha256=%s holdouts=%s
+arm with fewer than two rows in the cell, a holdout with fewer than two removed records, or a
+column the quality report's details lack. Its `truth.log` opens with the `versions commit=` line,
+then the data's fetch, cohort and `data` lines, then `truth run=%s stores=%d holdouts=%d cell=%s
+fraction=%s min_rows=%d root=%s`, one `truth store=%s run=%s folder=%s log_sha256=%s holdouts=%s
 sha256=%s` line per store, and per holdout the `removal` line, `truth holdout=%d removed=%d`, one
-`truth holdout=%d arm=%s rows=%d column_shapes=%.4f pair_trends=%.4f` line per arm (WARNING when
-the scores are NaN) and `truth holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`; the last line is
-`truth rows=%d sha256=%s seconds=%.1f`, the CSV's rows and sha256. `--runs-dir` and `--data-dir`
-read as `privacy`'s do. It exits 2 for a run that removes no cell, and 3 for a store that fails
-`privacy`'s store checks, a store of another run included.
+`truth holdout=%d arm=%s rows=%d column_shapes=%.4f pair_trends=%.4f` line per arm and
+`truth holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`. An arm line whose blank values come from
+too few rows ends with its cause, ` short=added` (the arm's rows in the cell), ` short=removed`
+(the removed records) or ` short=added,removed`, and logs at INFO; a NaN score with enough rows on
+both sides logs at WARNING. The last line is `truth lines=%d sha256=%s seconds=%.1f`, the CSV's
+rows and sha256. `--runs-dir` and `--data-dir` read as `privacy`'s do. It exits 2 for a run that
+removes no cell, and 3 for a store that fails `privacy`'s store checks, a store of another run or
+whose `split` line the data does not reproduce included.
 
 **SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
 metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR
