@@ -19,6 +19,7 @@ from bko.datasets.frames import FrameSpec, RangeConstraint
 from bko.gaps.observe import Cell
 from bko.generate.direct import Draw, sample
 from bko.generate.draw_spec import DrawSpec
+from bko.generate.errors import SamplingError
 from bko.generate.knowledge_draw import kb_sample
 from bko.generate.logic import components, logic_assignment
 from bko.generate.presence import Presence
@@ -254,6 +255,17 @@ def test_a_frame_with_a_numeric_clause_is_refused():
     rows = (*ROWS, _row("HP:0000011", AtLeast("level", 5)))
     with pytest.raises(ValueError, match=r"\blevel\b"):
         _kb(rows=rows, frame=numeric)
+
+
+def test_a_pattern_no_codebook_tuple_shows_is_refused():
+    unshowable = _row("HP:0000012", Codes("b", frozenset({7})), Codes("c", frozenset({2})))
+    with pytest.raises(SamplingError, match="no codebook tuple of"):
+        _kb(rows=(BROAD, NARROW, unshowable))
+
+
+def test_a_band_with_no_age_inside_the_range_is_refused():
+    with pytest.raises(SamplingError, match="its band holds no age inside"):
+        _kb(age_range=(70, 80))
 
 
 def test_the_draw_follows_its_seed():

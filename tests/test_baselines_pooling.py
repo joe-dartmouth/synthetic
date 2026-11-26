@@ -270,3 +270,16 @@ def test_the_eb_terms_pin_the_pseudocount_and_the_cell_rule():
         ({"a": 2, "b": 1}, {"a": 0.75, "b": 0.25}),
         ({"a": 1}, {"a": 0.625, "b": 0.375}),
     ]
+
+
+def test_a_counted_category_with_no_prior_weight_is_refused():
+    with pytest.raises(ValueError, match="category 'a' holds 3 records and no prior weight"):
+        fit_kappa([[({"a": 3}, {"b": 1.0})]])
+
+
+@pytest.mark.parametrize("runner", RUNNERS, ids=IDS)
+def test_an_empty_banded_label_group_is_refused(runner):
+    emptied = TRAIN.loc[~((TRAIN["age"] < 50) & (TRAIN[LABEL] == 1))]
+    request = Request(quota={("<50", "male", 1): 2}, frame=FRAME)
+    with pytest.raises(BaselineError, match="no training record of label 1 in band <50"):
+        runner(emptied, request)

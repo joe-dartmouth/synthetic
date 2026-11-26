@@ -388,3 +388,37 @@ def test_a_coded_value_is_its_code_and_other_reads_a_record():
     column = _column_of(coded=True)
     assert _drawn(column, "a") == {"a"}
     assert _drawn(column, OTHER) == {15}
+
+
+def test_a_fit_with_no_record_or_a_foreign_reference_is_refused():
+    with pytest.raises(BaselineError, match="no cell holds a record"):
+        fit_pair({cell: {"x": 0} for cell in GRID}, 0.5, 0.5)
+    with pytest.raises(ValueError, match="the reference 'z' is not a counted category"):
+        fit_pair(by_sex(("a0", "female", 1)), 0.5, 0.5, reference="z")
+
+
+def test_a_hessian_that_is_not_positive_definite_is_refused(monkeypatch):
+    def failing(matrix):
+        raise np.linalg.LinAlgError(matrix.shape)
+
+    monkeypatch.setattr(multilevel_fit.np.linalg, "cholesky", failing)
+    with pytest.raises(BaselineError, match="Hessian is not positive definite"):
+        fit_pair(by_sex(("a0", "female", 1)), 0.5, 0.5)
+
+
+def test_a_gradient_left_above_gtol_by_the_newton_steps_is_refused(monkeypatch):
+    monkeypatch.setattr(multilevel_fit, "NEWTON_STEPS", 0)
+    with pytest.raises(BaselineError, match=r"gradient is .* after 0 Newton steps"):
+        fit_pair(by_sex(("a0", "female", 1)), 0.5, 0.5)
+
+
+def test_a_newton_step_that_helps_at_no_length_is_refused(monkeypatch):
+    original = multilevel_fit.cho_solve
+
+    def uphill(factor, gradient):
+        return -10.0 * original(factor, gradient)
+
+    monkeypatch.setattr(multilevel_fit, "cho_solve", uphill)
+    monkeypatch.setattr(multilevel_fit, "HALVINGS", 2)
+    with pytest.raises(BaselineError, match=r"helps at no length to 1/2\*\*2"):
+        fit_pair(by_sex(("a0", "female", 1)), 0.5, 0.5)
