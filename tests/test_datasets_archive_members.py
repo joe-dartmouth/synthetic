@@ -6,6 +6,7 @@ Each archive is built here in memory; nothing is extracted to disk.
 from __future__ import annotations
 
 import contextlib
+import gzip
 import io
 import re
 import stat
@@ -40,7 +41,7 @@ def tarred(*entries: tarfile.TarInfo | tuple[str, str]) -> bytes:
     """A gzipped tar holding each `(name, text)` as a regular file, a name ending in `/` as a
     directory entry, or each `TarInfo` as it is."""
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as bundle:
+    with tarfile.open(fileobj=buffer, mode="w") as bundle:
         for entry in entries:
             if isinstance(entry, tarfile.TarInfo):
                 bundle.addfile(entry)
@@ -53,7 +54,7 @@ def tarred(*entries: tarfile.TarInfo | tuple[str, str]) -> bytes:
             info = tarfile.TarInfo(name)
             info.size = len(body)
             bundle.addfile(info, io.BytesIO(body))
-    return buffer.getvalue()
+    return gzip.compress(buffer.getvalue(), mtime=0)
 
 
 def directory(name: str) -> tarfile.TarInfo:
@@ -192,11 +193,11 @@ def _truncated(data: bytes) -> bytes:
 def _latin1_tar() -> bytes:
     buffer = io.BytesIO()
     body = "é\n".encode("latin-1")
-    with tarfile.open(fileobj=buffer, mode="w:gz") as bundle:
+    with tarfile.open(fileobj=buffer, mode="w") as bundle:
         info = tarfile.TarInfo("set-a/1.txt")
         info.size = len(body)
         bundle.addfile(info, io.BytesIO(body))
-    return buffer.getvalue()
+    return gzip.compress(buffer.getvalue(), mtime=0)
 
 
 @pytest.mark.parametrize(

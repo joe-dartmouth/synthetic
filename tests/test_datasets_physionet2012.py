@@ -508,3 +508,9 @@ def test_every_field_row_reads_a_frame_column_within_its_codebook() -> None:
         assert clause.codes <= frame.codebook[clause.field].keys() - {0}, row
         fields.append(clause.field)
     assert sorted(fields) == sorted(MEASURED)
+
+
+def test_the_tar_fixture_repeats_its_bytes() -> None:
+    data = archived("c", {1: stay(1)})
+    assert data[4:8] == bytes(4)
+    assert archived("c", {1: stay(1)}) == data

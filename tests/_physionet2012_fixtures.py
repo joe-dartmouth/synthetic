@@ -7,6 +7,7 @@ by `stay` with invented observations.
 
 from __future__ import annotations
 
+import gzip
 import io
 import tarfile
 import zipfile
@@ -299,9 +300,10 @@ def zipped(label: str, stays: Mapping[int, str]) -> bytes:
 
 
 def tarred(label: str, stays: Mapping[int, str]) -> bytes:
-    """Set `label`'s gzipped tar: its directory entry, then each stay as a regular file."""
+    """Set `label`'s gzipped tar, its gzip header time 0 so its bytes repeat: its directory entry,
+    then each stay as a regular file."""
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as bundle:
+    with tarfile.open(fileobj=buffer, mode="w") as bundle:
         folder = tarfile.TarInfo(f"set-{label}")
         folder.type = tarfile.DIRTYPE
         bundle.addfile(folder)
@@ -310,7 +312,7 @@ def tarred(label: str, stays: Mapping[int, str]) -> bytes:
             info = tarfile.TarInfo(f"set-{label}/{record_id}.txt")
             info.size = len(body)
             bundle.addfile(info, io.BytesIO(body))
-    return buffer.getvalue()
+    return gzip.compress(buffer.getvalue(), mtime=0)
 
 
 def archived(label: str, stays: Mapping[int, str]) -> bytes:
