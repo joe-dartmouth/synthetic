@@ -117,7 +117,17 @@ the number of "at or above" cutoffs at or below the value, every one an "at or a
 A blood pressure is the mean of the readings present; with none it is not measured. Each value,
 and each mean, is read at 2 decimals before it is coded. `BMXBMI` has no cited cutoff here, so it
 is coded at the tertiles of its measured values over every record of BMX_L, each rounded to 2
-decimals, and maps nothing.
+decimals, and maps nothing: 23.4 and 29.6, each an "at or above" cutoff. BMX_L's codebook gives
+`BMXBMI` from age 2, so children's values enter the tertiles. This command derived them from the
+pinned file in the data root:
+
+    uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.nhanes import DECIMALS, TERTILES, measured, read_component; from bko.datasets.sources import NHANES_BMX_L; from bko.datasets.states import tertiles; raw = read_component(read_verified(NHANES_BMX_L, default_data_dir()), "BMX_L"); [print(name, *(round(c, DECIMALS) for c in tertiles(measured(raw[name])))) for name in TERTILES]' </dev/null
+
+`pandas.read_sas` reads a stored 0 as 5.397605346934028e-79: DEMO_L holds 189 such ages, the
+infants of age 0, and reading at 2 decimals turns each back to 0. An `LBXGH` of 0, the codebook's
+"No Lab Result", is not measured; the published file holds none. This command counted the ages:
+
+    uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.nhanes import read_component; from bko.datasets.sources import NHANES_DEMO_L; raw = read_component(read_verified(NHANES_DEMO_L, default_data_dir()), "DEMO_L"); age = raw["RIDAGEYR"]; print(int((age < 1e-6).sum()), int((age == 0).sum()), repr(age.min()))' </dev/null
 
 **6. The rows.** One `Codes` row per mapped abnormal state, to HPO, labels the pinned release's
 names: `BPXOSY` at least 130 Elevated systolic blood pressure; `BPXODI` at least 80 Elevated
@@ -180,8 +190,16 @@ label leaves out adults whose answers cannot settle it. Age 80 means 80 and over
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/catalog.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/ontology/nhanes_rows.py`
+- Pinned by: `tests/test_datasets_nhanes.py::test_any_yes_is_label_1_and_four_noes_are_label_0`,
+  `tests/test_datasets_nhanes.py::test_a_record_with_no_yes_and_an_unknown_answer_is_left_out`,
+  `tests/test_datasets_nhanes.py::test_only_adults_of_20_and_over_enter`,
+  `tests/test_datasets_nhanes.py::test_the_four_questions_never_enter_the_frame`,
+  `tests/test_datasets_nhanes.py::test_the_frame_holds_exactly_the_named_fields`,
+  `tests/test_datasets_nhanes.py::test_each_cited_field_is_coded_at_its_cutoffs`,
+  `tests/test_datasets_nhanes.py::test_a_missing_value_shows_no_concept`,
+  `tests/test_evaluate_nhanes.py::test_the_rows_map_these_bands_to_these_concepts`,
+  `tests/test_evaluate_nhanes.py::test_every_cutoff_row_cites_a_registered_source_and_names_its_original`
 
 ## Reversal Conditions
 
