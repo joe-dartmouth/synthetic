@@ -2,7 +2,7 @@
 status: accepted
 topic: tooling
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-26
 ---
 # Benchmark tools in `bench/<tool>/`, each in a hashed environment outside the lock
 
@@ -11,10 +11,13 @@ updated: 2026-11-24
 The study scores fills under published benchmark tools beside its own measures
 ([`docs/RESEARCH.md`](../../RESEARCH.md#published-comparisons)). Such a tool brings what the
 pipeline has no other use for: SynthEval imports LightGBM, whose macOS wheel loads Homebrew's
-`libomp` at import, and SDNist states Python 3.9 to 3.12. The project's environment is one lock,
-installed exactly by `make setup`, type-checked and covered by the gate, which needs no system
-library and runs on Python 3.14. ManimGL already runs outside that lock in a hashed environment
-under `video/` (ADR [`tooling/video-scenes-outside-the-lock`](video-scenes-outside-the-lock.md)).
+`libomp` at import. SDNist 2.4, the only release on PyPI, pins scipy 1.10.1, which needs Python
+below 3.12; SDNist 2.5, tag `v2.5.0` on GitHub with no wheel, states Python 3.9 to 3.12, and its
+pins have Python 3.12 wheels ([PyPI metadata](https://pypi.org/pypi/sdnist/json) and
+[the tag](https://github.com/usnistgov/SDNist/tree/v2.5.0), read 2026-11-26). The project's
+environment is one lock, installed exactly by `make setup`, type-checked and covered by the gate,
+which needs no system library and runs on Python 3.14. ManimGL already runs outside that lock in
+a hashed environment under `video/` (ADR [`tooling/video-scenes-outside-the-lock`](video-scenes-outside-the-lock.md)).
 
 ## Decision Drivers
 
@@ -71,7 +74,7 @@ when someone runs `make <tool>-test`. Each tool's environment must be rebuilt wh
 |------|---------------|------|
 | A locked extra for SynthEval | Every machine that runs `make check` would need `brew install libomp`, because LightGBM loads it at import on macOS | 2026-11-24 |
 | `make setup` installing Homebrew packages | The gate needs no system library today, and `make setup` installs only from the lock | 2026-11-24 |
-| One environment shared by every benchmark tool | SDNist needs Python 3.12 and SynthEval resolves on 3.14 | 2026-11-24 |
+| One environment shared by every benchmark tool | SDNist 2.4 needs Python below 3.12 and SDNist 2.5 Python 3.9 to 3.12, while SynthEval resolves on 3.14 | 2026-11-24 |
 
 ## Enforcement
 

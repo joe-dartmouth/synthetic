@@ -51,7 +51,9 @@ within it.
 ## Direct-method research
 
 This milestone is the team's own; the 2-pager does not schedule it. It follows the Final Report
-and has no window set. Its units are in [tasks/direct-index.md](../tasks/direct-index.md).
+and its work windows are the board's
+[paper-readiness windows](../tasks/direct-index.md#paper-readiness). Its units are in
+[tasks/direct-index.md](../tasks/direct-index.md).
 
 ## Workload
 

@@ -34,6 +34,12 @@ The CRC ACS reading runs only after the confirmatory ACS run is recorded
 - Any change to the frame, the environment or a reading.
 - Differential-privacy claims.
 
+**Findings from planning.**
+
+- It re-scores a fixed list of the archive's submissions under the code unit's own SDNist pin,
+  rather than reading the archive's published scores from another SDNist version.
+- It pins the archive by its release tag and a sha256 measured at first fetch.
+
 ## Acceptance
 
 - The entry's status is `complete`.

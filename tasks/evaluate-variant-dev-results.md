@@ -47,6 +47,13 @@ says which enter `bko-direct-2`.
 
 - Choosing parameters not registered.
 
+**Findings from planning.**
+
+- E20's primary contrast is `bko-micro` minus `bko-capped`.
+- A mean of 3 donors leaves a count field about one third of its donors' variance (measured over
+  20,000 label-group triples per field), so `bko-micro`'s count fields carry about one third of
+  their donors' variance, and its fidelity reading is read with that.
+
 ## Acceptance
 
 - Each entry is `complete` and states pass or fail under the rule.

@@ -2,7 +2,7 @@
 id: evaluate-quota-sweep-results
 title: Run the quota sweep and read representativeness and recall per count
 status: blocked
-depends_on: gaps-share-based-quota
+depends_on: evaluate-diabetes-control-results, gaps-share-based-quota
 blocks: evaluate-composite-arm
 parallel_safe: true
 milestone: direct-method-research
@@ -32,6 +32,12 @@ sweep; this unit runs it.
 **Out.**
 
 - Counts not registered.
+
+**Findings from planning.**
+
+- On E6's cell, computed on holdout 0 (the unit's first step recomputes the counts with
+  `bko.gaps.quota`, which unit `gaps-share-based-quota` adds), only `coverage` and its multiples
+  ask more than 30 rows away from the fixed fill; `expected-size` and `recommended` ask within 30 rows of it.
 
 ## Acceptance
 

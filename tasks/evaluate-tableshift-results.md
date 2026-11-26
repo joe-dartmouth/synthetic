@@ -7,7 +7,7 @@ blocks: --
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: research/tableshift-comparison
+adrs: --
 ---
 
 # Run the TableShift readmission runs and read them beside its Table 7

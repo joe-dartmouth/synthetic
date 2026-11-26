@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-26
 ---
 # The no-mapping ablation draws bko-direct's records with an empty mapping table
 
@@ -69,7 +69,11 @@ the mapping table adds to pooling; a spec type a later sampler option joins with
 parameter on every caller.
 **Accepted**: free fields drawn one by one break the within-record combinations a field group
 keeps, which is the point of the ablation; the arm's concepts are empty, so its trace explains a
-record by its source ids alone.
+record by its source ids alone. At a cell of no record, on a frame whose mapping groups are
+single fields with no nesting, `bko-direct` and `bko-nomap` draw one distribution: every share is
+the label group's (`src/bko/gaps/shares.py`, `SharePart.share`), and every unit falls back to the
+label group (`src/bko/generate/donors.py`), so a contrast between the two at full removal reads
+no mapping effect. E6's frame is such a frame.
 
 ## Ruled Out
 

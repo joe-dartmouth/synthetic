@@ -29,13 +29,12 @@ only unit [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) waits on
 
 **In.**
 
-- SDNist in a hashed environment outside the lock on Python 3.12 that reads the written CSV,
-  laid out as `bench/sdnist/` under ADR
+- SDNist in a hashed environment outside the lock, on the Python its pin needs, that reads the
+  written CSV, laid out as `bench/sdnist/` under ADR
   [`tooling/benchmark-tools-outside-the-lock`](../docs/adr/tooling/benchmark-tools-outside-the-lock.md).
-  SDNist 2.4 on PyPI pins numpy 1.24.2 and scipy 1.10.1 with no Python
-  requirement, and those have no Python 3.14 wheels. GitHub main is 2.5, not on PyPI, and states
-  Python 3.9 to 3.12. The unit pins one of them and says which, by PyPI version or by commit
-  SHA, every package hashed.
+  SDNist 2.4 on PyPI pins numpy 1.24.2 and scipy 1.10.1 with no Python requirement, and those
+  have no Python 3.14 wheels. SDNist 2.5, not on PyPI, states Python 3.9 to 3.12. The unit pins
+  one of them and says which, by PyPI version or by commit SHA, every package hashed.
 - The NIST CRC ACS excerpts pinned as a `Source`, their terms quoted from the archive.
 - A frame over the excerpt's own 24 fields that shares the ACS frame's rows for the four
   disability items it holds, `DEAR`, `DEYE`, `DREM` and `DPHY` (ADR
@@ -53,6 +52,29 @@ only unit [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) waits on
 **Out.**
 
 - Differential-privacy claims.
+
+**Findings from planning.**
+
+- PyPI holds SDNist 2.4 only, and its scipy 1.10.1 pin needs Python below 3.12. SDNist 2.5 is tag
+  `v2.5.0`, commit `f048b1c`, with no wheel; its pins have Python 3.12 wheels
+  ([PyPI metadata](https://pypi.org/pypi/sdnist/json) and
+  [the tag](https://github.com/usnistgov/SDNist/tree/v2.5.0), read 2026-11-26). The unit's ADR picks 2.4 on Python 3.11, from hashed wheels, or 2.5
+  with a dated exception to ADR
+  [`tooling/benchmark-tools-outside-the-lock`](../docs/adr/tooling/benchmark-tools-outside-the-lock.md).
+  The registry's `sdnist-2025` cites the data dictionary at commit `ac77a7f`.
+- The excerpts are six Git LFS CSVs under SDNist's
+  [`BenchmarkData/ACSDataExcerpts/`](https://github.com/usnistgov/SDNist/tree/v2.5.0/BenchmarkData/ACSDataExcerpts), whose LFS
+  oids are their sha256: `ma2019.csv` `4f1e49c9...`, 562,838 bytes; `tx2019.csv` `33b17bc2...`,
+  672,219 bytes; `national2019.csv` `b49ba83e...`, 1,990,721 bytes (read 2026-11-26). SDNist
+  scores the 2019 files only. NIST's [open licence](https://www.nist.gov/open/license) needs no signature, so the `Source` has
+  `agreement=None`.
+- To settle in its ADR: a missing code for the literal `N` in numeric fields, and a writer back to
+  the excerpt's values; the label, since the excerpts hold none; band edges or a flagged cell, so
+  the gap request has a cell; field groups for the excerpt's consistency pairs; and which
+  protocol is read against the archive.
+- It re-points the sentence of ADR [`research/acs-frame`](../docs/adr/research/acs-frame.md) that
+  names this unit, and registers the SDNist tool in [`docs/literature.md`](../docs/literature.md):
+  NIST, SDNist, doi:10.18434/mds2-2943, its year read from that record.
 
 ## Acceptance
 
