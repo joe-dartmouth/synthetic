@@ -16,10 +16,12 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-A second intensive-care frame beside [`datasets-support2-frame`](datasets-support2-frame.md) widens
-the confirmatory family. Its record count, licence and in-hospital death rate are quoted in ADR
+A second intensive-care frame beside SUPPORT2's (ADR
+[`research/support2-frame`](../docs/adr/research/support2-frame.md)) widens the confirmatory
+family. Its record count, licence and in-hospital death rate are quoted in ADR
 [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md).
-This unit copies `datasets-support2-frame` in scope and acceptance.
+This unit copies the SUPPORT2 frame's scope and acceptance, as ADR `research/support2-frame`
+records.
 
 ## Scope
 

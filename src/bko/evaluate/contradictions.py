@@ -1,12 +1,13 @@
 """`python -m bko.evaluate contradictions`: count each data contradiction in every frame's cells.
 
-`run` loads UCI Heart Disease, Synthea and Diabetes 130 through `bko.evaluate.data.load`, takes
-each frame's training split at holdout seed `SEED` with no removal, loads once the pinned releases
-any frame's field rows name, and `census` writes every finding `bko.gaps.contradictions.survey`
-makes as CSV. ADR `research/data-contradiction-handling` names the kinds and the bases. It makes
-no API call. With a run and `--rows`, the command reads the added-rows basis instead
-(`bko.evaluate.added_contradictions`). ADR `research/data-contradiction-handling` records why it
-runs from `bko.evaluate`.
+`run` loads UCI Heart Disease, Synthea and Diabetes 130, or the datasets `--dataset` names,
+through `bko.evaluate.data.load`, takes each frame's training split at holdout seed
+`bko.datasets.split.SPLIT_SEED` with no removal, the split `python -m bko.gaps` lists, loads
+once the pinned releases any frame's field rows name, and `census` writes every finding
+`bko.gaps.contradictions.survey` makes as CSV. ADR `research/data-contradiction-handling` names
+the kinds and the bases. It makes no API call. With a run and `--rows`, the command reads the
+added-rows basis instead (`bko.evaluate.added_contradictions`). ADR
+`research/data-contradiction-handling` records why it runs from `bko.evaluate`.
 """
 
 from __future__ import annotations
@@ -27,12 +28,13 @@ import pandas as pd
 from bko.datasets.frames import FrameSpec
 from bko.datasets.run_folders import runs_dir_argument
 from bko.datasets.sources import Source
-from bko.datasets.split import split
+from bko.datasets.split import SPLIT_SEED, split
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, dataset_releases, digest, load
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.provenance import log_versions
 from bko.gaps.contradictions import KINDS, Finding, survey
+from bko.ontology.catalog import CATALOG
 from bko.ontology.releases import load_releases
 from bko.ontology.schema import Clause, Codes, FieldMapping
 from bko.ontology.terms import Ontology
@@ -40,12 +42,14 @@ from bko.ontology.terms import Ontology
 
 logger = logging.getLogger("bko.evaluate")
 
-SEED: Final = 0
-"""The holdout seed whose training split the census reads."""
-
 CENSUS: Final = (Dataset.UCI, Dataset.SYNTHEA, Dataset.DIABETES)
 """The datasets whose frames the census reads, in order; `diabetes-codes` is not among them (ADR
 `research/diabetes-diagnosis-codes`)."""
+
+CHOICES: Final = (*CENSUS, *(Dataset(name) for name in CATALOG))
+"""The datasets `--dataset` may name: `CENSUS`'s, then each catalogued dataset; the census reads
+each frame's split by seed, so the datasets that hold a published partition out are not among
+them."""
 
 COLUMNS: Final = (
     "kind",
@@ -93,7 +97,21 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     counting.add_argument(
         "run", nargs="?", default=None, help="the named run whose --rows stores are read"
     )
-    counting.add_argument(
+    basis = counting.add_mutually_exclusive_group()
+    basis.add_argument(
+        "--dataset",
+        dest="datasets",
+        type=Dataset,
+        choices=CHOICES,
+        action="append",
+        default=None,
+        metavar="NAME",
+        help=(
+            "a dataset whose frame the census reads, in place of the default three; repeatable; "
+            f"one of {', '.join(CHOICES)}"
+        ),
+    )
+    basis.add_argument(
         "--rows",
         dest="stores",
         type=Path,
@@ -114,7 +132,7 @@ def add_parser(commands: argparse._SubParsersAction[argparse.ArgumentParser]) ->
 
 
 def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> list[Framed]:
-    """Each dataset's training split at holdout seed `SEED`, its field rows and their releases.
+    """Each dataset's training split at seed `SPLIT_SEED`, its field rows and their releases.
 
     Every release any frame's rows name is loaded once, and each frame gets those its rows name.
     Each dataset's releases are `dataset_releases`'s, and one prefix loads one release for all.
@@ -148,7 +166,7 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
     return [
         Framed(
             data.frame.name,
-            split(data.records, seed=SEED, edges=data.frame.edges).train,
+            split(data.records, seed=SPLIT_SEED, edges=data.frame.edges).train,
             data.field_rows,
             {prefix: ontologies[prefix] for prefix in prefixes},
             data.frame,
@@ -157,14 +175,16 @@ def frames(datasets: Sequence[Dataset], data_dir: Path, context: Context) -> lis
     ]
 
 
-def run(data_dir: Path, context: Context) -> str:
-    """The census of each `CENSUS` dataset's frame, in order, as CSV.
+def run(data_dir: Path, context: Context, datasets: Sequence[Dataset] | None = None) -> str:
+    """The census of each of `datasets`' frames, in order, as CSV; `CENSUS`'s when None.
 
+    A dataset named twice is read once, at its first place.
     Logs the `versions` line (`bko.evaluate.provenance.log_versions`) and the data root first.
     """
     log_versions()
     logger.info("census data_dir=%s", data_dir)
-    return census(frames(CENSUS, data_dir, context))
+    chosen = CENSUS if datasets is None else tuple(dict.fromkeys(datasets))
+    return census(frames(chosen, data_dir, context))
 
 
 def census(framed: Sequence[Framed]) -> str:
@@ -188,7 +208,7 @@ def census(framed: Sequence[Framed]) -> str:
             each.name,
             len(each.train),
             digest(each.train),
-            SEED,
+            SPLIT_SEED,
         )
         found = survey(each.train, each.rows, each.ontologies, frame=each.frame, name=each.name)
         logger.info(

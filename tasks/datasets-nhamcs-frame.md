@@ -20,7 +20,8 @@ A survey of emergency-department visits gives the confirmatory family a frame wh
 from coded diagnoses. Its record count, its public-use terms and the NCHS clause on assessing
 disclosure methods are quoted in ADR
 [`research/confirmatory-dataset-selection`](../docs/adr/research/confirmatory-dataset-selection.md).
-This unit copies [`datasets-support2-frame`](datasets-support2-frame.md) in scope and acceptance.
+This unit copies the SUPPORT2 frame's scope and acceptance, as ADR
+[`research/support2-frame`](../docs/adr/research/support2-frame.md) records.
 
 ## Scope
 

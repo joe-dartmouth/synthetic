@@ -25,6 +25,7 @@ from bko.evaluate.experiment import E1, Experiment
 from bko.evaluate.run import ARMS
 from bko.generate.api import HTTP_LOGGERS, default_async_send
 from bko.generate.messages import AnySend
+from bko.ontology.catalog import CATALOG, Catalogued
 from bko.ontology.mapping import FIELD_MAPPINGS, RELEASES
 from bko.ontology.schema import FieldMapping
 
@@ -59,6 +60,7 @@ class Context:
             never read.
         synthea_jar: The jar that population was generated with; never read.
         diabetes: The pinned Diabetes 130 archive; never read.
+        catalog: The catalogued datasets by name; never read.
         arms: Each comparison method's runner, by name.
         factory: Builds the unfitted classifier.
         experiment: The configuration every fill narrows (`bko.app.steps.experiment_for`).
@@ -77,6 +79,7 @@ class Context:
     synthea: SyntheaRun = SYNTHEA_RUN
     synthea_jar: Source = SYNTHEA_JAR
     diabetes: Source = DIABETES_130
+    catalog: Mapping[str, Catalogued] = CATALOG
     arms: Mapping[str, Runner] = ARMS
     factory: Factory = build
     experiment: Experiment = E1

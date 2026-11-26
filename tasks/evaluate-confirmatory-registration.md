@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-support2-frame, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results
+depends_on: evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results
 blocks: evaluate-confirmatory-results
 parallel_safe: false
 milestone: direct-method-research
@@ -25,8 +25,8 @@ readings are fixed before any score exists on the new datasets.
 
 - Confirmatory `RUNS` entries per new dataset, the four health datasets of
   [`docs/RESEARCH.md`](../docs/RESEARCH.md) section 11 (SUPPORT2, NHANES, the PhysioNet/CinC
-  Challenge 2012 set and NHAMCS 2022 ED, framed by units
-  [`datasets-support2-frame`](datasets-support2-frame.md),
+  Challenge 2012 set and NHAMCS 2022 ED, framed by ADR
+  [`research/support2-frame`](../docs/adr/research/support2-frame.md) and units
   [`datasets-nhanes-frame`](datasets-nhanes-frame.md),
   [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) and
   [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md)) and ACS PUMS, framed by unit

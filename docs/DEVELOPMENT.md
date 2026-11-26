@@ -125,6 +125,24 @@ root or to see the module's own code, run it directly:
 
       uv run --no-sync pytest tests/test_datasets_tableshift_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
+- **The SUPPORT2 frame**: `bko.datasets.support2` reads `support2.csv` from the verified
+  `support2` snapshot without extracting it (ADR
+  [`research/support2-frame`](adr/research/support2-frame.md)). `record_id` is each row's leading
+  row number; the label is `hospdead`, in-hospital death; a record whose `scoma` is missing is
+  dropped and counted in the `cohort` line. `age` is floored to whole years; `race` and `income`
+  hold code 0 for not recorded; each lab or vital is a coded state, 0 for not measured, then its
+  band at the SIRS or SOFA cutoffs, or at the published file's tertiles for the unmapped ones.
+  The columns the publisher warns against and those known only at or after the outcome never
+  enter. `bko.datasets.support2_frame` builds its frame from the records, band edges 50, 65 and
+  80, and `bko.ontology.support2_rows` holds its field rows; it is the first entry of
+  `bko.ontology.catalog`, so `score`, `gaps support2` and `contradictions --dataset support2`
+  read it through its catalog entry. `tests/test_datasets_support2_pinned.py` checks the
+  archive's sha256, the cohort, the training split's death rate and the tertile cutoffs; the gate
+  skips it, and `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_support2_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `gaps support2` fetches it.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -1557,13 +1575,14 @@ the fragment encoding of ADR `research/bko-fragment-encoding`. One command, insi
 
 ## Gap detection
 
-`bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps four ways: as (cell,
+`bko.gaps` ([README](../src/bko/gaps/README.md)) lists a dataset's gaps as (cell,
 statement) pairs under each definition of ADR `research/bko-formal-gap-definition`
 (`per-subgroup`, `population-level` and `frequency-aware`, in that order), and as the age-sex
-subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). Three
+subgroup-label cells holding fewer records than `UNDERREPRESENTED_BELOW` (`count`). The
 commands, inside `.venv`:
 
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
+    uv run --no-sync python -m bko.gaps support2 [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps first-flag [--data-dir <dir>]
 
@@ -1573,6 +1592,14 @@ commands, inside `.venv`:
   definition's row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent`
   and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
+- **What `support2` does**: each catalogued dataset (`bko.ontology.catalog`) has its own command,
+  `support2` among them: it fetches the dataset's archive and the releases its field rows name
+  into the data root if absent, splits the records at `SPLIT_SEED` under the frame's age bands,
+  and lists the training split's gaps in `uci`'s columns, logging as `uci` does (ADR
+  `research/support2-frame`). Before the listing's lines it logs the loader's `cohort` line, one
+  `data dataset=<name> frame=<name> records=<n> digest=<sha256> agreement=<a>` line for the
+  loaded records, the line `score` logs for them, and one `split seed=<s> train=<n> test=<n>
+  fingerprint=<sha256>` line, the line `uci_split` logs.
 - **What `synthea` does**: it generates the population `bko.gaps.experiment.E2_RUN` names if absent
   ([Data](#data)), fetches the releases the code mappings name, observes every mapped condition
   code, and for each ablation in `E2_ABLATIONS`, each removing all of a spec's cases or a seeded
@@ -1645,18 +1672,24 @@ commands, inside `.venv`:
   document (`DocumentFormatError`). Each refusal is logged, with no traceback.
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
-  built in `tmp_path` (`tests/test_gaps_cli.py`).
+  built in `tmp_path` (`tests/test_gaps_cli.py`, `tests/test_gaps_support2.py`).
 
 **`contradictions`** lists where a mapped frame's data contradicts its ontology, in the kinds ADR
 `research/data-contradiction-handling` defines (Decision 1): `narrow-without-broad`,
 `child-share-above-parent`, `empty-cell`, `all-show` and `code-overlap`. One command, inside
 `.venv`:
 
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
 
-- **What it needs**: the pinned Synthea population in the data root, which `make synthea`
-  generates and the command never does. It fetches UCI Heart Disease, Diabetes 130 and the pinned
-  MONDO and HPO releases into the data root if absent.
+- **Which frames**: UCI Heart Disease's, Synthea's and Diabetes 130's, in that order, with no
+  `--dataset`. A repeatable `--dataset NAME` reads the named frames instead, in the order given:
+  `uci`, `synthea`, `diabetes` or a catalogued dataset such as `support2`; a name given twice is
+  read once, at its first place. `--dataset` and `--rows` exclude each other, and `--dataset`
+  takes no run.
+- **What it needs**: for the default frames, the pinned Synthea population in the data root,
+  which `make synthea` generates and the command never does. It fetches UCI Heart Disease,
+  Diabetes 130, a named catalogued dataset's archive and the pinned MONDO and HPO releases into
+  the data root if absent.
 - **What it does**: it reads each frame's training split at holdout seed 0 with no removal and
   examines every cell. Each CSV row is one finding, so a cell appears only where it holds one, in
   the columns `kind,frame,cell,concept,parent,records,shown,with_parent,without_parent,`
@@ -1674,7 +1707,8 @@ commands, inside `.venv`:
   sha256.
 - **Reproducibility**: the same bytes on every run over the same data and releases.
 - **The gate does not run it.** `make check` runs it over records, rows and releases built in
-  memory and in `tmp_path` (`tests/test_contradictions_census.py`).
+  memory and in `tmp_path` (`tests/test_contradictions_census.py`,
+  `tests/test_contradictions_dataset.py`).
 
 **`contradictions <run> --rows`** reads the second basis of ADR
 `research/data-contradiction-handling` (Decision 2): each fill's added rows in a run's `rows`
@@ -2061,6 +2095,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-uci.log` | its stderr |
 | `gaps-synthea.csv` | `python -m bko.gaps synthea`'s stdout |
 | `gaps-synthea.log` | its stderr |
+| `gaps-support2.csv` | `python -m bko.gaps support2`'s stdout |
+| `gaps-support2.log` | its stderr |
 | `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
 | `first-flag.log` | its stderr |
 | `contradictions.csv` | `python -m bko.evaluate contradictions`'s stdout |
@@ -2079,8 +2115,9 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && test ! -e runs/<run-id>/gaps-uci.log && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-support2.csv && test ! -e runs/<run-id>/gaps-support2.log && uv run --no-sync python -m bko.gaps support2 > runs/<run-id>/gaps-support2.csv 2> runs/<run-id>/gaps-support2.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/reproduction.csv && test ! -e runs/<run-id>/reproduction.log && uv run --no-sync python -m bko.ontology reproduce > runs/<run-id>/reproduction.csv 2> runs/<run-id>/reproduction.log </dev/null
 

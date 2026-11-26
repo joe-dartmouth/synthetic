@@ -434,13 +434,20 @@ def _contradictions(args: argparse.Namespace, context: Context) -> str:
     """The census, or with `--rows` the named run's added rows, loading its data's releases.
 
     Raises:
-        EvaluationError: If a run or `--runs-dir` comes without `--rows`.
+        EvaluationError: If a run comes with `--dataset`, or a run or `--runs-dir` without
+            `--rows`.
     """
+    if args.datasets is not None and args.run is not None:
+        msg = (
+            f"contradictions --dataset reads the census of the named frames, which takes no run, "
+            f"not {args.run!r}; a run's added rows are read with --rows"
+        )
+        raise EvaluationError(msg)
     if args.stores is None:
         if args.run is not None or args.runs_dir is not None:
             msg = "contradictions reads a run's added rows from its stores, so it needs --rows"
             raise EvaluationError(msg)
-        return census(data_dir(args), context)
+        return census(data_dir(args), context, args.datasets)
     log_versions()
     run = args.run or DEFAULT_RUN
     named = _named(run, context)

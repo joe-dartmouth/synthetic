@@ -29,8 +29,10 @@ gap is read.
 - First, a survey, recorded in the new ADR under `docs/adr/research/`, of the ACS person file's
   coded columns (industry, field of degree, insurance, military service, place of birth, class of
   worker, education) for an openly licensed ontology that converts to OBO.
-- Then, as unit [`datasets-support2-frame`](datasets-support2-frame.md), for one state-year of ACS
-  PUMS, with income above the Folktables threshold as the label:
+- Then, as ADR
+  [`research/support2-frame`](../docs/adr/research/support2-frame.md)
+  records, for one state-year of ACS PUMS, with income above the Folktables threshold as the
+  label:
   - the detailed occupation code mapped to the Occupation Ontology through its SOC annotations,
     aggregate codes to their broad or minor class;
   - the six disability items mapped to HPO;
@@ -44,8 +46,8 @@ gap is read.
 
 **Out.**
 
-- As unit [`datasets-support2-frame`](datasets-support2-frame.md): the test split, any classifier
-  fit or arm score, and picking the removed cell.
+- As ADR [`research/support2-frame`](../docs/adr/research/support2-frame.md)
+  records: the test split, any classifier fit or arm score, and picking the removed cell.
 - Columns with no ontology found, listed in the ADR.
 
 ## Acceptance
