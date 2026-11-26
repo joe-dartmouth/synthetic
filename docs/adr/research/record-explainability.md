@@ -153,7 +153,7 @@ folder.
 | Keep schema 3 and re-derive perturbation outcomes in `trace` | It needs the reply and the merge code to stay unchanged, and a schema version may grow with its runs repeated | 2026-11-08 |
 | Donor over knowledge as the attribution precedence | Every mapped field of a direct record also names a donor, so the knowledge contrast would vanish | 2026-11-24 |
 | Per-record attribution counts for a baseline | The trace holds no baseline record, only the fill's method and seed | 2026-11-24 |
-| A fifth attribution class for untraced Messages records | The reading names four classes; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-24 |
+| A sixth attribution class for untraced Messages records | Each class names a value's source; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-24 |
 | A new trace format for the attribution reading | Every class is read from the lines `trace` writes now | 2026-11-24 |
 
 ## Enforcement
@@ -171,7 +171,8 @@ folder.
   `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
   `tests/test_app_imports.py`; decision 6 by `tests/test_evaluate_holdout_candidates.py`,
   `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`; decision 7 by
-  `tests/test_evaluate_attribution.py`
+  `tests/test_evaluate_attribution.py`; `bko-micro`'s `averaged` ids and `donor-mean` by
+  `tests/test_evaluate_micro.py`
 
 ## Reversal Conditions
 

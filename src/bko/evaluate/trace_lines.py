@@ -65,6 +65,8 @@ class Trace:
         perturb: A perturbation record's step: its `result`, the `fields` that differ from the
             direct draw and the draw's values for them (`drawn`); None, and left out of the
             line, for any other record.
+        averaged: A `bko-micro` record's donor training record ids per averaged field, the
+            primary's first; empty, and left out of the line, for any other record.
     """
 
     holdout: int
@@ -83,12 +85,15 @@ class Trace:
     call: int | None = None
     untraced: str | None = None
     perturb: Json | None = None
+    averaged: Mapping[str, tuple[int, ...]] = field(default_factory=lambda: MappingProxyType({}))
 
     def line(self) -> str:
         """The trace as one JSON line, its keys sorted, ending in a newline."""
         found = {name.name: getattr(self, name.name) for name in dataclasses.fields(self)}
         if self.perturb is None:
             del found["perturb"]
+        if not self.averaged:
+            del found["averaged"]
         return json.dumps(found, sort_keys=True, allow_nan=False, default=_plain) + "\n"
 
 
@@ -249,6 +254,7 @@ def drawn_trace(
         tuple(sorted(draw.fallback)),
         tuple(sorted(draw.closed)),
         perturb=perturb,
+        averaged=dict(draw.averaged),
     )
 
 
