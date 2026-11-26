@@ -28,8 +28,9 @@ unit's `milestone` is `direct-method-research`, the
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`datasets-non-health-selection`](datasets-non-health-selection.md) | ready | -- | direct-method-research |
-| [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | blocked | datasets-non-health-selection | direct-method-research |
+| [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | ready | -- | direct-method-research |
+| [`datasets-nvd-frame`](datasets-nvd-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
+| [`datasets-vcdb-frame`](datasets-vcdb-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
 
 ### Published comparisons
 
@@ -63,7 +64,8 @@ unit's `milestone` is `direct-method-research`, the
 flowchart LR
     u16[privacy-value-microaggregation] --> u19[evaluate-variant-dev-results]
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
-    u49[datasets-non-health-selection] --> u50[datasets-generalised-cell-axes]
+    u50[datasets-generalised-cell-axes] --> u52[datasets-nvd-frame]
+    u50 --> u53[datasets-vcdb-frame]
     u19 --> u28[evaluate-composite-arm]
     u21 --> u28
     u28 --> u29[evaluate-composite-dev-results]

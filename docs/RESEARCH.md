@@ -227,9 +227,13 @@ PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED, as the health family, and 
 own exploratory family. ADR
 [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md)
 records the rule that chose them, the ranking of every candidate, and each one's terms quoted from
-its primary page. The other rows are the brief's registry (D10), kept for reference, and so is
-each description except those of SUPPORT2, the PhysioNet/CinC Challenge 2012 set, NHAMCS 2022 ED
-and ACS PUMS, which come from the pages that ADR cites.
+its primary page. Two non-health datasets whose record is not a person, NVD CVE records with the
+KEV label and the VERIS Community Database, are each an exploratory family of their own; ADR
+[`research/non-health-dataset-selection`](adr/research/non-health-dataset-selection.md) records
+their rule, ranking and quoted terms. The other rows are the brief's registry (D10), kept for
+reference, and so is each description except those of SUPPORT2, the PhysioNet/CinC Challenge 2012
+set, NHAMCS 2022 ED and ACS PUMS, which come from the pages that ADR cites, and those of the two
+non-health datasets, which come from the pages the non-health ADR cites.
 
 | Dataset | Access | Description | In the plan |
 |---|---|---|---|
@@ -241,6 +245,8 @@ and ACS PUMS, which come from the pages that ADR cites.
 | PhysioNet/CinC Challenge 2012 | Open, ODC Attribution [`silva-2012a`][silva-2012a] | 12,000 adult ICU stays, first 48 hours [`silva-2012b`][silva-2012b] | Confirmatory, in-hospital death label ([section 11](#11-direct-method-study)); the frame is ADR [`research/physionet2012-frame`](adr/research/physionet2012-frame.md) |
 | NHAMCS 2022 ED | Public-use, NCHS terms [`nhamcs-nd`][nhamcs-nd] | 16,025 sampled emergency-department visits with coded diagnoses | Confirmatory, hospital admission label ([section 11](#11-direct-method-study)); the frame is ADR [`research/nhamcs-frame`](adr/research/nhamcs-frame.md) |
 | ACS PUMS | Public, Census terms [`acs-nd`][acs-nd] | Census person records with coded occupation | Exploratory non-health family, income label ([section 11](#11-direct-method-study)); the frame is ADR [`research/acs-frame`](adr/research/acs-frame.md) |
+| NVD CVE records with the KEV label | Public, NVD API terms [`nvd-nd`][nvd-nd]; KEV under CC0 [`kev-nd`][kev-nd]; CWE royalty-free [`cwe-nd`][cwe-nd] | CVE records with CVSS metrics and CWE weaknesses | Exploratory non-health family, KEV label, cells CVSS base severity by attack vector, CWE as the hierarchy ([section 11](#11-direct-method-study)); not yet loaded |
+| VERIS Community Database | Open, CC BY-SA 4.0 [`vcdb-nd`][vcdb-nd] | Publicly reported security incidents coded in VERIS | Exploratory non-health family, breach label, cells NAICS sector by victim size, the VERIS enumerations as the hierarchy ([section 11](#11-direct-method-study)); not yet loaded |
 | Synthea / SyntheticMass | Open, no restrictions | ~1M synthetic patients, SNOMED-CT/RxNorm/LOINC-coded; models the 10 most common primary-care reasons and 10 highest-morbidity chronic conditions | Gap-detection ablation and downstream augmentation ([section 2](#2-intended-users-and-evaluation-setting)) |
 | MIMIC-IV demo, eICU demo | Open; no credentialing or CITI training [`johnson-2023`][johnson-2023] [`johnson-2021`][johnson-2021] | Demo subsets of the credentialed datasets | No: too few records, excluded by ADR [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md) |
 | Full MIMIC-IV, MIMIC-IV-Note, MIMIC-IV-ED | Credentialed, on PhysioNet | Real EHR data | No |
@@ -504,10 +510,12 @@ subgroup's prevalence after the gap request's fill (ADR
 UCI Heart Disease, the Synthea population and Diabetes 130 are development data. SUPPORT2, NHANES,
 the PhysioNet/CinC Challenge 2012 set and NHAMCS 2022 ED are confirmatory data. ACS PUMS runs
 beside them as a separate non-health family, read as exploratory and outside the health datasets'
-multiplicity family. ADR
+multiplicity family. NVD CVE records with the KEV label and the VERIS Community Database are two
+more exploratory non-health families, each outside the health family and apart from ACS PUMS. ADR
 [`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md)
-records the selection rule and the re-read of each choice from its primary page, and
-[section 6](#6-datasets) lists the datasets.
+records the selection rule and the re-read of each choice from its primary page, ADR
+[`research/non-health-dataset-selection`](adr/research/non-health-dataset-selection.md) the rule
+for a frame whose record is not a person, and [section 6](#6-datasets) lists the datasets.
 
 ### Disclosure
 
@@ -664,6 +672,7 @@ variants beyond each interval's own.
 [chawla-2002]: https://doi.org/10.1613/jair.953
 [clore-2014]: https://doi.org/10.24432/C5230J
 [colorectal-nd]: https://pmc.ncbi.nlm.nih.gov/articles/PMC11330441/
+[cwe-nd]: https://cwe.mitre.org/about/termsofuse.html
 [dalpozzolo-2015]: https://doi.org/10.1109/SSCI.2015.33
 [fecho-2022]: https://doi.org/10.1111/cts.13301
 [fecho-2025]: https://doi.org/10.1111/cts.70284
@@ -676,6 +685,7 @@ variants beyond each interval's own.
 [juwara-2024]: https://doi.org/10.1016/j.patter.2024.100946
 [kallus-2019]: https://arxiv.org/abs/1902.05826
 [kazakov-2014]: https://doi.org/10.1007/s10817-013-9296-3
+[kev-nd]: https://github.com/cisagov/kev-data
 [kim-2022]: https://doi.org/10.1371/journal.pone.0271260
 [lautrup-2024]: https://doi.org/10.1007/s10618-024-01081-4
 [lautrup-2026]: https://arxiv.org/abs/2507.19700
@@ -686,6 +696,7 @@ variants beyond each interval's own.
 [nhamcs-nd]: https://ftp.cdc.gov/pub/Health_Statistics/NCHS/Dataset_Documentation/NHAMCS/readme2022.txt
 [nhanes-2024]: https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/MCQ_L.htm
 [nori-2023]: https://arxiv.org/abs/2311.16452
+[nvd-nd]: https://nvd.nist.gov/developers/terms-of-use
 [saito-2015]: https://doi.org/10.1371/journal.pone.0118432
 [santos-2024]: https://doi.org/10.1371/journal.pone.0296864
 [seedat-2024]: https://arxiv.org/abs/2312.12112
@@ -697,5 +708,6 @@ variants beyond each interval's own.
 [unni-2022]: https://doi.org/10.1111/cts.13302
 [vandengoorbergh-2022]: https://doi.org/10.1093/jamia/ocac093
 [vanderbilt-2026]: https://hbiostat.org/data/
+[vcdb-nd]: https://github.com/vz-risk/VCDB
 [welvaars-2023]: https://doi.org/10.1093/jamiaopen/ooad033
 [xu-2019]: https://arxiv.org/abs/1907.00503

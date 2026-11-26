@@ -308,22 +308,6 @@ Transport:
 
 Cyber and security incidents:
 
-- NVD CVE records (the NVD REST API 2.0), which carry the CISA KEV label inline as
-  `cisaExploitAdd`: 430,493 CVEs, 1,790 in KEV (0.42%); cells `baseSeverity` by `attackVector`;
-  the CWE ChildOf hierarchy, in `weaknesses`. CWE's terms page [`cwe-nd`][cwe-nd] grants "a
-  non-exclusive, royalty-free license to use CWE" and says "for research, development, and
-  commercial purposes" (read 2026-11-22). KEV and NVD terms not yet read; the research pass's
-  reading is KEV as Creative Commons 0 1.0 and NVD as stating no data licence, neither checked
-  here. Fit: gen.
-- VERIS Community Database: 10,047 incidents, the research pass's count; outcome a confirmed
-  data disclosure, field name UNVERIFIED; cells victim industry (NAICS) by actor type; the VERIS
-  action, variety, asset and actor enumerations. Its repository [`vcdb-nd`][vcdb-nd] carries the
-  "Creative Commons Attribution-ShareAlike 4.0 International Public License" in `LICENSE.txt`
-(whether synthetic records derived from it carry the share-alike obligation is not yet read),
-  and its README says "Most VCDB issues are chosen randomly (with a preferences for those in the
-  last year)", and that some healthcare and priority incidents are selected, so the sample mixes
-random and chosen incidents (read 2026-11-22). Fit: gen; the best
-  fit for defence and security.
 - GitHub Advisory Database (rows UNVERIFIED; ecosystem by severity; CWE), UNSW-NB15 (175,341
   train and 82,332 test; protocol by service; the research pass read its terms as academic
   research only), EPSS, MITRE ATT&CK and
@@ -338,13 +322,14 @@ Conflict, defence and procurement:
   to be fixed; cells actor country by actor type; the CAMEO hierarchy, QuadClass over root, base
   and event code. Its terms page [`gdelt-nd`][gdelt-nd] says "all datasets released by the GDELT
   Project are available for unlimited and unrestricted use" and requires "a citation to the
-  GDELT Project and a link to this website" (read 2026-11-22). Fit: gen; the second-best fit for
-  defence and security.
+  GDELT Project and a link to this website" (read 2026-11-22). Fit: gen; a fit for defence and
+  security.
 - UCDP GED 26.1 (fatalities over a threshold; region by violence type; a shallow hierarchy),
   USAspending contract awards (single bid, `NumberOfOffersReceived` of 1; agency by award band;
   NAICS and Product or Service Code), EU TED CSV 2006 to 2023 (`NUMBER_OFFERS` of 1 or
   `CANCELLED`; country by contract type; CPV, whose old and new versions match many-to-many).
-  Terms not yet read; row counts UNVERIFIED. Fit: gen.
+  UCDP's terms not yet read; USAspending's and TED's were read on 2026-11-25 by the ADR named
+  below; row counts UNVERIFIED. Fit: gen.
 - ACLED, the Global Terrorism Database, SIPRI arms transfers, ICEWS and Correlates of War: the
   research pass read terms that exclude or weaken them (on its reading, ACLED forbids training
   use without written consent, GTD forbids redistribution, SIPRI needs a licence for commercial
@@ -354,20 +339,24 @@ Conflict, defence and procurement:
 
 Product safety and justice:
 
-- NEISS 2024: 361,672 rows by 25 columns; outcome disposition 4, treated and admitted for
-  hospitalisation, 10.5%; cells `Age` by `Sex`; flat product list with diagnosis and body-part
-  codes. Terms not yet read; the research pass's reading of the data.gov entry is public domain.
-  Fit: as is.
+- NEISS 2024: 361,672 rows by 25 columns and 10.5% admitted, both UNVERIFIED; outcome
+  disposition 4, treated and admitted for hospitalisation; cells `Age` by `Sex`; flat product list
+  with diagnosis and body-part codes. Its data.gov record carries the U.S. government public
+  domain label, read on 2026-11-25 by the ADR named below. Fit: as is.
 - Stanford Open Policing (88 jurisdictions, 229,860,452 stops; arrest or search; driver age by
   sex; violation text without a code system), COMPAS two-year (7,214 by 51; `two_year_recid`,
   45.1%; `age` by `sex`; the research pass read the repository as having no licence) and NIBRS
-  (UNVERIFIED). Terms not yet read. Fit: as is, with a weak hierarchy or a licence risk.
+  (UNVERIFIED). NIBRS's data.gov record carries the U.S. government public domain label, read on
+  2026-11-25 by the ADR named below; the others' terms not yet read. Fit: as is, with a weak
+  hierarchy or a licence risk.
 
 Finance, labour, technology, education:
 
 - SBA 7(a) and 504 FOIA loans (charged off; status codes UNVERIFIED; state by term band; NAICS),
   CFPB Consumer Complaint Database (19,371,701 rows; monetary relief, rate UNVERIFIED; product by
-  state; product, sub-product and issue hierarchies). Terms not yet read. Fit: gen.
+  state; product, sub-product and issue hierarchies). SBA's data.gov record carries the U.S.
+  government public domain label, read on 2026-11-25 by the ADR named below; CFPB's terms not
+  yet read; CFPB's row count UNVERIFIED. Fit: gen.
 - UCI Default of Credit Card Clients (30,000 by 23; default; age by sex; no hierarchy), the
   Polish and Taiwanese bankruptcy sets and FDIC failed banks (weak), FIBO, SEC EDGAR with
   US-GAAP XBRL, HMDA, Lending Club and Kaggle sets (a knowledge source, or not checked). Terms not
@@ -382,29 +371,32 @@ Finance, labour, technology, education:
 - Open ontologies outside clinical medicine: ENVO, FoodOn, AGRO, PO, ChEBI and GO. No tabular
   dataset with a binary outcome was found for them; the datasets are unknown.
 
-**Evaluate first.** FARS, as the as-is family with a coded hierarchy (CRSS, NEISS, Stanford Open
-Policing, COMPAS and Census-Income KDD also fit as is); NVD with CWE and KEV, for a deep
-hierarchy and an inline label; and NEISS, for a person-level outcome with open terms. **Best for
-defence and security.** The VERIS Community Database and GDELT.
+**Ranked.** ADR
+[`research/non-health-dataset-selection`](adr/research/non-health-dataset-selection.md) fixes the
+rule a non-health frame meets and ranks every candidate here under it. It chooses NVD CVE records
+with the KEV label over CWE, and the VERIS Community Database over the VERIS schema, which have
+left this entry; SBA 7(a) and 504 and TED over CPV are its runners-up. UCI Census-Income KDD, a
+runner-up of ADR
+[`research/confirmatory-dataset-selection`](adr/research/confirmatory-dataset-selection.md), is
+excluded under its condition 1, since its income label is a threshold on an amount. It re-read
+FARS, CRSS, SBA 7(a) and 504, NIBRS, USAspending, TED, NEISS and GDELT from their own pages on
+2026-11-25 and 2026-11-26, and its quotes and verdicts govern where this entry says terms not yet
+read, UNVERIFIED or a fit.
 
-**What the search did not reach.** AGROVOC, UNSPSC and CPV over EU TED tenders, GeoNames,
-COICOP, ISIC and HS, legal ontologies, NCES public-use files, OSHA and FEMA claims.
+**What the search did not reach.** AGROVOC, UNSPSC, GeoNames, COICOP, ISIC and HS, legal
+ontologies, NCES public-use files, OSHA and FEMA claims.
 
-**Why it is not in the plan.** The study's only non-health family is ACS PUMS
-([RESEARCH.md](RESEARCH.md)). A dataset whose unit is not a person needs the cell axes
-generalised, which the dataset-selection unit excludes.
+**Why it is not in the plan.** The study's non-health families are ACS PUMS and the two frames
+that ADR chooses ([RESEARCH.md](RESEARCH.md)). Every candidate listed above, outside What the
+search did not reach, is a runner-up or excluded under its rule; a runner-up joins the plan when
+a re-read quotes what it lacks. What the search did not reach is unranked.
 
-**Sources.** [`cwe-nd`][cwe-nd], [`fars-nd`][fars-nd], [`gdelt-nd`][gdelt-nd] and
-[`vcdb-nd`][vcdb-nd], each read from its primary page on 2026-11-22; none in the brief or the
-2-pager.
-
-The unit [`datasets-non-health-selection`](../tasks/datasets-non-health-selection.md) schedules
-it.
+**Sources.** [`fars-nd`][fars-nd] and [`gdelt-nd`][gdelt-nd], each read from its primary page on
+2026-11-22; none in the brief or the 2-pager.
 
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694
-[cwe-nd]: https://cwe.mitre.org/about/termsofuse.html
 [fars-nd]: https://catalog.data.gov/dataset/fatality-analysis-reporting-system-fars
 [gdelt-nd]: https://www.gdeltproject.org/about.html
 [gunasekar-2023]: https://arxiv.org/abs/2306.11644
@@ -415,6 +407,5 @@ it.
 [seedat-2024]: https://arxiv.org/abs/2312.12112
 [shacl-2025]: https://arxiv.org/abs/2507.22305
 [solatorio-2023]: https://arxiv.org/abs/2302.02041
-[vcdb-nd]: https://github.com/vz-risk/VCDB
 [watson-2023]: https://arxiv.org/abs/2205.09435
 [zhang-2024]: https://arxiv.org/abs/2310.09656

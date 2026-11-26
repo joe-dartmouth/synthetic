@@ -227,8 +227,9 @@ define; the 2012 set's outcome is per stay.
 
 ACS PUMS leads the non-health candidates because its occupation code is a hierarchical field,
 which ADR [`research/acs-frame`](acs-frame.md) maps to the Occupation Ontology. UCI
-Census-Income KDD also has "occupation code" under "major occupation code" and ranks second; unit
-`datasets-non-health-selection` ranks the non-health candidates again under its own rule.
+Census-Income KDD also has "occupation code" under "major occupation code" and ranks second; ADR
+[`research/non-health-dataset-selection`](non-health-dataset-selection.md) ranks the non-health
+candidates again under its own rule.
 
 The removed cell keeps G2's count filter because it reads counts alone and is already written.
 G1 and G3 to G5 read fitted scores, and a cell chosen from a score confirms nothing. Grid order
@@ -256,9 +257,9 @@ a written permission from NCHS.
 | E6's full rule, G1 to G5 and its cell choice | G1 and G3 to G5 read fitted scores; see Rationale | 2026-11-24 |
 | PhysioNet/CinC Challenge 2019 | Fails condition 2: hourly label shifted six hours before onset; no per-stay outcome is defined | 2026-11-24 |
 | BRFSS | Meets the rule; a telephone survey with no laboratory measures, so NHANES holds the general-population slot | 2026-11-24 |
-| UCI Census-Income KDD | Meets the rule; ranked below ACS PUMS for the one non-health family; re-ranked by `datasets-non-health-selection` | 2026-11-24 |
+| UCI Census-Income KDD | Meets the rule; ranked below ACS PUMS for the one non-health family; re-ranked by ADR `research/non-health-dataset-selection` | 2026-11-24 |
 | MEPS | Fails condition 1: use needs a signed agreement the team does not hold, limited to the purpose the data were supplied for | 2026-11-24 |
-| HMDA | Fails condition 3: a loan record, not a person record; re-ranked by `datasets-non-health-selection` | 2026-11-24 |
+| HMDA | Fails condition 3: a loan record, not a person record; re-ranked by ADR `research/non-health-dataset-selection` | 2026-11-24 |
 | UCI Adult | Fails condition 4: its coded fields are flat: occupation is "Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces." | 2026-11-24 |
 | CDC Diabetes Health Indicators | Fails condition 3, numeric age: its preprocessing reads "Bucketing of age" | 2026-11-24 |
 | SPARCS 2022 | Fails condition 3, numeric age: "Patient age is presented in age groups: 0 to 17, 18 to 29, 30 to 49, 50 to 69, and 70 or Older." | 2026-11-24 |
@@ -283,3 +284,4 @@ route differ from the API terms.** **ICPSR's terms, once opened, bar a use the s
 
 - [The Diabetes 130 subgroup-removal design: the full adult frame, one thinned cell at the prevalence cutoff, every arm](diabetes-subgroup-removal-design.md)
 - [Membership inference, verbatim matches and NNDR read an arm's added rows against a null arm, outside the removed cell](membership-inference-reading.md)
+- [Non-health frames are chosen by a four-condition rule, with terms quoted from the primary page: NVD with KEV over CWE, and VCDB](non-health-dataset-selection.md)
