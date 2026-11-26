@@ -100,7 +100,7 @@ def test_the_fill_size_is_juwaras_total_less_the_rows_that_remain(fraction, rema
     counts = cell_counts(train, edges=TOY.edges)
     kept = counts.set_index(["age_band", "sex", "target"])["count"]
     assert kept[FULL] == remaining
-    request = gap_request(train, experiment, seed=0, frame=TOY)
+    request = gap_request(train, experiment, seed=0, frame=TOY, rows=(), source_name="")
     assert request.quota == {FULL: quota}
     assert quota == juwara_total(20, fraction) - remaining
 

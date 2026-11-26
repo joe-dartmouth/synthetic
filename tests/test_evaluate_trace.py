@@ -199,7 +199,7 @@ def test_a_direct_traces_outcome_and_order_are_the_candidates_lines(root):
     _, found = trace(root, "mixed", "--holdout", "1", "--arm", DIRECT_ARM)
     train = train_of(MIXED, 1)
     lines = lines_of(root, "mixed", 1, DIRECT_ARM, "gap")
-    request = gap_request(train, MIXED, seed=1, frame=UCI_FRAME)
+    request = gap_request(train, MIXED, seed=1, frame=UCI_FRAME, rows=(), source_name="")
     expected = list(kept_in_order(lines, request))
     assert len({json.dumps(r, sort_keys=True) for r in expected}) > 1, "the rows are distinct"
     assert [r["record"] for r in found] == expected
@@ -215,7 +215,9 @@ def test_a_messages_trace_names_the_call_and_its_prompts_gap_statements(root):
         if line["kind"] == "request"
     }
     lines = lines_of(root, "mixed", 0, "bko", "gap")
-    request = gap_request(train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME)
+    request = gap_request(
+        train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME, rows=(), source_name=""
+    )
     expected = list(kept_in_order(lines, request))
     assert len({json.dumps(r, sort_keys=True) for r in expected}) == len(expected) > 1
     assert [r["record"] for r in found] == expected
@@ -387,8 +389,12 @@ def test_a_retried_fill_is_re_drawn_at_its_arm_lines_seed(retried, arm):
     code, found = trace(retried, "retried", "--holdout", "1", "--arm", arm, run="g2")
     assert code == 0
     fill = "gap" if arm == DIRECT_ARM else "replica"
-    asked = gap_request if fill == "gap" else replica_request
-    request = asked(train_of(SMALL_G2, 1), SMALL_G2, seed=1, frame=UCI_FRAME)
+    train = train_of(SMALL_G2, 1)
+    request = (
+        gap_request(train, SMALL_G2, seed=1, frame=UCI_FRAME, rows=(), source_name="")
+        if fill == "gap"
+        else replica_request(train, SMALL_G2, seed=1, frame=UCI_FRAME)
+    )
     lines = lines_of(retried, "retried", 1, DIRECT_ARM, fill)
     assert [r["record"] for r in found] == list(kept_in_order(lines, request))
     assert {(r["request"]["seed"], r["request"]["attempt"]) for r in found} == {(seed, attempt)}
@@ -470,7 +476,7 @@ def test_a_split_line_the_data_does_not_reproduce_is_refused(root, tmp_path, cap
 def test_a_direct_record_names_its_request_fallback_and_s_nodes(root):
     _, found = trace(root, "mixed", "--holdout", "0", "--arm", DIRECT_ARM)
     train = train_of(MIXED, 0)
-    request = gap_request(train, MIXED, seed=0, frame=UCI_FRAME)
+    request = gap_request(train, MIXED, seed=0, frame=UCI_FRAME, rows=(), source_name="")
     attempt, seed = arm_seed(root / "mixed", 0, DIRECT_ARM)
     cells = record_cells(train, ROWS, name=SOURCE, edges=UCI_FRAME.edges)
     keys = cell_keys(train, edges=UCI_FRAME.edges)
@@ -651,7 +657,7 @@ def world(root: Path) -> tuple[Data, dict]:
 def test_a_rejected_draw_is_left_out_of_the_kept_draws(root, monkeypatch):
     data, ontologies = world(root)
     train = train_of(MIXED, 0)
-    request = gap_request(train, MIXED, seed=0, frame=UCI_FRAME)
+    request = gap_request(train, MIXED, seed=0, frame=UCI_FRAME, rows=(), source_name="")
     real = redraw_module.sample
 
     def with_a_reject(*args: Any, **kwargs: Any) -> dict:
@@ -692,7 +698,9 @@ SEX: Final = {"female": 0, "male": 1}
 
 
 def test_ordered_places_rows_by_the_requests_cells_then_their_generation():
-    request = gap_request(train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME)
+    request = gap_request(
+        train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME, rows=(), source_name=""
+    )
     cells = list(request.quota)
     assert len(cells) > 1
     candidates = [_in_cell(cell, 250 + k) for cell in reversed(cells) for k in range(2)]
@@ -701,7 +709,9 @@ def test_ordered_places_rows_by_the_requests_cells_then_their_generation():
 
 
 def test_ordered_refuses_a_row_that_fails_validation_or_falls_outside_the_request():
-    request = gap_request(train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME)
+    request = gap_request(
+        train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME, rows=(), source_name=""
+    )
     first, *others = list(request.quota)
     valid = _in_cell(first, 250)
     with pytest.raises(IdentityError, match="1 kept candidates no longer pass validation"):
@@ -729,7 +739,9 @@ def test_a_line_with_no_call_is_untraced_though_the_log_holds_call_0(root):
 def test_a_messages_record_names_its_returned_attempt(root):
     fill = select(read_folder(root / "mixed"), holdout=0, arm="bko")
     lines = [dataclasses.replace(c, attempt=2) for c in lines_of(root, "mixed", 0, "bko", "gap")]
-    request = gap_request(train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME)
+    request = gap_request(
+        train_of(MIXED, 0), MIXED, seed=0, frame=UCI_FRAME, rows=(), source_name=""
+    )
     found = trace_messages(fill, lines, request, calls=root / "mixed" / "calls.jsonl")
     assert found
     assert {None if t.request is None else t.request["attempt"] for t in found} == {2}

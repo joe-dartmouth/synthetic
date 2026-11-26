@@ -61,7 +61,9 @@ def test_each_e12_run_requests_only_the_removed_cell(name, asked):
     for seed in experiment.holdout_seeds:
         parts = split(_records(), seed=seed, edges=edges)
         train = prepared(parts, experiment, edges=edges).ablated.train
-        request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
+        request = gap_request(
+            train, experiment, seed=seed, frame=DIABETES_FRAME, rows=(), source_name=""
+        )
         assert dict(request.quota) == {E6_CELL: asked}, seed
 
 

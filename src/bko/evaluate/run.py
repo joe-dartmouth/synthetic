@@ -113,8 +113,8 @@ def run(
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
     held: frozenset[int] | None = None,
-    rows: Sequence[FieldMapping] = (),
-    source_name: str = "",
+    rows: Sequence[FieldMapping],
+    source_name: str,
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `records`, a dataset of `frame`.
 
@@ -186,8 +186,8 @@ def score_holdout(  # ruff: ignore[too-many-arguments]  (the data's rows and nam
     exclude: Sequence[pd.DataFrame] | None = None,
     logged: Logged | None = None,
     calibration: bool = False,
-    rows: Sequence[FieldMapping] = (),
-    source_name: str = "",
+    rows: Sequence[FieldMapping],
+    source_name: str,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
@@ -221,7 +221,7 @@ def score_holdout(  # ruff: ignore[too-many-arguments]  (the data's rows and nam
     logged = Logged() if logged is None else logged
     logged.split, logged.fills = split_line(ablated), []
     logger.info("%s", logged.split)
-    gap = gap_request(train, experiment, seed=seed, frame=frame, rows=rows, name=source_name)
+    gap = gap_request(train, experiment, seed=seed, frame=frame, rows=rows, source_name=source_name)
     _log_quota(seed, gap)
     cells = flagged(train, experiment, edges=frame.edges)
     logger.info("flagged holdout=%d cells=%s", seed, ",".join("/".join(map(str, c)) for c in cells))

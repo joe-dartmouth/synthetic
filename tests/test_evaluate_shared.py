@@ -67,9 +67,11 @@ def fits_on(monkeypatch: pytest.MonkeyPatch) -> list[list[int]]:
 
 def test_no_exclusion_keeps_todays_bytes(caplog):
     parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
-    today = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME)
+    today = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name="")
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
-        unshared = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, exclude=None)
+        unshared = score_holdout(
+            parts, PAIR, FAST_ARMS, frame=UCI_FRAME, exclude=None, rows=(), source_name=""
+        )
     assert render(unshared) == render(today)
     assert all(s.measure is not Measure.SHARED_SPLIT for s in unshared)
     assert "shared holdout=" not in caplog.text
@@ -80,7 +82,9 @@ def test_an_excluded_record_leaves_the_split_and_the_marker_fingerprints_it(monk
     foreign = parts.test.iloc[[3]].loc[:, list(FRAME_COLUMNS)].reset_index(drop=True)
     seen = fits_on(monkeypatch)
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
-        scores = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, exclude=[foreign])
+        scores = score_holdout(
+            parts, PAIR, FAST_ARMS, frame=UCI_FRAME, exclude=[foreign], rows=(), source_name=""
+        )
     gone = parts.test.index[3]
     kept = sorted(int(i) for i in parts.test.index if i != gone)
     assert seen
@@ -94,8 +98,10 @@ def test_an_excluded_record_leaves_the_split_and_the_marker_fingerprints_it(monk
         f"shared holdout=0 records={len(parts.test)} copied=0 foreign=1 fingerprint={digits}"
         in caplog.text
     )
-    unshared = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME)
-    nothing = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, exclude=[foreign.iloc[:0]])
+    unshared = score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name="")
+    nothing = score_holdout(
+        parts, PAIR, FAST_ARMS, frame=UCI_FRAME, exclude=[foreign.iloc[:0]], rows=(), source_name=""
+    )
     assert render([s for s in nothing if s.measure is not Measure.SHARED_SPLIT]) == render(unshared)
 
 
@@ -496,7 +502,9 @@ def test_an_arm_copy_and_a_foreign_copy_are_logged_apart(monkeypatch, caplog):
         seen = fits_on(monkeypatch)
         caplog.clear()
         with caplog.at_level(logging.INFO, logger="bko.evaluate"):
-            scores = score_holdout(parts, experiment, arms, frame=UCI_FRAME, exclude=foreigns)
+            scores = score_holdout(
+                parts, experiment, arms, frame=UCI_FRAME, exclude=foreigns, rows=(), source_name=""
+            )
         expected = sorted(int(i) for i in parts.test.index if i not in dropped)
         assert seen
         assert all(index == expected for index in seen)
@@ -791,7 +799,9 @@ def test_a_run_whose_baseline_has_no_runner_exits_2(tmp_path, caplog):
 def test_a_stored_arm_answers_inside_a_harness_fill_only(tmp_path, caplog):
     folder = read_folder(run_folder(tmp_path, "run", caplog))
     with pytest.raises(EvaluationError, match="the stored arm bko runs inside a harness fill only"):
-        StoredArm("bko", folder)(GRADED, gap_request(GRADED, NARROW, seed=0, frame=UCI_FRAME))
+        StoredArm("bko", folder)(
+            GRADED, gap_request(GRADED, NARROW, seed=0, frame=UCI_FRAME, rows=(), source_name="")
+        )
 
 
 def test_the_experiment_line_keeps_its_format():

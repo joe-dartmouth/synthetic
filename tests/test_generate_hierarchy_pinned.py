@@ -64,7 +64,9 @@ def _fill(name: str, seed: int, spec: DrawSpec) -> tuple[dict[Cell, int], tuple[
     edges = DIABETES_FRAME.edges
     parts = split(_loaded().copy(), seed=seed, edges=edges)
     train = prepared(parts, experiment, edges=edges).ablated.train
-    request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
+    request = gap_request(
+        train, experiment, seed=seed, frame=DIABETES_FRAME, rows=(), source_name=""
+    )
     drawn = sample(
         train,
         request.quota,

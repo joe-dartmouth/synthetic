@@ -9,7 +9,9 @@ import dataclasses
 import io
 import json
 import logging
+import math
 import re
+import shutil
 from fractions import Fraction
 from pathlib import Path
 from typing import Final, cast
@@ -17,20 +19,22 @@ from typing import Final, cast
 import pandas as pd
 import pytest
 
-from bko.baselines.request import Stratum
 from bko.datasets.cells import cell_counts
+from bko.evaluate import reference as reference_module
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.errors import EvaluationError
-from bko.evaluate.experiment import DIRECT_ARM, E1, Experiment, gap_request
+from bko.evaluate.experiment import DIRECT_ARM, E1, REAL_ARM, gap_request
 from bko.evaluate.named_runs import NamedRun
 from bko.evaluate.provenance import experiment_line
 from bko.evaluate.run_folder import ASSUMED
+from bko.evaluate.scores import Measure, parse
 from bko.gaps.quota import QuotaRule
 from bko.ontology.schema import Codes
 from tests._frame_fixtures import SHORT, TOY, TOY_TRAIN
 from tests._gaps_fixtures import ANGINA, STENOSIS
 from tests.test_evaluate_direct import SMALL_G2, g2_context
+from tests.test_evaluate_donor_attacks import DONORS, _read, _stored_direct
 from tests.test_evaluate_flagged_cell import FULL, TOY_RUN
 from tests.test_evaluate_shared import edit_log, refused, run_folder, shared
 from tests.test_evaluate_trace import _scored, never
@@ -96,9 +100,9 @@ def test_gap_request_with_the_default_rule_equals_fill_to_minus_count(caplog):
         )
     }
     expected = {cell: 26 - counts[cell] for cell in SHORT}
-    plain = gap_request(TOY_TRAIN, filled, seed=0, frame=TOY)
+    plain = gap_request(TOY_TRAIN, filled, seed=0, frame=TOY, rows=(), source_name="")
     assert plain.quota == expected
-    given = gap_request(TOY_TRAIN, filled, seed=0, frame=TOY, rows=TOY_ROWS, name="toy")
+    given = gap_request(TOY_TRAIN, filled, seed=0, frame=TOY, rows=TOY_ROWS, source_name="toy")
     assert (given.quota, given.strata, given.seed) == (plain.quota, plain.strata, plain.seed)
     assert not _lines([r.getMessage() for r in caplog.records])
 
@@ -106,7 +110,7 @@ def test_gap_request_with_the_default_rule_equals_fill_to_minus_count(caplog):
 def test_a_share_rule_without_rows_is_refused():
     ruled = dataclasses.replace(TOY_RUN, quota_rule=QuotaRule.COVERAGE)
     with pytest.raises(EvaluationError, match="needs the data's field rows"):
-        gap_request(TOY_TRAIN, ruled, seed=0, frame=TOY)
+        gap_request(TOY_TRAIN, ruled, seed=0, frame=TOY, rows=(), source_name="")
 
 
 def test_a_rule_beside_a_flagged_cell_is_refused():
@@ -120,6 +124,9 @@ def test_a_rule_beside_a_flagged_cell_is_refused():
             synthetic_share=Fraction(1, 4),
             quota_rule=QuotaRule.RECOMMENDED,
         )
+    # A synthetic share with no flagged cell is refused too, and the rule's refusal comes first.
+    with pytest.raises(ValueError, match=message):
+        dataclasses.replace(TOY_RUN, synthetic_share=Fraction(1, 4), quota_rule=QuotaRule.COVERAGE)
     named = dataclasses.replace(TOY_RUN, flagged_cell=FULL)
     assert named.quota_rule is QuotaRule.FILL_TO
 
@@ -135,42 +142,71 @@ def test_a_quota_rule_given_by_value_reads_as_the_rule():
         dataclasses.replace(TOY_RUN, flagged_cell=FULL, quota_rule=cast(QuotaRule, "coverage"))
 
 
-def _quota(experiment: Experiment) -> dict[Stratum, int]:
-    """`experiment`'s gap request's quota on the toy split at seed 3; empty when none is asked."""
-    try:
-        request = gap_request(TOY_TRAIN, experiment, seed=3, frame=TOY, rows=TOY_ROWS, name="toy")
-    except EvaluationError as error:
-        if "nothing to fill" not in str(error):
-            raise
-        return {}
-    return dict(request.quota)
+TOY_ASKS: Final = {
+    # Each SHORT cell holds 5 training records. Expected size: n(45-69, sex, 0) = 20 and the
+    # other sex's 5 and 20 give 20 * 5.5 / 20.5 = 5.37, so 5. Coverage: angina, read off women,
+    # has fused share (5 * 5/5 + 20 * 45/90) / 25 = 0.6 among women, 0.4^4 = 0.026, so 4; among
+    # men (0 + 20 * 45/90) / 25 = 0.4, 0.6^6 = 0.047, so 6. Stenosis, at share 1, adds nothing.
+    QuotaRule.COVERAGE: (4, 6, 0, 1),
+    QuotaRule.COVERAGE_2: (4, 6, 3, 7),
+    QuotaRule.COVERAGE_4: (4, 6, 11, 19),
+    QuotaRule.COVERAGE_8: (4, 6, 27, 43),
+    QuotaRule.RECOMMENDED: (4, 6, 0, 1),
+}
+"""Each rule's coverage of the women's and the men's SHORT cell, then the rows each is asked."""
 
 
-def test_the_quota_rule_line_is_logged_only_off_the_default(caplog):
+@pytest.mark.parametrize("rule", list(TOY_ASKS))
+def test_each_rule_logs_its_hand_computed_counts(caplog, rule):
     caplog.set_level(logging.INFO)
-    for rule in QuotaRule:
-        caplog.clear()
-        ruled = dataclasses.replace(TOY_RUN, quota_rule=rule)
-        quota = _quota(ruled)
-        lines = _lines([r.getMessage() for r in caplog.records])
-        if rule is QuotaRule.FILL_TO:
-            assert not lines
-            continue
-        assert [line["key"] for line in lines] == ["/".join(map(str, cell)) for cell in SHORT]
-        for line in lines:
-            assert (line["holdout"], line["rule"]) == ("3", str(rule))
-            count, covered, sized = (int(line[k]) for k in ("count", "coverage", "expected"))
-            value = {
-                QuotaRule.EXPECTED: sized,
-                QuotaRule.RECOMMENDED: max(covered, sized),
-            }.get(rule, covered * {"coverage": 1, "coverage-x2": 2, "coverage-x4": 4}.get(rule, 8))
-            assert int(line["asked"]) == max(0, value - count)
-        asked = {
-            cell: int(line["asked"])
-            for cell, line in zip(SHORT, lines, strict=True)
-            if int(line["asked"])
-        }
-        assert quota == asked
+    ruled = dataclasses.replace(TOY_RUN, quota_rule=rule)
+    request = gap_request(TOY_TRAIN, ruled, seed=3, frame=TOY, rows=TOY_ROWS, source_name="toy")
+    women, men, asked_women, asked_men = TOY_ASKS[rule]
+    lines = _lines([r.getMessage() for r in caplog.records])
+    assert [line["key"] for line in lines] == ["45-69/female/1", "45-69/male/1"]
+    found = [
+        tuple(int(line[k]) for k in ("holdout", "count", "coverage", "expected", "asked"))
+        for line in lines
+    ]
+    assert found == [(3, 5, women, 5, asked_women), (3, 5, men, 5, asked_men)]
+    assert {line["rule"] for line in lines} == {str(rule)}
+    asked = {SHORT[0]: asked_women, SHORT[1]: asked_men}
+    assert dict(request.quota) == {cell: n for cell, n in asked.items() if n}
+
+
+def test_a_rule_that_asks_no_cell_a_row_has_nothing_to_fill(caplog):
+    caplog.set_level(logging.INFO)
+    ruled = dataclasses.replace(TOY_RUN, quota_rule=QuotaRule.EXPECTED)
+    with pytest.raises(
+        EvaluationError, match=r"^at holdout 3, .*expected-size count; nothing to fill$"
+    ):
+        gap_request(TOY_TRAIN, ruled, seed=3, frame=TOY, rows=TOY_ROWS, source_name="toy")
+    lines = _lines([r.getMessage() for r in caplog.records])
+    assert [(line["key"], line["expected"], line["asked"]) for line in lines] == [
+        ("45-69/female/1", "5", "0"),
+        ("45-69/male/1", "5", "0"),
+    ]
+
+
+def test_the_default_rule_logs_no_quota_rule_line_and_names_the_seed_when_empty(caplog):
+    caplog.set_level(logging.INFO)
+    gap_request(TOY_TRAIN, TOY_RUN, seed=3, frame=TOY, rows=TOY_ROWS, source_name="toy")
+    assert not _lines([r.getMessage() for r in caplog.records])
+    low = dataclasses.replace(TOY_RUN, threshold=5, fill_to=5)
+    with pytest.raises(EvaluationError, match=r"^at holdout 3, no cell .*; nothing to fill$"):
+        gap_request(TOY_TRAIN, low, seed=3, frame=TOY, rows=(), source_name="")
+
+
+def test_a_request_rebuilt_without_log_writes_no_line(caplog):
+    caplog.set_level(logging.INFO)
+    ruled = dataclasses.replace(TOY_RUN, quota_rule=QuotaRule.COVERAGE)
+    quiet = gap_request(
+        TOY_TRAIN, ruled, seed=3, frame=TOY, rows=TOY_ROWS, source_name="toy", log=False
+    )
+    assert not _lines([r.getMessage() for r in caplog.records])
+    logged = gap_request(TOY_TRAIN, ruled, seed=3, frame=TOY, rows=TOY_ROWS, source_name="toy")
+    assert (quiet.quota, quiet.seed) == (logged.quota, logged.seed)
+    assert len(_lines([r.getMessage() for r in caplog.records])) == len(SHORT)
 
 
 RULED_G2: Final = dataclasses.replace(SMALL_G2, replica_arms=(), quota_rule=QuotaRule.COVERAGE)
@@ -229,14 +265,37 @@ def test_a_coverage_rule_run_scores_end_to_end(scored):
             assert f" added={added} " in line
 
 
-def test_shared_rescores_a_run_under_a_share_rule(scored):
+def _keys(caplog) -> list[tuple[str, str]]:
+    """Each logged `quota-rule` line's holdout and key, in order."""
+    return [(line["holdout"], line["key"]) for line in _lines(caplog.messages)]
+
+
+def test_shared_rescores_a_run_under_a_share_rule(scored, caplog):
+    caplog.set_level(logging.INFO)
     out = io.StringIO()
     argv = ["shared", "g2", "--folder", str(scored), "--data-dir", str(scored.parent / "data")]
     assert main(argv, context=_context(), out=out) == 0
     assert out.getvalue() == (scored / "scores.csv").read_text(encoding="utf-8")
+    assert _keys(caplog) == [(line["holdout"], line["key"]) for line in _lines(_messages(scored))]
 
 
-def test_trace_reads_a_run_under_a_share_rule(scored):
+def test_shared_with_another_folder_logs_one_set_of_rule_lines_per_holdout(
+    scored, tmp_path, caplog
+):
+    other = tmp_path / "other"
+    shutil.copytree(scored, other)
+    caplog.set_level(logging.INFO)
+    out = io.StringIO()
+    argv = ["shared", "g2", "--folder", str(scored), "--with", str(other)]
+    argv += ["--data-dir", str(scored.parent / "data")]
+    assert main(argv, context=_context(), out=out) == 0
+    expected = [(line["holdout"], line["key"]) for line in _lines(_messages(scored))]
+    assert expected
+    assert _keys(caplog) == expected
+
+
+def test_trace_reads_a_run_under_a_share_rule(scored, caplog):
+    caplog.set_level(logging.INFO)
     out = io.StringIO()
     argv = ["trace", "g2", "--folder", str(scored), "--data-dir", str(scored.parent / "data")]
     argv += ["--holdout", "0", "--arm", DIRECT_ARM]
@@ -250,14 +309,16 @@ def test_trace_reads_a_run_under_a_share_rule(scored):
     assert len(found) == sum(asked.values())
     for record in found:
         assert record["request"]["quota"] == asked[record["cell"]]
+    assert not _keys(caplog)
 
 
-def test_contradictions_reads_a_run_under_a_share_rule(scored):
+def test_contradictions_reads_a_run_under_a_share_rule(scored, tmp_path, caplog):
     data = ["--data-dir", str(scored.parent / "data")]
-    store = scored.parent / "rows.jsonl"
-    if not store.exists():
-        argv = ["rows", "g2", "--folder", str(scored), "--rows", str(store), *data]
-        assert main(argv, context=_context(), out=io.StringIO()) == 0
+    store = tmp_path / "rows.jsonl"
+    argv = ["rows", "g2", "--folder", str(scored), "--rows", str(store), *data]
+    assert main(argv, context=_context(), out=io.StringIO()) == 0
+    caplog.set_level(logging.INFO)
+    caplog.clear()
     out = io.StringIO()
     argv = ["contradictions", "g2", "--rows", str(store), *data]
     assert main(argv, context=_context(scored.parent), out=out) == 0
@@ -265,3 +326,27 @@ def test_contradictions_reads_a_run_under_a_share_rule(scored):
     direct = table[(table["arm"] == DIRECT_ARM) & (table["kind"] == "empty-cell")]
     assert list(direct["holdout"]) == list(RULED_G2.holdout_seeds)
     assert (direct["count"].astype(int) == 0).all()
+    assert not _keys(caplog)
+
+
+@pytest.fixture
+def e1_reads_real(monkeypatch):
+    """`e1`, which the privacy context's experiment stands in for, read against `real`."""
+    monkeypatch.setattr(
+        reference_module, "REFERENCE", {**reference_module.REFERENCE, "e1": REAL_ARM}
+    )
+
+
+@pytest.mark.usefixtures("e1_reads_real")
+def test_privacy_rebuilds_a_share_rules_request_for_donor_reuse(tmp_path, caplog):
+    ruled = dataclasses.replace(DONORS, quota_rule=QuotaRule.COVERAGE_8)
+    store = _stored_direct(tmp_path, caplog, experiment=ruled)
+    scored = [line["asked"] for line in _lines(_messages(tmp_path / "run"))]
+    assert scored
+    caplog.set_level(logging.INFO)
+    code, text = _read(tmp_path, store, experiment=ruled)
+    assert code == 0
+    values = {(s.holdout, s.arm, s.measure): s.value for s in parse(text)}
+    for holdout in ruled.holdout_seeds:
+        assert math.isfinite(values[holdout, DIRECT_ARM, Measure.DONOR_MAX])
+    assert not _lines(caplog.messages)

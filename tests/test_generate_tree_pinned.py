@@ -85,5 +85,7 @@ def test_each_columns_shares_sum_to_one_in_e6s_cell_and_its_label_group(name):
 @pytest.mark.parametrize(("name", "asked"), [("e15-thin", 1250), ("e15-empty", 1269)])
 def test_the_e15_gap_request_asks_e6s_quota(name, asked):
     _, frame = _loaded()
-    request = gap_request(_train(name), RUNS[name].experiment, seed=0, frame=frame)
+    request = gap_request(
+        _train(name), RUNS[name].experiment, seed=0, frame=frame, rows=(), source_name=""
+    )
     assert dict(request.quota) == {E6_CELL: asked}

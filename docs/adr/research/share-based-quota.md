@@ -65,11 +65,14 @@ splits one call's rows across a field's values and never sets how many rows a ce
    refused beside `flagged_cell` or `synthetic_share`, whose requests are not read from the
    threshold. The `experiment` line names `quota_rule=<value>` after `fill_to=` and `cutoff=`
    only off its default, and an older line lacking the key reads at `fill-to`.
-7. **Request.** `gap_request` takes the data's field rows and source name; a rule other than
-   `fill-to` with no rows is refused. Every caller that rebuilds a gap request passes both.
+7. **Request.** `gap_request`, `score_holdout`, `run` and `shared`'s exclusion take the data's
+   field rows and source name as required keywords, so every caller that builds or rebuilds a
+   gap request passes both; a rule other than `fill-to` with no rows is refused.
 8. **Log line.** Under a rule other than `fill-to`, each flagged cell writes
-   `quota-rule holdout=%d fill=%s key=%s rule=%s count=%d coverage=%d expected=%d asked=%d`,
-   `fill` and `key` as the direct arms' lines name them.
+   `quota-rule holdout=%d fill=gap key=%s rule=%s count=%d coverage=%d expected=%d asked=%d`,
+   `key` as the direct arms' lines name it, once per holdout scored: `score_holdout` writes the
+   lines, and every reader that only rebuilds the request (`trace`, `privacy`,
+   `contradictions <run>`, `shared`'s `--with` exclusion) writes none.
 9. **Reading.** `python -m bko.evaluate representativeness` reads a run's `rows` stores: per
    holdout, arm and flagged cell, the largest absolute gap between the added rows' concept shares
    and the fused shares, and the cell's share of the arm's training set beside `real`'s, with the

@@ -335,7 +335,13 @@ def _holdout(
     request = None
     if DONOR_ARMS & set(fills):
         request = gap_request(
-            train, experiment, seed=seed, frame=frame, rows=data.field_rows, name=data.name
+            train,
+            experiment,
+            seed=seed,
+            frame=frame,
+            rows=data.field_rows,
+            source_name=data.name,
+            log=False,
         )
     extra: dict[str, dict[Measure, float]] = {}
     for arm, added in fills.items():

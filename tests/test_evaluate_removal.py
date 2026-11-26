@@ -98,7 +98,7 @@ def held_out(scores, measure):
 
 
 def test_the_held_out_ratio_ignores_the_removal():
-    scores = score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
+    scores = score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     thinned = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges).ablated
     expected = held_out_ratio(TOY_PARTS, edges=TOY.edges)
     assert held_out(scores, Measure.HELD_OUT_RATIO) == expected
@@ -135,7 +135,9 @@ def test_copies_are_counted_not_removed_when_decontaminate_is_false(monkeypatch,
     )
     seen = fits_on(monkeypatch)
     arms = {**ARMS, "copier": copier(TOY_PARTS.test, 3)}
-    scores = score_holdout(TOY_PARTS, experiment, arms, models=LR, frame=TOY)
+    scores = score_holdout(
+        TOY_PARTS, experiment, arms, models=LR, frame=TOY, rows=(), source_name=""
+    )
     found = {(s.arm, s.measure): s.value for s in scores if s.source is Source.ADDED}
     assert found["copier", Measure.TEST_COPIES] == pytest.approx(3.0)
     assert seen
@@ -145,7 +147,7 @@ def test_copies_are_counted_not_removed_when_decontaminate_is_false(monkeypatch,
 
 def test_the_real_arm_adds_back_the_removed_rows(monkeypatch):
     seen = fits_on(monkeypatch)
-    scores = score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
+    scores = score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     removed = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges).removed
     asked = TOY_E3.fill_to - 2
     assert len(removed) > asked
@@ -160,7 +162,7 @@ def test_the_real_arm_adds_back_the_removed_rows(monkeypatch):
 
 
 def test_the_real_arm_needs_no_runner():
-    scores = run(toy_records(), TOY_E3, ARMS, models=LR, frame=TOY)
+    scores = run(toy_records(), TOY_E3, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     real = {s.holdout for s in scores if s.arm == REAL_ARM and s.source is Source.AUGMENTED}
     assert real == set(TOY_E3.holdout_seeds)
 
@@ -185,7 +187,7 @@ def test_the_fingerprint_of_fixed_cells(cells, expected):
 
 
 def test_the_flagged_subgroup_is_the_removed_cells_subgroup():
-    scores = run(toy_records(), TOY_E3, ARMS, models=LR, frame=TOY)
+    scores = run(toy_records(), TOY_E3, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     for seed in TOY_E3.holdout_seeds:
         parts = split(toy_records(), seed=seed, edges=TOY.edges)
         train = prepared(parts, TOY_E3, edges=TOY.edges).ablated.train
@@ -203,7 +205,7 @@ def test_a_run_that_keeps_copies_says_so_on_every_holdout(decontaminate):
     experiment = dataclasses.replace(
         TOY_E3, arms=("none",), candidate="none", comparators=(), decontaminate=decontaminate
     )
-    scores = run(toy_records(), experiment, ARMS, models=LR, frame=TOY)
+    scores = run(toy_records(), experiment, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     found = [s for s in scores if s.measure is Measure.COPIES_KEPT]
     expected = [] if decontaminate else [(h, 1.0) for h in experiment.holdout_seeds]
     assert [(s.holdout, s.value) for s in found] == expected
@@ -220,7 +222,7 @@ def test_each_holdout_logs_its_removal_and_flagged_cells(caplog):
     ready = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges)
     caplog.clear()
     with caplog.at_level(logging.INFO):
-        score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
+        score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     kept, removed = ready.ablated, ready.removed
     whole = len(TOY_PARTS.train)
     line = (
@@ -239,7 +241,7 @@ def test_no_removal_logs_no_removal_line(caplog):
 
 def test_the_real_arms_line_reads_attempt_1_the_gap_seed_and_no_params(caplog):
     with caplog.at_level(logging.INFO):
-        score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY)
+        score_holdout(TOY_PARTS, TOY_E3, ARMS, models=LR, frame=TOY, rows=(), source_name="")
     removed = prepared(TOY_PARTS, TOY_E3, edges=TOY.edges).removed
     (line,) = _lines(caplog, f"arm holdout={TOY_PARTS.seed} arm={REAL_ARM} ")
     assert line.startswith(
@@ -256,7 +258,7 @@ def test_the_test_line_says_whether_copies_are_kept(caplog, decontaminate):
     )
     arms = {**ARMS, "copier": copier(TOY_PARTS.test, 3)}
     with caplog.at_level(logging.INFO):
-        score_holdout(TOY_PARTS, experiment, arms, models=LR, frame=TOY)
+        score_holdout(TOY_PARTS, experiment, arms, models=LR, frame=TOY, rows=(), source_name="")
     kept = "false" if decontaminate else "true"
     assert _lines(caplog, "test ") == [
         f"test holdout={TOY_PARTS.seed} records={len(TOY_PARTS.test)} copied=3 kept={kept}"
@@ -275,7 +277,9 @@ def test_the_emptied_cell_is_flagged_and_real_adds_back_every_removed_row(caplog
     assert len(ready.removed) == _count(TOY_PARTS.train, REMOVED) > 0
     assert flagged(ready.ablated.train, emptied, edges=TOY.edges) == (REMOVED,)
     with caplog.at_level(logging.INFO):
-        scores = score_holdout(TOY_PARTS, emptied, ARMS, models=LR, frame=TOY)
+        scores = score_holdout(
+            TOY_PARTS, emptied, ARMS, models=LR, frame=TOY, rows=(), source_name=""
+        )
     rows = {(s.arm, s.measure): s.value for s in scores if s.source is Source.ADDED}
     assert rows[REAL_ARM, Measure.ROWS] == pytest.approx(len(ready.removed))
     assert " cell=>=70/female/1 fraction=1.0 " in _lines(caplog, "removal ")[0]

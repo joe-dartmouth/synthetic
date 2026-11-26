@@ -147,7 +147,7 @@ def test_privacys_redraw_of_a_kb_fill_names_no_donor(scored):
     spec = data.frame
     parts = split(data.records, seed=0, edges=spec.edges)
     train = prepared(parts, named.experiment, edges=spec.edges).ablated.train
-    request = gap_request(train, named.experiment, seed=0, frame=spec)
+    request = gap_request(train, named.experiment, seed=0, frame=spec, rows=(), source_name="")
     lines = list(folder.lines[0, KB_ARM, "gap"])
     rows = rebuilt(lines, dataclasses.replace(request, seed=fill.seed), where="the fill")
     assert len(rows) > 0

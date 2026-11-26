@@ -167,7 +167,7 @@ def test_e13s_gap_request_asks_the_removed_cell(tmp_path, seed):
     data = load(Dataset.SYNTHEA, data_dir, _context())
     parts = split(data.records, seed=seed, edges=data.frame.edges)
     train = prepared(parts, E13, edges=data.frame.edges).ablated.train
-    request = gap_request(train, E13, seed=seed, frame=data.frame)
+    request = gap_request(train, E13, seed=seed, frame=data.frame, rows=(), source_name="")
     assert dict(request.quota) == {(">=65", "female", 1): 15}
 
 
@@ -186,7 +186,7 @@ def test_each_e12_run_requests_only_the_removed_cell_on_the_toy_cohort(tmp_path,
     experiment = RUNS[name].experiment
     parts = split(data.records, seed=0, edges=data.frame.edges)
     train = prepared(parts, experiment, edges=data.frame.edges).ablated.train
-    request = gap_request(train, experiment, seed=0, frame=data.frame)
+    request = gap_request(train, experiment, seed=0, frame=data.frame, rows=(), source_name="")
     assert set(request.quota) == {E6_CELL}
     assert request.quota[E6_CELL] > 0
 

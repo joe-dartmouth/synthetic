@@ -182,7 +182,7 @@ def test_an_ablation_arm_may_be_judged_as_a_dry_run():
 @pytest.mark.parametrize("seed", [0, 1, 7])
 def test_the_gap_request_fills_each_flagged_cell_to_the_threshold(seed):
     train = split(GRADED, seed=seed, edges=UCI_FRAME.edges).train
-    request = gap_request(train, E1, seed=seed, frame=UCI_FRAME)
+    request = gap_request(train, E1, seed=seed, frame=UCI_FRAME, rows=(), source_name="")
     assert dict(request.quota) == {FLAGGED[0]: 18, FLAGGED[1]: 2}
     assert request.strata is Strata.CELL
     assert request.seed == seed
@@ -191,21 +191,25 @@ def test_the_gap_request_fills_each_flagged_cell_to_the_threshold(seed):
 
 def test_the_gap_request_is_what_the_baselines_command_asks_for():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
-    assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME).quota) == dict(
-        plan(train, 20, frame=UCI_FRAME).quota
-    )
+    assert dict(
+        gap_request(train, E1, seed=0, frame=UCI_FRAME, rows=(), source_name="").quota
+    ) == dict(plan(train, 20, frame=UCI_FRAME).quota)
 
 
 def test_a_cell_at_the_threshold_is_not_filled():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     lower = dataclasses.replace(E1, threshold=18, fill_to=18)
-    assert dict(gap_request(train, lower, seed=0, frame=UCI_FRAME).quota) == {FLAGGED[0]: 16}
+    assert dict(
+        gap_request(train, lower, seed=0, frame=UCI_FRAME, rows=(), source_name="").quota
+    ) == {FLAGGED[0]: 16}
 
 
 def test_a_target_above_the_threshold_flags_by_the_threshold_and_fills_to_the_target():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     dosed = dataclasses.replace(E1, fill_to=30)
-    assert dict(gap_request(train, dosed, seed=0, frame=UCI_FRAME).quota) == {
+    assert dict(
+        gap_request(train, dosed, seed=0, frame=UCI_FRAME, rows=(), source_name="").quota
+    ) == {
         FLAGGED[0]: 28,
         FLAGGED[1]: 12,
     }
@@ -216,7 +220,7 @@ def test_a_target_above_the_threshold_flags_by_the_threshold_and_fills_to_the_ta
 def test_e1_requests_are_unchanged():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     assert (E1.threshold, E1.fill_to) == (UNDERREPRESENTED_BELOW, UNDERREPRESENTED_BELOW)
-    assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME).quota) == {
+    assert dict(gap_request(train, E1, seed=0, frame=UCI_FRAME, rows=(), source_name="").quota) == {
         FLAGGED[0]: 18,
         FLAGGED[1]: 2,
     }
@@ -232,7 +236,12 @@ def test_the_attempt_limit_scales_with_the_target():
     train = split(GRADED, seed=0, edges=UCI_FRAME.edges).train
     rows = {
         target: gap_request(
-            train, dataclasses.replace(E1, fill_to=target), seed=0, frame=UCI_FRAME
+            train,
+            dataclasses.replace(E1, fill_to=target),
+            seed=0,
+            frame=UCI_FRAME,
+            rows=(),
+            source_name="",
         ).rows
         for target in (20, 30)
     }
@@ -242,7 +251,7 @@ def test_the_attempt_limit_scales_with_the_target():
 def test_nothing_to_fill_is_refused():
     train = split(full_records(26), seed=0, edges=UCI_FRAME.edges).train
     with pytest.raises(EvaluationError, match="nothing to fill"):
-        gap_request(train, E1, seed=0, frame=UCI_FRAME)
+        gap_request(train, E1, seed=0, frame=UCI_FRAME, rows=(), source_name="")
 
 
 def test_the_replica_asks_for_every_cells_training_count():
@@ -332,7 +341,7 @@ def test_a_real_arm_the_harness_cannot_score_is_refused(change, message):
 def test_a_removal_of_a_cell_outside_the_frame_is_refused_before_any_holdout():
     experiment = dataclasses.replace(E3, removal=Removal((">=65", "female", 7), 0.5))
     with pytest.raises(EvaluationError, match="not a cell of"):
-        run(full_records(), experiment, {}, frame=UCI_FRAME)
+        run(full_records(), experiment, {}, frame=UCI_FRAME, rows=(), source_name="")
 
 
 def test_e3s_slices_partition_its_seeds_and_its_ceiling():
@@ -759,7 +768,9 @@ def test_score_holdout_calls_positives_at_the_experiments_cutoff():
     )
 
     def recall(experiment):
-        scores = score_holdout(parts, experiment, FAST_ARMS, frame=UCI_FRAME)
+        scores = score_holdout(
+            parts, experiment, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name=""
+        )
         return next(
             s.value
             for s in scores
@@ -777,7 +788,9 @@ def test_score_holdout_calls_a_replicas_positives_at_the_experiments_cutoff():
     )
 
     def recall(experiment):
-        scores = score_holdout(parts, experiment, FAST_ARMS, frame=UCI_FRAME)
+        scores = score_holdout(
+            parts, experiment, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name=""
+        )
         return next(
             s.value
             for s in scores

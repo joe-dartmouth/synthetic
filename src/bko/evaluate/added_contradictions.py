@@ -212,7 +212,8 @@ def _holdout(
                         seed=seed,
                         frame=frame,
                         rows=data.field_rows,
-                        name=data.name,
+                        source_name=data.name,
+                        log=False,
                     )
                 )
                 asked[replica] = tuple(request.quota)

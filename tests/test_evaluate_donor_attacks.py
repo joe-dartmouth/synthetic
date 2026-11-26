@@ -38,7 +38,7 @@ from bko.evaluate.donor_attacks import (
     match_scores,
 )
 from bko.evaluate.errors import EvaluationError, IdentityError
-from bko.evaluate.experiment import DIRECT_ARM, PRAM_ARM, REAL_ARM, gap_request
+from bko.evaluate.experiment import DIRECT_ARM, PRAM_ARM, REAL_ARM, Experiment, gap_request
 from bko.evaluate.holdout_candidates import KEPT, Candidate
 from bko.evaluate.membership import GROUPS, MI_MEASURES
 from bko.evaluate.prepare import prepared
@@ -343,7 +343,7 @@ def _donors_of(
     frame = data.frame
     parts = split(data.records, seed=0, edges=frame.edges)
     train = prepared(parts, named.experiment, edges=frame.edges).ablated.train
-    request = gap_request(train, named.experiment, seed=0, frame=frame)
+    request = gap_request(train, named.experiment, seed=0, frame=frame, rows=(), source_name="")
     edited = lines(list(read.lines[0, arm, "gap"]))
     rows = rebuilt(edited, dataclasses.replace(request, seed=fill.seed), where="the fill")
     return donor_counts(
@@ -510,7 +510,7 @@ def test_a_pram_row_its_own_line_dropped_pairs_the_rest_with_their_draws(prammed
     data = load(named.dataset, folder.parent / "data", named)
     parts = split(data.records, seed=0, edges=UCI_FRAME.edges)
     train = prepared(parts, named.experiment, edges=UCI_FRAME.edges).ablated.train
-    request = gap_request(train, named.experiment, seed=0, frame=UCI_FRAME)
+    request = gap_request(train, named.experiment, seed=0, frame=UCI_FRAME, rows=(), source_name="")
     fill = select(read_folder(folder), holdout=0, arm=PRAM_ARM)
     lines = drop_first(list(read_folder(folder).lines[0, PRAM_ARM, "gap"]))
     sha = digest(rebuilt(lines, dataclasses.replace(request, seed=fill.seed), where="the fill"))
@@ -555,9 +555,9 @@ DONORS = dataclasses.replace(
 """`PRIVATE` with `bko-direct` beside its baselines."""
 
 
-def _stored_direct(tmp_path: Path, caplog) -> Path:
-    """`DONORS`' folder scored on `DISTINCT` with its candidates file, and its store."""
-    ctx = privacy_context(tmp_path, experiment=DONORS)
+def _stored_direct(tmp_path: Path, caplog, *, experiment: Experiment = DONORS) -> Path:
+    """`experiment`'s folder scored on `DISTINCT` with its candidates file, and its store."""
+    ctx = privacy_context(tmp_path, experiment=experiment)
     folder = tmp_path / "run"
     folder.mkdir()
     data = ["--data-dir", str(tmp_path / "data")]

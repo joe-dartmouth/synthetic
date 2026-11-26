@@ -64,7 +64,7 @@ def test_auc_roc_is_nan_on_one_class():
 
 def _augmented(experiment: Experiment) -> list[tuple[str, Measure, Scope]]:
     arms = {name: ARMS[name] for name in experiment.arms}
-    scores = score_holdout(TOY_PARTS, experiment, arms, frame=TOY)
+    scores = score_holdout(TOY_PARTS, experiment, arms, frame=TOY, rows=(), source_name="")
     return [(s.arm, s.measure, s.scope) for s in scores if s.source is Source.AUGMENTED]
 
 

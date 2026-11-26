@@ -29,7 +29,7 @@ CONTEXT = Context(runs={"toy": NamedRun(WHOLE)})
 def _scored(seeds: tuple[int, ...]) -> str:
     experiment = dataclasses.replace(TOY_EXPERIMENT, holdout_seeds=seeds)
     arms = {name: ARMS[name] for name in experiment.arms}
-    return render(run(toy_records(), experiment, arms, frame=TOY))
+    return render(run(toy_records(), experiment, arms, frame=TOY, rows=(), source_name=""))
 
 
 LOW, HIGH, OVERLAP, EXTRA = _scored((0, 1)), _scored((2, 3)), _scored((1, 2, 3)), _scored((4, 5))
@@ -352,7 +352,7 @@ def test_slices_of_a_flagged_cell_run_merge_with_their_auc_roc_rows(tmp_path):
 
     def scored(seeds: tuple[int, ...]) -> str:
         sliced = dataclasses.replace(flagged, holdout_seeds=seeds)
-        return render(run(toy_records(), sliced, arms, frame=TOY))
+        return render(run(toy_records(), sliced, arms, frame=TOY, rows=(), source_name=""))
 
     whole = scored((0, 1, 2, 3))
     assert ",augmented,auc-roc-hgb," in whole

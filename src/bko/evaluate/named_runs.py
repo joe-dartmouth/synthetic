@@ -328,7 +328,7 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **_slices("e19", "supported-empty", E19_SUPPORTED_EMPTY, Dataset.DIABETES_SUPPORTED),
         **_slices("e20", "thin", E20_THIN),
         **_slices("e20", "empty", E20_EMPTY),
-        **{key: run for name in E21 for key, run in _slices("e21", name, E21[name]).items()},
+        **{key: run for name, e21 in E21.items() for key, run in _slices("e21", name, e21).items()},
         "p1-id": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_ID),
         "p1-ood": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_OOD),
         "p2": NamedRun(P2, SETTINGS),

@@ -214,7 +214,9 @@ def _trainings(
 
     monkeypatch.setattr(run_scores_module, "probabilities", spy)
     runners = arms or {name: FAST_ARMS[name] for name in experiment.arms if name != REAL_ARM}
-    scores = score_holdout(TOY_PARTS, experiment, runners, models={Model.LR: build}, frame=TOY)
+    scores = score_holdout(
+        TOY_PARTS, experiment, runners, models={Model.LR: build}, frame=TOY, rows=(), source_name=""
+    )
     return dict(zip(experiment.arms, seen, strict=True)), scores
 
 
@@ -236,19 +238,27 @@ def test_each_arms_training_set_is_the_training_size_at_every_share(share, monke
 
 
 def test_the_request_asks_each_cells_dropped_count():
-    assert gap_request(TOY_PARTS.train, SHARE_RUN, seed=0, frame=TOY).quota == QUARTER
+    assert (
+        gap_request(TOY_PARTS.train, SHARE_RUN, seed=0, frame=TOY, rows=(), source_name="").quota
+        == QUARTER
+    )
     tenth = dataclasses.replace(SHARE_RUN, synthetic_share=Fraction(1, 10))
     expected = {cell: 1 if rows == 1 else 2 for cell, rows in QUARTER.items()}
-    assert gap_request(TOY_PARTS.train, tenth, seed=0, frame=TOY).quota == expected
+    assert (
+        gap_request(TOY_PARTS.train, tenth, seed=0, frame=TOY, rows=(), source_name="").quota
+        == expected
+    )
     # With no share, the flagged cell alone is restored to `fill_to`.
     restored = dataclasses.replace(SHARE_RUN, arms=("smote",), synthetic_share=None, fill_to=26)
-    assert gap_request(TOY_PARTS.train, restored, seed=0, frame=TOY).quota == {FULL: 6}
+    assert gap_request(
+        TOY_PARTS.train, restored, seed=0, frame=TOY, rows=(), source_name=""
+    ).quota == {FULL: 6}
 
 
 def test_a_share_that_drops_no_row_is_refused():
     fiftieth = dataclasses.replace(SHARE_RUN, synthetic_share=Fraction(1, 50))
     with pytest.raises(EvaluationError, match=r"the synthetic share 1/50 drops no training row"):
-        gap_request(TOY_PARTS.train, fiftieth, seed=0, frame=TOY)
+        gap_request(TOY_PARTS.train, fiftieth, seed=0, frame=TOY, rows=(), source_name="")
 
 
 def test_every_reader_rebuilds_a_share_runs_request(caplog, monkeypatch):
@@ -270,7 +280,7 @@ def test_every_reader_rebuilds_a_share_runs_request(caplog, monkeypatch):
         return []
 
     monkeypatch.setattr(shared_module, "excluded", spy)
-    assert shared_module._exclude([], TOY_PARTS, SCORED, TOY) == []
+    assert shared_module._exclude([], TOY_PARTS, SCORED, TOY, rows=(), source_name="") == []
     assert [gap.quota for gap in rebuilt] == [used]
 
 
@@ -366,7 +376,9 @@ def test_a_fiftieth_drops_only_the_cells_large_enough(monkeypatch, caplog):
 
     monkeypatch.setattr(run_scores_module, "probabilities", spy)
     runners = {name: FAST_ARMS[name] for name in experiment.arms if name != REAL_ARM}
-    score_holdout(parts, experiment, runners, models={Model.LR: build}, frame=TOY)
+    score_holdout(
+        parts, experiment, runners, models={Model.LR: build}, frame=TOY, rows=(), source_name=""
+    )
     quotas = [r.getMessage() for r in caplog.records if r.getMessage().startswith("quota ")]
     assert quotas == ["quota holdout=0 stratum=<45/male/1 rows=1"]
     (gone,) = prepared(parts, experiment, edges=TOY.edges).dropped.index

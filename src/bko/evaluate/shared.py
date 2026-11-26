@@ -263,16 +263,25 @@ def _exclude(
     experiment: Experiment,
     frame: FrameSpec,
     *,
-    rows: Sequence[FieldMapping] = (),
-    name: str = "",
+    rows: Sequence[FieldMapping],
+    source_name: str,
 ) -> list[pd.DataFrame]:
     """`excluded` on the holdout `parts` splits, under the requests its harness makes.
 
-    `rows` and `name` are the data's field rows and source name, which the gap request reads.
+    `rows` and `source_name` are the data's field rows and source name, which the gap request
+    reads; it logs no `quota-rule` line, which `score_holdout` writes for the holdout.
     """
     ablated = prepared(parts, experiment, edges=frame.edges).ablated
     train, seed = ablated.train, ablated.seed
-    gap = gap_request(train, experiment, seed=seed, frame=frame, rows=rows, name=name)
+    gap = gap_request(
+        train,
+        experiment,
+        seed=seed,
+        frame=frame,
+        rows=rows,
+        source_name=source_name,
+        log=False,
+    )
     return excluded(others, seed, gap, replica_request(train, experiment, seed=seed, frame=frame))
 
 
@@ -346,7 +355,14 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
         exclude = (
             None
             if not others
-            else _exclude(others, parts, experiment, frame, rows=data.field_rows, name=data.name)
+            else _exclude(
+                others,
+                parts,
+                experiment,
+                frame,
+                rows=data.field_rows,
+                source_name=data.name,
+            )
         )
         logged = Logged()
         scored = score_holdout(

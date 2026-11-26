@@ -114,7 +114,7 @@ def test_the_request_equals_e1s_gap_request(tmp_path):
     code, _, log = run(tmp_path, make_context(two_replies()))
     assert code == 0
     train = split(load_uci(tmp_path / "data", source=pin(UCI)), edges=UCI_FRAME.edges).train
-    expected = gap_request(train, E1, seed=0, frame=UCI_FRAME).quota
+    expected = gap_request(train, E1, seed=0, frame=UCI_FRAME, rows=(), source_name="").quota
     assert asked_per_cell(log) == {cell_key(cell): rows for cell, rows in expected.items()}
     assert dict(expected) == REQUEST
 

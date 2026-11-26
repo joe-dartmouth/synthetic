@@ -238,7 +238,7 @@ def test_scopes_and_the_held_out_ratio_read_the_toy_edges():
 
 def test_the_experiment_requests_read_the_toy_frame():
     assert flagged(TOY_TRAIN, TOY_EXPERIMENT, edges=TOY.edges) == SHORT
-    gap = gap_request(TOY_TRAIN, TOY_EXPERIMENT, seed=0, frame=TOY)
+    gap = gap_request(TOY_TRAIN, TOY_EXPERIMENT, seed=0, frame=TOY, rows=(), source_name="")
     assert gap.frame is TOY
     assert list(gap.quota) == list(SHORT)
     replica = replica_request(TOY_TRAIN, TOY_EXPERIMENT, seed=0, frame=TOY)
@@ -248,7 +248,7 @@ def test_the_experiment_requests_read_the_toy_frame():
 
 def test_a_toy_experiment_runs_end_to_end():
     arms = {name: ARMS[name] for name in TOY_EXPERIMENT.arms}
-    scores = run(toy_records(), TOY_EXPERIMENT, arms, frame=TOY)
+    scores = run(toy_records(), TOY_EXPERIMENT, arms, frame=TOY, rows=(), source_name="")
     added = [
         s for s in scores if (s.arm, s.source, s.measure) == ("smote", Source.ADDED, Measure.ROWS)
     ]

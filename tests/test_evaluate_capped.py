@@ -135,7 +135,7 @@ def _unit_donors(folder: Path, data_root: Path, arm: str) -> list[Counter[int]]:
     frame = data.frame
     parts = split(data.records, seed=0, edges=frame.edges)
     train = prepared(parts, named.experiment, edges=frame.edges).ablated.train
-    request = gap_request(train, named.experiment, seed=0, frame=frame)
+    request = gap_request(train, named.experiment, seed=0, frame=frame, rows=(), source_name="")
     lines = list(stored.lines[0, arm, "gap"])
     rows = rebuilt(lines, dataclasses.replace(request, seed=fill.seed), where="the fill")
     return [

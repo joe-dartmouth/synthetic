@@ -95,5 +95,13 @@ def test_the_harness_calls_on_holdout_after_each_holdout():
         SMALL, arms=("none", "smote"), candidate="smote", comparators=(), replica_arms=()
     )
     calls: list[int] = []
-    run(GRADED, light, FAST_ARMS, on_holdout=lambda: calls.append(len(calls)), frame=UCI_FRAME)
+    run(
+        GRADED,
+        light,
+        FAST_ARMS,
+        on_holdout=lambda: calls.append(len(calls)),
+        frame=UCI_FRAME,
+        rows=(),
+        source_name="",
+    )
     assert calls == list(range(len(light.holdout_seeds)))

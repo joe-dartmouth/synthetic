@@ -121,7 +121,8 @@ def trace(
             seed=fill.holdout,
             frame=frame,
             rows=data.field_rows,
-            name=data.name,
+            source_name=data.name,
+            log=False,
         )
     else:
         request = replica_request(train, experiment, seed=fill.holdout, frame=frame)

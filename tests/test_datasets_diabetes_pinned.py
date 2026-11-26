@@ -155,7 +155,9 @@ def test_each_perturbation_run_requests_only_the_removed_cell(name, asked):
     for seed in experiment.holdout_seeds:
         parts = split(_records(), seed=seed, edges=edges)
         train = prepared(parts, experiment, edges=edges).ablated.train
-        request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
+        request = gap_request(
+            train, experiment, seed=seed, frame=DIABETES_FRAME, rows=(), source_name=""
+        )
         assert dict(request.quota) == {CELL: asked}, seed
 
 
@@ -179,7 +181,9 @@ def test_each_p3_run_asks_only_the_removed_cell(name, remaining, asked):
         train = prepared(parts, experiment, edges=edges).ablated.train
         r = _cell_count(train)
         assert r == remaining, seed
-        request = gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME)
+        request = gap_request(
+            train, experiment, seed=seed, frame=DIABETES_FRAME, rows=(), source_name=""
+        )
         assert dict(request.quota) == {CELL: juwara_total(1269, fraction) - r}, seed
         assert dict(request.quota) == {CELL: asked}, seed
 
@@ -203,7 +207,7 @@ def test_each_e18_run_asks_the_dropped_rows_of_every_cell(name, dropped, cell):
     assert len(train) == 55427
     assert len(ready.dropped) == dropped
     assert ready.ablated.fingerprint == parts.fingerprint
-    request = gap_request(train, experiment, seed=0, frame=DIABETES_FRAME)
+    request = gap_request(train, experiment, seed=0, frame=DIABETES_FRAME, rows=(), source_name="")
     assert sum(request.quota.values()) == dropped
     assert len(request.quota) == 16
     assert request.quota[CELL] == cell
