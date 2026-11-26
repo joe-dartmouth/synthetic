@@ -13,7 +13,8 @@ import pandas as pd
 import pytest
 
 from bko.datasets.errors import ContractError
-from bko.datasets.frames import digest
+from bko.datasets.frames import check_records, digest
+from bko.datasets.icd10_tokens import token_number
 from bko.datasets.nhamcs import (
     DIAGNOSES,
     FLAGS,
@@ -24,7 +25,10 @@ from bko.datasets.nhamcs import (
     load_nhamcs,
     parse_nhamcs,
 )
+from bko.datasets.nhamcs_frame import nhamcs_frame
 from bko.datasets.sources import Source
+from bko.ontology.nhamcs_rows import DIAGNOSIS_ROWS, FLAG_ROWS, NHAMCS_FIELD_ROWS
+from bko.ontology.schema import Codes, shown
 from tests._datasets_fixtures import archive, pin, plant
 from tests._nhamcs_fixtures import (
     BLANK_CHRONIC,
@@ -256,3 +260,85 @@ def test_load_refuses_records_it_cannot_score(tmp_path: Path, lines, match: str)
     source = _planted(tmp_path, data)
     with pytest.raises(ContractError, match=match):
         load_nhamcs(tmp_path, sources=(source,))
+
+
+def test_the_disposition_and_stay_fields_never_enter() -> None:
+    read = {name for name, (first, last) in POSITIONS.items() if last >= 487}
+    assert read == {"ADMITHOS", "HOSPCODE", "PATCODE"}
+    assert POSITIONS["ADMITHOS"] == (499, 499)
+    records = _records(*mixed())
+    frame = nhamcs_frame(records)
+    assert set(frame.columns) & {"ADMITHOS", "ADMIT", "LOS", "BOARDED", "PATWT", "NOCHRON"} == set()
+    assert "HOSPCODE" not in frame.columns
+    assert "PATCODE" not in frame.columns
+
+
+def test_the_excluded_columns_never_enter_the_frame() -> None:
+    records = _records(*mixed())
+    excluded = {"NOCHRON", "TOTCHRON", "PATWT", "EDWT", "HOSPCODE", "PATCODE", "ADMITHOS"}
+    assert excluded.isdisjoint(records.columns)
+    assert excluded.isdisjoint(nhamcs_frame(records).columns)
+
+
+def test_the_frame_holds_exactly_the_named_fields() -> None:
+    records = _records(*mixed())
+    frame = nhamcs_frame(records)
+    assert frame.columns == (
+        *("age", "sex", "DIAG1", "DIAG2", "DIAG3", "DIAG4", "DIAG5"),
+        *("ETOHAB", "ALZHD", "ASTHMA", "CANCER", "CEBVD", "CKD", "COPD", "CHF", "CAD", "DEPRN"),
+        *("DIABTYP1", "DIABTYP2", "DIABTYP0", "ESRD", "HPE", "EDHIV", "HYPLIPID", "HTN"),
+        *("OBESITY", "OSA", "OSTPRSIS", "SUBSTAB", "target"),
+    )
+    assert frame.numeric == ("age",)
+    assert frame.edges == (18, 45, 65)
+    assert tuple(records.columns) == frame.columns
+    assert {str(dtype) for dtype in records.dtypes} == {"int64"}
+    check_records(records, frame)
+    assert {bound.field: (bound.low, bound.high) for bound in frame.ranges} == {"age": (5, 94)}
+    assert dict(frame.codebook["HTN"]) == {0: "no", 1: "yes", 2: "not recorded"}
+    assert dict(frame.codebook["DIAG1"]) == {
+        0: "-9 (none recorded)",
+        token_number("A00-"): "A00-",
+        token_number("A000"): "A000",
+        token_number("I509"): "I509",
+        token_number("J45-"): "J45-",
+        token_number("ZZZ0"): "ZZZ0",
+    }
+    assert frame.label_meanings == {
+        0: "not admitted to this hospital",
+        1: "admitted to this hospital",
+    }
+
+
+def test_a_visit_with_the_chronic_item_blank_shows_no_flag_concept() -> None:
+    records = _records(
+        line(1, **BLANK_CHRONIC),
+        line(2, **chronic(*FLAGS)),
+        line(3, **chronic()),
+    )
+    blank, every, none = (
+        {str(name): float(value) for name, value in record.items()}
+        for record in records.to_dict("records")
+    )
+    assert shown(blank, FLAG_ROWS) == shown(none, FLAG_ROWS) == set()
+    assert shown(every, FLAG_ROWS) == {row.concept for row in FLAG_ROWS}
+    assert len(FLAG_ROWS) == 18
+
+
+def test_a_missing_value_shows_no_concept() -> None:
+    record = {
+        str(name): float(value)
+        for name, value in _records(line(1, **BLANK_CHRONIC)).iloc[0].items()
+    }
+    assert record["DIAG2"] == 0
+    assert all(record[name] == 2 for name in FLAGS)
+    concepts = shown(record, NHAMCS_FIELD_ROWS)
+    assert not concepts & {row.concept for row in FLAG_ROWS}
+    diagnosis_codes = [
+        clause.codes
+        for row in DIAGNOSIS_ROWS
+        for clause in row.when
+        if isinstance(clause, Codes) and clause.field in DIAGNOSES
+    ]
+    assert len(diagnosis_codes) == len(DIAGNOSIS_ROWS) > 0
+    assert all(0 not in codes for codes in diagnosis_codes)

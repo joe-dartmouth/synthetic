@@ -39,7 +39,7 @@ converting an OWL-only release writes beside its OWL ([Ontologies](#ontologies))
 as a hidden partial file renamed into place, and ROBOT's stderr, kept only when the conversion
 fails. Each
 download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, SUPPORT2, the ACS Massachusetts file,
-the NHANES component files, the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL
+the NHANES component files, the NHAMCS 2022 ED file, the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL
 file, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
 fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A
@@ -185,6 +185,25 @@ root or to see the module's own code, run it directly:
       uv run --no-sync pytest tests/test_datasets_nhanes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
   It reads and never fetches, and an absent snapshot fails it; `gaps nhanes` fetches them.
+- **The NHAMCS frame**: `bko.datasets.nhamcs` reads `ed2022`, the fixed-width NHAMCS 2022
+  emergency-department file, from the verified `nhamcs-ed-2022` snapshot without extracting it
+  (ADR [`research/nhamcs-frame`](adr/research/nhamcs-frame.md)). Each item's columns are a code
+  table from the Stata dictionary; a line of the wrong width is refused, naming its line, and so is
+  a value outside its item's codes or a `NOCHRON` at odds with the chronic flags. `record_id` is
+  the hospital code times 1000 plus the visit code. Every visit is kept; the label is `ADMITHOS`,
+  admission to this hospital. `age` is as published, top-coded at 94. The five diagnosis tokens are
+  kept as reversible base-37 numbers (`bko.datasets.icd10_tokens`), and each chronic flag is 0, 1,
+  or 2 where the whole chronic item is blank, counted in the `cohort` line.
+  `bko.datasets.nhamcs_frame` builds its frame from the records, band edges 18, 45 and 65, and
+  `bko.ontology.nhamcs_rows` holds its field rows, so `score`, `gaps nhamcs` and `contradictions
+  --dataset nhamcs` read it through its catalog entry. `tests/test_datasets_nhamcs_pinned.py`
+  checks the archive's sha256, the fixture's real record against the file, and the records' and
+  training split's counts ADR `research/nhamcs-frame` records; the gate skips it, and `--releases`
+  runs it:
+
+      uv run --no-sync pytest tests/test_datasets_nhamcs_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `gaps nhamcs` fetches it.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -1670,6 +1689,7 @@ commands, inside `.venv`:
     uv run --no-sync python -m bko.gaps support2 [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps acs [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps nhanes [--data-dir <dir>]
+    uv run --no-sync python -m bko.gaps nhamcs [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps first-flag [--data-dir <dir>]
 
@@ -1679,8 +1699,9 @@ commands, inside `.venv`:
   definition's row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent`
   and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
-- **What `support2`, `acs` and `nhanes` do**: each catalogued dataset (`bko.ontology.catalog`)
-  has its own command, `support2`, `acs` and `nhanes` among them: it fetches the dataset's files
+- **What `support2`, `acs`, `nhanes` and `nhamcs` do**: each catalogued dataset
+  (`bko.ontology.catalog`) has its own command, `support2`, `acs`, `nhanes` and `nhamcs` among
+  them: it fetches the dataset's files
   and the releases its field rows name into the data root if absent, splits the records at
   `SPLIT_SEED` under the frame's age bands, and lists the training split's gaps in `uci`'s
   columns, logging as `uci` does (ADR `research/support2-frame`; ACS's releases are HP and OccO,
@@ -1762,7 +1783,7 @@ commands, inside `.venv`:
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`, `tests/test_gaps_support2.py`,
-  `tests/test_gaps_acs.py`, `tests/test_gaps_nhanes.py`).
+  `tests/test_gaps_acs.py`, `tests/test_gaps_nhanes.py`, `tests/test_gaps_nhamcs.py`).
 
 **`contradictions`** lists where a mapped frame's data contradicts its ontology, in the kinds ADR
 `research/data-contradiction-handling` defines (Decision 1): `narrow-without-broad`,
@@ -1773,9 +1794,9 @@ commands, inside `.venv`:
 
 - **Which frames**: UCI Heart Disease's, Synthea's and Diabetes 130's, in that order, with no
   `--dataset`. A repeatable `--dataset NAME` reads the named frames instead, in the order given:
-  `uci`, `synthea`, `diabetes` or a catalogued dataset, `support2`, `acs` or `nhanes`; a name
-  given twice is read once, at its first place. `--dataset` and `--rows` exclude each other, and
-  `--dataset` takes no run.
+  `uci`, `synthea`, `diabetes` or a catalogued dataset, `support2`, `acs`, `nhanes` or `nhamcs`; a
+  name given twice is read once, at its first place. `--dataset` and `--rows` exclude each other,
+  and `--dataset` takes no run.
 - **What it needs**: for the default frames, the pinned Synthea population in the data root,
   which `make synthea` generates and the command never does. It fetches UCI Heart Disease,
   Diabetes 130, a named catalogued dataset's files and the pinned releases its rows name (MONDO
@@ -2191,6 +2212,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-acs.log` | its stderr |
 | `gaps-nhanes.csv` | `python -m bko.gaps nhanes`'s stdout |
 | `gaps-nhanes.log` | its stderr |
+| `gaps-nhamcs.csv` | `python -m bko.gaps nhamcs`'s stdout |
+| `gaps-nhamcs.log` | its stderr |
 | `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
 | `first-flag.log` | its stderr |
 | `contradictions.csv` | `python -m bko.evaluate contradictions`'s stdout |
@@ -2212,6 +2235,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-support2.csv && test ! -e runs/<run-id>/gaps-support2.log && uv run --no-sync python -m bko.gaps support2 > runs/<run-id>/gaps-support2.csv 2> runs/<run-id>/gaps-support2.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-acs.csv && test ! -e runs/<run-id>/gaps-acs.log && uv run --no-sync python -m bko.gaps acs > runs/<run-id>/gaps-acs.csv 2> runs/<run-id>/gaps-acs.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-nhanes.csv && test ! -e runs/<run-id>/gaps-nhanes.log && uv run --no-sync python -m bko.gaps nhanes > runs/<run-id>/gaps-nhanes.csv 2> runs/<run-id>/gaps-nhanes.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-nhamcs.csv && test ! -e runs/<run-id>/gaps-nhamcs.log && uv run --no-sync python -m bko.gaps nhamcs > runs/<run-id>/gaps-nhamcs.csv 2> runs/<run-id>/gaps-nhamcs.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
