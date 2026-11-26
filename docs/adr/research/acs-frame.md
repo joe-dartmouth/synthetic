@@ -8,8 +8,8 @@ updated: 2026-11-25
 
 ## Context
 
-**The survey.** The unit asks which coded columns of the ACS person file reach an openly licensed
-ontology that converts to OBO. Each column below was looked up in the OBO Foundry registry
+**The survey.** Which coded columns of the ACS person file reach an openly licensed ontology that
+converts to OBO? Each column below was looked up in the OBO Foundry registry
 ([`obofoundry-nd`](../../literature.md#ontologies-reasoners-and-knowledge-graphs), read
 2026-11-25) by title, description, domain and tags; a candidate's licence is quoted from the
 ontology file's own header, and its conversion was tried with the pinned ROBOT jar and the argv
@@ -159,7 +159,8 @@ weight of at least 1. The cohort holds 42,543 records, 24,896 of them with incom
 the training split holds 34,035 records, 19,918 of them above $50,000, a rate of 0.5852, digest
 `b5d8bd0639ab25c6e3ca45e8ec810f9cf7c4a3f418de7af9f1935d8beee862ba`. The split is above the 5,000
 records condition 5 asks. Each of the 517 `OCCP` codes among the kept rows carries one `SOCP`
-code, and no used column is blank among them. These are commits of pull request #136, kept at
+code, and no used column is blank among them. The readings below are recorded in `db62ab4`.
+These are commits of pull request #136, kept at
 `refs/pull/136/head` after its squash merge.
 
 **The readings, at `836f4f3`, after the count.** `uv run --no-sync python -m bko.ontology check`

@@ -29,7 +29,6 @@ unit's `milestone` is `direct-method-research`, the
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`datasets-nhanes-frame`](datasets-nhanes-frame.md) | ready | -- | direct-method-research |
-| [`datasets-acs-frame`](datasets-acs-frame.md) | ready | -- | direct-method-research |
 | [`datasets-physionet2012-frame`](datasets-physionet2012-frame.md) | ready | -- | direct-method-research |
 | [`datasets-nhamcs-frame`](datasets-nhamcs-frame.md) | ready | -- | direct-method-research |
 | [`datasets-non-health-selection`](datasets-non-health-selection.md) | ready | -- | direct-method-research |
@@ -41,7 +40,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | ready | -- | direct-method-research |
 | [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
-| [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | blocked | datasets-acs-frame | direct-method-research |
+| [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | ready | -- | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | ready | -- | direct-method-research |
@@ -52,7 +51,7 @@ unit's `milestone` is `direct-method-research`, the
 |---|---|---|---|
 | [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
 | [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
-| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-nhanes-frame, datasets-acs-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-diabetes-control-results, evaluate-synthea-direct-results, datasets-nhanes-frame, datasets-physionet2012-frame, datasets-nhamcs-frame, evaluate-composite-dev-results | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
 ### Follow-ups
@@ -68,7 +67,6 @@ unit's `milestone` is `direct-method-research`, the
 flowchart LR
     u16[privacy-value-microaggregation] --> u19[evaluate-variant-dev-results]
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
-    u27[datasets-acs-frame] --> u41[evaluate-crc-acs-benchmark]
     u49[datasets-non-health-selection] --> u50[datasets-generalised-cell-axes]
     u19 --> u28[evaluate-composite-arm]
     u21 --> u28
@@ -76,12 +74,11 @@ flowchart LR
     u7[evaluate-diabetes-control-results] --> u30[evaluate-confirmatory-registration]
     u8[evaluate-synthea-direct-results] --> u30
     u26[datasets-nhanes-frame] --> u30
-    u27 --> u30
     u47[datasets-physionet2012-frame] --> u30
     u48[datasets-nhamcs-frame] --> u30
     u29 --> u30
     u30 --> u31[evaluate-confirmatory-results]
-    u41 --> u42[evaluate-crc-acs-results]
+    u41[evaluate-crc-acs-benchmark] --> u42[evaluate-crc-acs-results]
     u31 --> u42
     u32[ontology-auto-mapping] --> u33[ontology-auto-mapping-results]
     u29 --> u36[slm-lora-results]

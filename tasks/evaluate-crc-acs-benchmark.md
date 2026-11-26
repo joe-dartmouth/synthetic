@@ -1,8 +1,8 @@
 ---
 id: evaluate-crc-acs-benchmark
 title: Score bko-direct on the NIST CRC ACS excerpts with SDNist in an environment outside the lock
-status: blocked
-depends_on: datasets-acs-frame
+status: ready
+depends_on: --
 blocks: evaluate-crc-acs-results
 parallel_safe: true
 milestone: direct-method-research
@@ -38,8 +38,8 @@ only unit [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) waits on
   SHA, every package hashed.
 - The NIST CRC ACS excerpts pinned as a `Source`, their terms quoted from the archive.
 - A frame over the excerpt's own 24 fields that shares the ACS frame's rows for the four
-  disability items it holds, `DEAR`, `DEYE`, `DREM` and `DPHY` (unit
-  [`datasets-acs-frame`](datasets-acs-frame.md)), with its label and the request: a replica of the
+  disability items it holds, `DEAR`, `DEYE`, `DREM` and `DPHY` (ADR
+  [`research/acs-frame`](../docs/adr/research/acs-frame.md)), with its label and the request: a replica of the
   training split's cells at the excerpt's row count.
 - A check that each excerpt carries every field that frame reads, refusing one that does not.
 - Named runs writing one `bko-direct` file per excerpt.
