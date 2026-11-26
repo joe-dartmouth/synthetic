@@ -114,8 +114,17 @@ def trace(
         )
         raise IdentityError(msg)
     train = ablated.train
-    asked = gap_request if fill.kind == "gap" else replica_request
-    request = asked(train, experiment, seed=fill.holdout, frame=frame)
+    if fill.kind == "gap":
+        request = gap_request(
+            train,
+            experiment,
+            seed=fill.holdout,
+            frame=frame,
+            rows=data.field_rows,
+            name=data.name,
+        )
+    else:
+        request = replica_request(train, experiment, seed=fill.holdout, frame=frame)
     lines = folder.lines.get((fill.holdout, fill.name, fill.kind), ())
     count = len(kept_lines(lines)[1]) if fill.name in BKO else 1
     if record is not None and not 0 <= record < count:

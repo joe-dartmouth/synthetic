@@ -63,6 +63,7 @@ from bko.evaluate.named_runs import (
 from bko.evaluate.run import ARMS, run, score_holdout
 from bko.evaluate.scores import Measure, Scope, Source
 from bko.gaps.definitions import Definition
+from bko.gaps.quota import QuotaRule
 from bko.generate.local import TIMEOUT_SECONDS as LOCAL_TIMEOUT_SECONDS
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 from bko.generate.spend import price_of
@@ -113,6 +114,7 @@ def test_e1_is_its_stated_configuration():
         ),
         "threshold": 20,
         "fill_to": 20,
+        "quota_rule": QuotaRule.FILL_TO,
         "margin": 0.0,
         "privacy_margin": 0.9,
         "confidence": 0.95,

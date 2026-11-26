@@ -24,6 +24,7 @@ from bko.evaluate.errors import IdentityError
 from bko.evaluate.experiment import DIRECT_ARMS, PAID_ARMS
 from bko.evaluate.holdout_candidates import Candidate, read
 from bko.evaluate.utility import THRESHOLD
+from bko.gaps.quota import QuotaRule
 
 
 SCORES_LOG: Final = "scores.log"
@@ -47,14 +48,16 @@ ASSUMED: Final = MappingProxyType(
         "replica_rows": "none",
         "flagged_cell": "none",
         "synthetic_share": "none",
+        "quota_rule": str(QuotaRule.FILL_TO),
     }
 )
 """The `experiment` keys an older line may lack, each with the value it is read as.
 
 Each names a setting added after a run of record was scored, at the value that run used: UCI's
 frame, no removal, the whole training split, copies removed, E1's threshold, E1's cutoff, an
-uncapped replica, no cell flagged by name and no row replaced by a synthetic share. `seeds` is
-also read, as `0-<holdouts - 1>`. Any other key a line lacks is refused."""
+uncapped replica, no cell flagged by name, no row replaced by a synthetic share and the fixed
+fill's quota rule. `seeds` is also read, as `0-<holdouts - 1>`. Any other key a line lacks is
+refused."""
 
 LINE: Final = re.compile(r"^\S+ \S+ [A-Z]+ [\w.]+: (?P<message>.*)$")
 ARM: Final = re.compile(

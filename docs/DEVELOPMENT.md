@@ -1000,7 +1000,13 @@ start or the supervisor cannot run.
   before the removal, those it removed and those it kept), for a run with a synthetic share (the
   `e18-*` runs) a `share holdout=%d share=%s kept=%d dropped=%d dropped_sha256=%s` line (the
   share, the training rows kept and dropped, and the sha256 of the dropped record ids, sorted and
-  joined by commas), one `quota` line per stratum, a
+  joined by commas), for a run whose `Experiment.quota_rule` is not `fill-to` (the `e21-*` runs)
+  one
+  `quota-rule holdout=%d fill=%s key=%s rule=%s count=%d coverage=%d expected=%d asked=%d` line
+  per flagged cell (`fill` is `gap` and `key` the cell as `<band>/<sex>/<label>`, as the direct
+  arms' lines name them; the cell's training records, its coverage, its expected size and the
+  rows its rule asks, a cell asked 0 leaving the request; every reader that rebuilds the gap
+  request writes the same lines), one `quota` line per stratum, a
   `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
   comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and

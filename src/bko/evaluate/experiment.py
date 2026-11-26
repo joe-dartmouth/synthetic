@@ -35,6 +35,7 @@ from bko.evaluate.requests import (
 )
 from bko.evaluate.utility import THRESHOLD
 from bko.gaps.definitions import Definition
+from bko.gaps.quota import QuotaRule
 
 
 CRITERION_NAMES: Final = ("primary", "secondary", "privacy", "validity")
@@ -79,6 +80,10 @@ class Experiment:
         threshold: Each cell holding fewer training records than this is flagged (`docs/RESEARCH.md`
             section 2); it decides the flagged subgroups the measures read.
         fill_to: The training records each flagged cell is filled up to; at least `threshold`.
+        quota_rule: How many rows each flagged cell is asked for: `QuotaRule.FILL_TO` asks
+            `fill_to` less its count; any other rule asks the count `bko.gaps.quota` reads from
+            the cell's fused shares and its neighbours' counts (ADR `research/share-based-quota`).
+            It is `FILL_TO` beside `flagged_cell` or `synthetic_share`.
         margin: What the candidate must beat each comparator by, in the measure's own units.
         privacy_margin: The share of the test rows' 5th-percentile distance the added rows' must
             reach.
@@ -125,6 +130,7 @@ class Experiment:
     replica_arms: tuple[str, ...]
     threshold: int = UNDERREPRESENTED_BELOW
     fill_to: int = UNDERREPRESENTED_BELOW
+    quota_rule: QuotaRule = QuotaRule.FILL_TO
     margin: float = 0.0
     privacy_margin: float = 0.9
     confidence: float = 0.95
@@ -163,7 +169,8 @@ class Experiment:
                 flagged cell, or stands beside `PRIOR_SHIFT_ARM` or class weighting, whose
                 offsets and weights read the whole training split, or beside a replica arm,
                 whose replica scores read it too, or beside `TREE_ARM`, whose code-share error
-                reads the removed rows.
+                reads the removed rows, or a quota rule other than `QuotaRule.FILL_TO` stands
+                beside a flagged cell or a synthetic share.
         """
         seeds = self.holdout_seeds
         if len(seeds) < 2 or len(set(seeds)) != len(seeds):
@@ -292,6 +299,11 @@ class Experiment:
             raise ValueError(msg)
 
     def _check_fill(self) -> None:
+        named = self.flagged_cell is not None or self.synthetic_share is not None
+        if self.quota_rule is not QuotaRule.FILL_TO and named:
+            msg = f"quota rule {self.quota_rule} reads the cells the threshold flags, so it cannot"
+            msg += " stand beside a flagged cell or a synthetic share"
+            raise ValueError(msg)
         if self.fill_to < self.threshold:
             msg = f"fill target {self.fill_to} is below the threshold {self.threshold}"
             raise ValueError(msg)

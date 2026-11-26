@@ -334,7 +334,9 @@ def _holdout(
     train, groups = ready.ablated.train, match_groups(data.field_rows, frame=frame)
     request = None
     if DONOR_ARMS & set(fills):
-        request = gap_request(train, experiment, seed=seed, frame=frame)
+        request = gap_request(
+            train, experiment, seed=seed, frame=frame, rows=data.field_rows, name=data.name
+        )
     extra: dict[str, dict[Measure, float]] = {}
     for arm, added in fills.items():
         found = match_measures(
