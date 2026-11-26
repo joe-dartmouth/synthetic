@@ -77,7 +77,9 @@ def test_gaps_acs_lists_the_gaps_of_its_own_releases(tmp_path: Path, caplog) -> 
         "age_band,sex,target,count"
     )
     detectors = Counter(line.split(",")[0] for line in lines[1:])
-    assert detectors == {"per-subgroup": 56, "count": CELLS}
+    # Each row's two `is_a` pairs are flagged in every cell holding no record that shows its
+    # concept: `DEAR` 1 sits in one cell of `mixed_rows`, `OCCP` 0010 in three.
+    assert detectors == {"per-subgroup": 2 * (CELLS - 1) + 2 * (CELLS - 3), "count": CELLS}
     assert (
         "per-subgroup,occo,OCCO:11100000,top executive,OCCO:11000000,management occupation,"
         "<30,male,0,"

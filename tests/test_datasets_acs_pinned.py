@@ -38,6 +38,8 @@ def _loaded() -> tuple[pd.DataFrame, FrameSpec]:
 
 
 def test_the_archive_is_the_pinned_bytes() -> None:
+    """Pins Decision 1's archive: the sha256 Consequences give for both readings, and its two
+    members."""
     data = read_verified(ACS_MA_2024, default_data_dir())
     assert hashlib.sha256(data).hexdigest() == (
         "bb7d4009feaf8d190d687fc091fc7a56e2aa82b9972ae14a16d4ad70a8e0eef7"
@@ -46,6 +48,8 @@ def test_the_archive_is_the_pinned_bytes() -> None:
 
 
 def test_the_fixtures_real_header_and_row_are_the_files() -> None:
+    """Pins the fixture's header and row to the file's, the header line and the 74,617 rows
+    Consequences count, and Context's `RELSHIPP` in place of `RELP`."""
     data = read_verified(ACS_MA_2024, default_data_dir())
     lines = zipfile.ZipFile(io.BytesIO(data)).read(MEMBER).decode("utf-8").splitlines()
     assert len(lines) == 74_618
@@ -55,6 +59,8 @@ def test_the_fixtures_real_header_and_row_are_the_files() -> None:
 
 
 def test_the_filters_and_the_occupation_codes() -> None:
+    """Pins Consequences' row count before the filters and after each, the 517 `OCCP` codes each
+    with one `SOCP` code, and no blank used column."""
     rows, counts = read_kept(default_data_dir(), ACS_MA_2024)
     assert counts == (74_617, 63_191, 58_029, 42_543, 42_543)
     pairs = occupation_pairs(rows)
@@ -63,6 +69,8 @@ def test_the_filters_and_the_occupation_codes() -> None:
 
 
 def test_the_cohort_and_the_training_splits_label_rate() -> None:
+    """Pins Consequences' cohort, 42,543 records with 24,896 above $50,000, and its training
+    split, 34,035 records with 19,918 above, a rate of 0.5852."""
     records, frame = _loaded()
     assert len(records) == 42_543
     assert int(records["target"].sum()) == 24_896
@@ -72,6 +80,8 @@ def test_the_cohort_and_the_training_splits_label_rate() -> None:
 
 
 def test_the_occo_release_names_no_import() -> None:
+    """Pins Context's OccO release: the pinned OWL file's sha256, and that it names no
+    `owl:imports`."""
     data = read_verified(OCCO, default_data_dir())
     assert hashlib.sha256(data).hexdigest() == (
         "97462cabc824526898e486c6d780d62ab13b81ec98d30d4f05df41178b2d9f37"

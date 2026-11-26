@@ -239,7 +239,7 @@ def test_an_unused_column_never_changes_the_frame():
     pd.testing.assert_frame_equal(plain, changed)
 
 
-def test_a_missing_value_shows_no_concept():
+def test_a_blank_value_never_reaches_a_record():
     dropped = row(AGEP="15", DEAR="", OCCP="", SOCP="", COW="")
     records = _records(dropped, REAL_ROW)
     assert len(records) == 1

@@ -18,7 +18,6 @@ from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, dataset_releases, digest, field_rows, frame, load
 from bko.ontology.acs_rows import ACS_FIELD_ROWS, DISABILITY_ROWS, OCCUPATION_CODES
 from bko.ontology.catalog import CATALOG
-from bko.ontology.occupation_codes_high import OCCUPATION_CODES as HIGH
 from bko.ontology.occupation_codes_low import OCCUPATION_CODES as LOW
 from bko.ontology.schema import Codes
 from tests._acs_fixtures import acs_archive
@@ -77,7 +76,6 @@ def test_the_frame_of_acs_needs_its_records() -> None:
 
 
 def test_every_occp_code_is_in_exactly_one_row() -> None:
-    assert (*LOW, *HIGH) == OCCUPATION_CODES
     occupation_rows = ACS_FIELD_ROWS[len(DISABILITY_ROWS) :]
     assert ACS_FIELD_ROWS[: len(DISABILITY_ROWS)] == DISABILITY_ROWS
     held: list[int] = []

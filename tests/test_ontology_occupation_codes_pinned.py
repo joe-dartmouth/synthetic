@@ -58,6 +58,8 @@ def _generated() -> tuple[tuple[OccupationCode, ...], Counter[str]]:
     "module", [occupation_codes_low, occupation_codes_high], ids=["low", "high"]
 )
 def test_the_rendered_modules_are_the_committed_ones(module) -> None:
+    """Pins Decision 4's rows: each committed part is what the rule renders from the release and
+    the archive, so the 221 low and 295 high rows Consequences count are regenerated."""
     which = "low" if module is occupation_codes_low else "high"
     rows, _ = _generated()
     text = render([row for row in rows if part(row) == which], which)
@@ -65,5 +67,7 @@ def test_the_rendered_modules_are_the_committed_ones(module) -> None:
 
 
 def test_the_unmapped_tallies_are_the_adrs() -> None:
+    """Pins the occupation rows' Consequences: `9830` the one `no class` code, and none for
+    `several classes` or `several SOC ids`."""
     _, unmapped = _generated()
     assert unmapped == UNMAPPED
