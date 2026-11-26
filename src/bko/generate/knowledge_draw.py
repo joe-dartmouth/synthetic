@@ -7,12 +7,13 @@ Each field group's codes are uniform over the codebook tuples, in `itertools.pro
 each field's sorted codes, showing exactly the group's drawn concepts; `age` is uniform over the
 cell's band's integers inside the training split's age range; `sex` and the label follow the
 cell. Every draw has its own generator: component k's is
-`np.random.default_rng([seed, cell_ordinal, record, k])` and a column's
-`np.random.default_rng([seed, cell_ordinal, record, COLUMN_STREAM + column_index])`, a group's
-column its first field's, so a change to one component's rows leaves every other component's
-draw as it was. A frame with a free field, or a clause on a numeric field or on `sex`, has a
-value K cannot give, so `kb_check` refuses it. ADR `research/matched-knowledge-controls`,
-Decision 9, records the design.
+`np.random.default_rng([seed, cell_ordinal, record, COMPONENT_WORD, k])` and a column's
+`np.random.default_rng([seed, cell_ordinal, record, COLUMN_WORD, column_index])`, a group's
+column its first field's; the distinct prefix words keep the two families apart however many
+components or columns there are, so a change to one component's rows leaves every other
+component's draw as it was. A frame with a free field, or a clause on a numeric field or on
+`sex`, has a value K cannot give, so `kb_check` refuses it. ADR
+`research/matched-knowledge-controls`, Decision 9, records the design.
 """
 
 from __future__ import annotations
@@ -38,8 +39,11 @@ from bko.ontology.terms import Ontology, ancestors
 
 logger = logging.getLogger(__name__)
 
-COLUMN_STREAM: Final = 1000
-"""What a column's index is offset by in the last word of its generator's seed."""
+COMPONENT_WORD: Final = 0
+"""The seed word before a component's ordinal: `[seed, cell_ordinal, record, 0, k]`."""
+
+COLUMN_WORD: Final = 1
+"""The seed word before a column's index: `[seed, cell_ordinal, record, 1, column_index]`."""
 
 type _Codes = tuple[int, ...]
 
@@ -144,13 +148,14 @@ class _Knowledge:
             if any(row.applies({self._frame.label: label}) for row in self._by_concept[concept])
         }
         for k, component in enumerate(self._components):
-            present |= logic_assignment(component, np.random.default_rng([*stream, k]))
+            rng = np.random.default_rng([*stream, COMPONENT_WORD, k])
+            present |= logic_assignment(component, rng)
         present = self._implied(present)
         record: dict[str, int | float] = {}
         for index, column in enumerate(self._frame.columns):
             if column not in self._first and column not in {"age", "sex", self._frame.label}:
                 continue
-            rng = np.random.default_rng([*stream, COLUMN_STREAM + index])
+            rng = np.random.default_rng([*stream, COLUMN_WORD, index])
             if column == "age":
                 record[column] = self._age(cell, age_range, rng)
             elif column == "sex":

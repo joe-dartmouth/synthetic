@@ -104,9 +104,10 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    (`Strata.LABEL`) with `BaselineError`.
 9. **`bko-kb`.** `kb_sample` takes no training frame. Presence per logic component is uniform over
    the assignments `bko.generate.logic.components` allows, from
-   `np.random.default_rng([seed, cell_ordinal, record, component_ordinal])`; each group's coded
+   `np.random.default_rng([seed, cell_ordinal, record, 0, component_ordinal])`; each group's coded
    fields are uniform over the codebook tuples showing the drawn pattern, from
-   `np.random.default_rng([seed, cell_ordinal, record, 1000 + column_index])`; `age` is uniform
+   `np.random.default_rng([seed, cell_ordinal, record, 1, column_index])`, the prefix words 0 and 1
+   (`COMPONENT_WORD`, `COLUMN_WORD`) keeping the two families apart; `age` is uniform
    over the band's integers inside `age_range`, the training split's observed range. A frame with
    a free field or a numeric clause is refused before any arm fits. It is K's structure alone,
    registered as a floor expected below `bko-logic`, and only on the supported-fields dataset,

@@ -11,6 +11,7 @@ import itertools
 from collections.abc import Mapping, Sequence
 from typing import Final
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -19,6 +20,7 @@ from bko.gaps.observe import Cell
 from bko.generate.direct import Draw, sample
 from bko.generate.draw_spec import DrawSpec
 from bko.generate.knowledge_draw import kb_sample
+from bko.generate.logic import components, logic_assignment
 from bko.generate.presence import Presence
 from bko.ontology.schema import AtLeast, Codes, FieldMapping
 from bko.ontology.terms import Ontology, Term
@@ -233,6 +235,25 @@ def test_a_frame_with_a_numeric_clause_is_refused():
 def test_the_draw_follows_its_seed():
     assert _kb(seed=3) == _kb(seed=3)
     assert _kb(seed=3) != _kb(seed=4)
+
+
+def test_components_and_columns_draw_from_distinct_seed_prefixes():
+    draws = [d for d in _kb() if d.cell == YOUNG_1]
+    index = FRAME.columns.index("age")
+    expected = [
+        int(np.random.default_rng([3, 0, record, 1, index]).integers(25, 40))
+        for record in range(QUOTA[YOUNG_1])
+    ]
+    assert [d.record["age"] for d in draws] == expected
+    pair = {BROAD.concept, NARROW.concept}
+    concepts = (JOINT.concept, *pair)
+    found = components(concepts, [(NARROW.concept, BROAD.concept)])
+    k, component = next((k, c) for k, c in enumerate(found) if BROAD.concept in c.concepts)
+    expected_pairs = [
+        logic_assignment(component, np.random.default_rng([3, 0, record, 0, k]))
+        for record in range(QUOTA[YOUNG_1])
+    ]
+    assert [d.concepts & pair for d in draws] == expected_pairs
 
 
 def test_the_kb_spec_needs_presence_logic():
