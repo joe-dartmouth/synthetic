@@ -12,8 +12,12 @@ import pytest
 from bko.baselines import pooling as baseline_pooling
 from bko.baselines.categories import categorise
 from bko.baselines.errors import BaselineError
+from bko.baselines.multilevel import HB_MARGINALS_STREAM
 from bko.baselines.pooling import (
+    EB_MARGINALS_STREAM,
     KAPPA_GRID,
+    MARGINALS_STREAM,
+    PRIOR_PSEUDOCOUNT,
     ROW_RESAMPLE_STREAM,
     eb_marginals,
     fit_kappa,
@@ -24,8 +28,11 @@ from bko.baselines.records import check
 from bko.baselines.request import Request, Strata, Stratum
 from bko.datasets.cells import LABEL
 from bko.datasets.uci import UCI_FRAME
+from bko.evaluate.coherent import COHERENT_STREAM
+from bko.evaluate.pram import PRAM_STREAM
 from bko.gaps.shares import GROUP_WEIGHT, cell_weight
 from bko.generate import donors
+from bko.generate.pooling import POOL_RANDOM_STREAM
 from tests._baselines_fixtures import full_records
 
 
@@ -81,6 +88,26 @@ def test_a_full_cell_weighs_its_own_rows_at_n_over_n_plus_20():
     assert cell_weight(19, 20.0) == 19 / 39  # ruff: ignore[float-equality-comparison]
     assert cell_weight(19, float(GROUP_WEIGHT)) == 19 / 39  # ruff: ignore[float-equality-comparison]
     assert cell_weight(0, 20.0) == 0.0  # ruff: ignore[float-equality-comparison]
+
+
+def test_every_stream_and_the_pseudocount_are_pinned():
+    streams = {
+        "row-resample": ROW_RESAMPLE_STREAM,
+        "marginals": MARGINALS_STREAM,
+        "eb-marginals": EB_MARGINALS_STREAM,
+        "pool-random": POOL_RANDOM_STREAM,
+        "hb-marginals": HB_MARGINALS_STREAM,
+    }
+    assert streams == {
+        "row-resample": 16,
+        "marginals": 17,
+        "eb-marginals": 18,
+        "pool-random": 19,
+        "hb-marginals": 20,
+    }
+    taken = [*streams.values(), PRAM_STREAM, COHERENT_STREAM]
+    assert len(set(taken)) == len(taken)
+    assert PRIOR_PSEUDOCOUNT == 0.5  # ruff: ignore[float-equality-comparison]
 
 
 def test_the_pooled_weight_has_one_home():

@@ -1,11 +1,12 @@
-"""The categories `eb-marginals` counts a column in, read from the column's label group.
+"""The categories `eb-marginals` and `hb-marginals` count a column in, read from its label group.
 
 A coded column's categories are its codes, each code with fewer than `MIN_RECORDS` label-group
 records folded into `OTHER`. A measured column's are its values when the label group holds at most
 `MAX_VALUES` distinct ones, else the label group's decile bins; walking those up from the lowest,
 a category closes once it holds `MIN_RECORDS` label-group records, and an upper tail that never
-does joins the last closed one. Every category therefore holds `MIN_RECORDS` label-group records
-unless the whole group holds fewer.
+does joins the last closed one. Every category of a measured column therefore holds `MIN_RECORDS`
+label-group records unless the whole group holds fewer; a coded column's `OTHER` can hold fewer,
+since it gathers whatever its rare codes hold.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ import pandas as pd
 
 
 MIN_RECORDS: Final = 5
-"""The label-group records a category holds at least, when the group holds that many."""
+"""The label-group records a kept code, or a measured column's category, holds at least, when
+the label group holds that many."""
 
 MAX_VALUES: Final = 16
 """A measured column with at most this many distinct label-group values keeps its values."""
