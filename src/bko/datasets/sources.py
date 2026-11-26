@@ -233,3 +233,56 @@ Size and sha256 were measured from the bytes the host serves; the size equals it
 The Census Bureau's terms bar identification, linkage and identifying publication, not sending, so
 it is open data (ADR `research/confirmatory-dataset-selection`, point 4).
 """
+
+
+def _nhanes(component: str, size: int, sha256: str) -> Source:
+    """One NHANES August 2021 to August 2023 component file as NCHS serves it."""
+    return Source(
+        name=f"nhanes-{component.lower().replace('_', '-')}",
+        url=f"https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/{component}.xpt",
+        filename=f"{component}.xpt",
+        size=size,
+        sha256=sha256,
+        agreement=None,
+    )
+
+
+NHANES_DEMO_L: Final = _nhanes(
+    "DEMO_L", 2_582_160, "ca4374a158b493b8b0163e1388da21d57a18d1b9cecff2aa4e2fa2bec494fe23"
+)
+NHANES_MCQ_L: Final = _nhanes(
+    "MCQ_L", 3_294_000, "0889bb3eaa5adedf1a11c4af2d4776fc4c4c3cfdeea24fcedb77c4636b478f61"
+)
+NHANES_BPXO_L: Final = _nhanes(
+    "BPXO_L", 696_720, "189aa9bed689d2c69cf8d780b01de85073276fea5694dd52cdf696229f9054a6"
+)
+NHANES_BMX_L: Final = _nhanes(
+    "BMX_L", 1_563_200, "44440c416d9ad709e8b1708a5975378ab4d5b18edc39eb5015c2ae7186500170"
+)
+NHANES_TCHOL_L: Final = _nhanes(
+    "TCHOL_L", 259_520, "5c3312e555bb0706fd97cbd63fcbc9e78f00bda8d2d149732d9dd368169b25d3"
+)
+NHANES_HDL_L: Final = _nhanes(
+    "HDL_L", 259_520, "c1bb43df5ca366f470b411c043f4aee7ae6552a7f4bca1178bc87b24fb9a7300"
+)
+NHANES_GHB_L: Final = _nhanes(
+    "GHB_L", 174_000, "67aee0353160e2392dc0a33bece99b90764a630c76d82415ac4639105ad9dd03"
+)
+NHANES: Final = (
+    NHANES_DEMO_L,
+    NHANES_MCQ_L,
+    NHANES_BPXO_L,
+    NHANES_BMX_L,
+    NHANES_TCHOL_L,
+    NHANES_HDL_L,
+    NHANES_GHB_L,
+)
+"""NHANES August 2021 to August 2023's seven component files, each SAS XPORT version 5, which
+`bko.datasets.nhanes` reads in this order: demographics, medical conditions, oscillometric blood
+pressure, body measures, total cholesterol, HDL cholesterol and glycohemoglobin.
+
+Each size and sha256 was measured from the bytes the host serves; each size equals its
+content-length. The files are public-use under the NCHS terms, which bind by use and bar
+identification and linkage, not sending, so they are open data (ADR
+`research/confirmatory-dataset-selection`, point 4).
+"""

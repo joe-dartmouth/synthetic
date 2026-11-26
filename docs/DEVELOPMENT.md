@@ -39,8 +39,8 @@ converting an OWL-only release writes beside its OWL ([Ontologies](#ontologies))
 as a hidden partial file renamed into place, and ROBOT's stderr, kept only when the conversion
 fails. Each
 download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, SUPPORT2, the ACS Massachusetts file,
-the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL file, and the OWL files and ROBOT jar
-the `elk` command reads) is pinned by size and sha256 in
+the NHANES component files, the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL
+file, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
 fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A
 generated population is checked against its own `run.json`: the commands regenerate one whose
@@ -163,6 +163,28 @@ root or to see the module's own code, run it directly:
 
   It reads and never fetches or converts, and an absent snapshot fails it; `gaps acs` fetches
   and converts.
+- **The NHANES frame**: `bko.datasets.nhanes` reads the NHANES component files, SAS XPORT, of August
+  2021 to August 2023 from their verified `nhanes-*` snapshots with `pandas.read_sas`, never writing
+  them elsewhere (ADR [`research/nhanes-frame`](adr/research/nhanes-frame.md)). Each file's columns
+  must be the published file's, its `SEQN` values whole and unique, and every other file's `SEQN`
+  values among the demographics'; a file `pandas.read_sas` warns may be corrupted is refused.
+  Demographics and medical conditions join inner on `SEQN`, `record_id`; the exam and laboratory
+  files join left, so an adult who was only interviewed has every measurement not measured. Adults
+  of 20 and over are kept; the label is 1 when any of the heart-failure, coronary-disease,
+  heart-attack and stroke items is yes and 0 when all four are no, and any other adult is left out,
+  counted in the `cohort` line with each coded field's measured records. `age` is as published,
+  top-coded at 80. Blood pressure is the mean of the readings present; it, glycohemoglobin, total
+  and HDL cholesterol are coded at their cited cutoffs and body mass index at the published file's
+  tertiles. `bko.datasets.nhanes_frame` builds its frame from the records, band edges 40 and 60, and
+  `bko.ontology.nhanes_rows` holds its field rows, so `score`, `gaps nhanes` and `contradictions
+  --dataset nhanes` read it through its catalog entry. `tests/test_datasets_nhanes_pinned.py` checks
+  each file's sha256, the fixture writer's layout against each file, the adult frame's, composite's
+  and training split's counts ADR `research/nhanes-frame` records and the tertile cutoffs; the gate
+  skips it, and `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_nhanes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches, and an absent snapshot fails it; `gaps nhanes` fetches them.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -1632,6 +1654,7 @@ commands, inside `.venv`:
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps support2 [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps acs [--data-dir <dir>]
+    uv run --no-sync python -m bko.gaps nhanes [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps first-flag [--data-dir <dir>]
 
@@ -1641,11 +1664,12 @@ commands, inside `.venv`:
   definition's row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent`
   and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
-- **What `support2` and `acs` do**: each catalogued dataset (`bko.ontology.catalog`) has its own
-  command, `support2` and `acs` among them: it fetches the dataset's archive and the releases its
-  field rows name into the data root if absent, splits the records at `SPLIT_SEED` under the
-  frame's age bands, and lists the training split's gaps in `uci`'s columns, logging as `uci` does
-  (ADR `research/support2-frame`; ACS's releases are HP and OccO, ADR `research/acs-frame`).
+- **What `support2`, `acs` and `nhanes` do**: each catalogued dataset (`bko.ontology.catalog`)
+  has its own command, `support2`, `acs` and `nhanes` among them: it fetches the dataset's files
+  and the releases its field rows name into the data root if absent, splits the records at
+  `SPLIT_SEED` under the frame's age bands, and lists the training split's gaps in `uci`'s
+  columns, logging as `uci` does (ADR `research/support2-frame`; ACS's releases are HP and OccO,
+  ADR `research/acs-frame`).
   Before the listing's lines it logs the loader's `cohort` line, one
   `data dataset=<name> frame=<name> records=<n> digest=<sha256> agreement=<a>` line for the
   loaded records, the line `score` logs for them, and one `split seed=<s> train=<n> test=<n>
@@ -1675,17 +1699,18 @@ commands, inside `.venv`:
   any removal, blank when never), `cell_removed` (the cell's removed cases at `first_flag`, blank
   when never), `reversals` (how often the detector stops listing it as cases go) and
   `flagged_at_all`.
-- **What it logs**: stderr gets the data root and the pandas and scipy versions, each input's
-  identity (the split or the population, the parser and each release), each ontology fragment's
-  size, how many records show each mapped concept, each cell's record count, held-concept count
-  and assumed concepts, each concept the frequency-aware definition flags with its counts and
-  posterior mass, each fused BKB's size and name, for `uci` each definition's gap and cell counts
-  and the count-based cells with the threshold, for `synthea` each ablation, each definition's gap
-  counts before and after the removal and its listed rows, and each detector's recovery (truth,
-  eligible, recovered, outside the truth, new outside the truth, and vanished) and its sensitivity
-  and specificity (`n/a` with no denominator), with a warning when
-  per-subgroup or the count-based detector puts a gap new outside the truth or loses one, which
-  removing whole patients cannot cause, and last the row count and sha256 of stdout.
+- **What it logs**: stderr gets the `versions` line (commit, dirty tree and library versions), the
+  data root and the pandas and scipy versions, each input's identity (the split or the population,
+  the parser and each release), each ontology fragment's size, how many records show each mapped
+  concept, each cell's record count, held-concept count and assumed concepts, each concept the
+  frequency-aware definition flags with its counts and posterior mass, each fused BKB's size and
+  name, for `uci` each definition's gap and cell counts and the count-based cells with the
+  threshold, for `synthea` each ablation, each definition's gap counts before and after the removal
+  and its listed rows, and each detector's recovery (truth, eligible, recovered, outside the truth,
+  new outside the truth, and vanished) and its sensitivity and specificity (`n/a` with no
+  denominator), with a warning when per-subgroup or the count-based detector puts a gap new outside
+  the truth or loses one, which removing whole patients cannot cause, and last the row count and
+  sha256 of stdout.
 - **What the sweep logs**: `synthea` and `uci` also read each grounding count and level of
   `bko.gaps.sweep` ([D1](EVIDENCE.md#d1-graded-grounding-and-the-frequency-aware-level)), to
   stderr only, so stdout is the same bytes as without it. A setting is per-subgroup or
@@ -1703,18 +1728,17 @@ commands, inside `.venv`:
   reaches it. After the definitions' `bko` lines, `uci` logs one `sweep dataset=<name>
   detector=<d> grounding=<k> credibility=<level> gaps=<n> cells=<c>` line per setting, `<n>`
   being the setting's gap count and `<c>` the cells holding them.
-- **What `first-flag` logs**: the data root, versions, input identities and observed concepts as
-  `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>` line for each
-  partial ablation it passes over; for each whole ablation a header,
-  `first-flag ablation=<name> cases=<n> truth per-subgroup=<k> population-level=<k>
-  frequency-aware=<k> count=<k>`, giving its truth item counts, so an ablation with no truth still
-  logs; then one line per detector and truth cell, `first-flag ablation=<name> detector=<d>
-  cell=<key> cases=<n> items=<k> flagged=<k> first=<r> last=<r>`, `first` and `last` being the
-  earliest and latest first flag among the cell's items and `n/a` when none is flagged; and last
-  the `gaps rows=<k> sha256=<digest>` line. Each field is `key=value`, split on the first `=`. The
-  scan's per-state fusions log no `fused` line: it holds `bko.bkb.fusion`'s logger at WARNING
-  while it runs and restores it after, so `synthea`, `uci` and the fusion reproduction keep
-  theirs.
+- **What `first-flag` logs**: the `versions` line, the data root, versions, input identities and
+  observed concepts as `synthea` logs them, then a `first-flag skip ablation=<name> fraction=<f>`
+  line for each partial ablation it passes over; for each whole ablation a header, `first-flag
+  ablation=<name> cases=<n> truth per-subgroup=<k> population-level=<k> frequency-aware=<k>
+  count=<k>`, giving its truth item counts, so an ablation with no truth still logs; then one line
+  per detector and truth cell, `first-flag ablation=<name> detector=<d> cell=<key> cases=<n>
+  items=<k> flagged=<k> first=<r> last=<r>`, `first` and `last` being the earliest and latest first
+  flag among the cell's items and `n/a` when none is flagged; and last the `gaps rows=<k>
+  sha256=<digest>` line. Each field is `key=value`, split on the first `=`. The scan's per-state
+  fusions log no `fused` line: it holds `bko.bkb.fusion`'s logger at WARNING while it runs and
+  restores it after, so `synthea`, `uci` and the fusion reproduction keep theirs.
 - **Exit codes**: 0 the report is written; 1 an unexpected error, with its traceback; 2 the
   command could not run, including a mapped concept its release lacks and a BKB the fragments
   cannot ground, fuse or query (`bko.bkb.errors.BKBError`); 3 the data or a release contradicts
@@ -1723,7 +1747,7 @@ commands, inside `.venv`:
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
   built in `tmp_path` (`tests/test_gaps_cli.py`, `tests/test_gaps_support2.py`,
-  `tests/test_gaps_acs.py`).
+  `tests/test_gaps_acs.py`, `tests/test_gaps_nhanes.py`).
 
 **`contradictions`** lists where a mapped frame's data contradicts its ontology, in the kinds ADR
 `research/data-contradiction-handling` defines (Decision 1): `narrow-without-broad`,
@@ -1734,12 +1758,12 @@ commands, inside `.venv`:
 
 - **Which frames**: UCI Heart Disease's, Synthea's and Diabetes 130's, in that order, with no
   `--dataset`. A repeatable `--dataset NAME` reads the named frames instead, in the order given:
-  `uci`, `synthea`, `diabetes` or a catalogued dataset, `support2` or `acs`; a name given twice is
-  read once, at its first place. `--dataset` and `--rows` exclude each other, and `--dataset`
-  takes no run.
+  `uci`, `synthea`, `diabetes` or a catalogued dataset, `support2`, `acs` or `nhanes`; a name
+  given twice is read once, at its first place. `--dataset` and `--rows` exclude each other, and
+  `--dataset` takes no run.
 - **What it needs**: for the default frames, the pinned Synthea population in the data root,
   which `make synthea` generates and the command never does. It fetches UCI Heart Disease,
-  Diabetes 130, a named catalogued dataset's archive and the pinned releases its rows name (MONDO
+  Diabetes 130, a named catalogued dataset's files and the pinned releases its rows name (MONDO
   and HPO, and OccO for `acs`, converted with ROBOT) into the data root if absent.
 - **What it does**: it reads each frame's training split at holdout seed 0 with no removal and
   examines every cell. Each CSV row is one finding, so a cell appears only where it holds one, in
@@ -2150,6 +2174,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-support2.log` | its stderr |
 | `gaps-acs.csv` | `python -m bko.gaps acs`'s stdout |
 | `gaps-acs.log` | its stderr |
+| `gaps-nhanes.csv` | `python -m bko.gaps nhanes`'s stdout |
+| `gaps-nhanes.log` | its stderr |
 | `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
 | `first-flag.log` | its stderr |
 | `contradictions.csv` | `python -m bko.evaluate contradictions`'s stdout |
@@ -2170,6 +2196,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-support2.csv && test ! -e runs/<run-id>/gaps-support2.log && uv run --no-sync python -m bko.gaps support2 > runs/<run-id>/gaps-support2.csv 2> runs/<run-id>/gaps-support2.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-acs.csv && test ! -e runs/<run-id>/gaps-acs.log && uv run --no-sync python -m bko.gaps acs > runs/<run-id>/gaps-acs.csv 2> runs/<run-id>/gaps-acs.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-nhanes.csv && test ! -e runs/<run-id>/gaps-nhanes.log && uv run --no-sync python -m bko.gaps nhanes > runs/<run-id>/gaps-nhanes.csv 2> runs/<run-id>/gaps-nhanes.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null

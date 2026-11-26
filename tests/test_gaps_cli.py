@@ -235,7 +235,7 @@ def test_the_module_runs_as_a_program():
         timeout=60,
     )
     assert result.returncode == 0, result.stderr
-    assert "{uci,synthea,first-flag,support2,acs}" in result.stdout
+    assert "{uci,synthea,first-flag,support2,acs,nhanes}" in result.stdout
 
 
 ISCHEMIA_STATEMENTS = (

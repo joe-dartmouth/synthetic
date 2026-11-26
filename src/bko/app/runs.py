@@ -52,6 +52,8 @@ ROLES: Final[Mapping[str, str]] = MappingProxyType(
         "gaps-support2.log": "its stderr",
         "gaps-acs.csv": "`python -m bko.gaps acs`'s stdout",
         "gaps-acs.log": "its stderr",
+        "gaps-nhanes.csv": "`python -m bko.gaps nhanes`'s stdout",
+        "gaps-nhanes.log": "its stderr",
         "first-flag.csv": "`python -m bko.gaps first-flag`'s stdout",
         "first-flag.log": "its stderr",
         "contradictions.csv": "`python -m bko.evaluate contradictions`'s stdout",

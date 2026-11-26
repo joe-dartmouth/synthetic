@@ -7,7 +7,17 @@ import re
 import pytest
 
 from bko.datasets import sources
-from bko.datasets.sources import DO, HPO, HPO_OWL, MONDO, MONDO_OWL, OCCO, ROBOT_JAR, Source
+from bko.datasets.sources import (
+    DO,
+    HPO,
+    HPO_OWL,
+    MONDO,
+    MONDO_OWL,
+    NHANES,
+    OCCO,
+    ROBOT_JAR,
+    Source,
+)
 
 
 PINS = tuple(value for value in vars(sources).values() if isinstance(value, Source))
@@ -26,6 +36,10 @@ def test_the_scan_finds_every_pin() -> None:
         "robot-jar",
         "support2",
         "occo",
+        "acs-ma-2024",
+        *(f"nhanes-{name}" for name in ("demo-l", "mcq-l", "bpxo-l", "bmx-l", "tchol-l")),
+        "nhanes-hdl-l",
+        "nhanes-ghb-l",
     }
 
 
@@ -101,3 +115,21 @@ def test_the_elk_pins_are_githubs_release_asset_metadata(
 def test_each_owl_pin_is_its_obo_pins_release() -> None:
     assert MONDO_OWL.url.rpartition("/")[0] == MONDO.url.rpartition("/")[0]
     assert HPO_OWL.url.rpartition("/")[0] == HPO.url.rpartition("/")[0]
+
+
+def test_each_nhanes_pin_is_its_component_file_at_nchs() -> None:
+    base = "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2021/DataFiles/"
+    assert [(pin.url, pin.filename) for pin in NHANES] == [
+        (f"{base}{name}.xpt", f"{name}.xpt")
+        for name in ("DEMO_L", "MCQ_L", "BPXO_L", "BMX_L", "TCHOL_L", "HDL_L", "GHB_L")
+    ]
+    assert [pin.size for pin in NHANES] == [
+        2_582_160,
+        3_294_000,
+        696_720,
+        1_563_200,
+        259_520,
+        259_520,
+        174_000,
+    ]
+    assert {pin.agreement for pin in NHANES} == {None}

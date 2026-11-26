@@ -238,6 +238,8 @@ HPO_LABELS: Mapping[str, str] = {
     "HP:0000505": "Visual impairment",
     "HP:0100543": "Cognitive impairment",
     "HP:0001288": "Gait disturbance",
+    "HP:0005117": "Elevated diastolic blood pressure",
+    "HP:0003233": "Decreased circulating HDL-C concentration",
 }
 """Every HP id the mapping table names, with its label in HPO release 2026-09-01."""
 

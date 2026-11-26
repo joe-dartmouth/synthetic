@@ -19,6 +19,8 @@ input's identity, each cell's records, each flagged concept, each list's length,
 recovery and the report's digest go to stderr through logging, and `synthea` and `uci` also log
 D1's sweep there (`bko.gaps.sweep`): a `sweep` line per setting and, for `synthea`, a `chosen`
 line naming the level its rule picks.
+Every command first logs the `versions` line (`bko.core.versions.log_versions`): the commit,
+whether its tree is dirty, and the libraries' versions.
 `docs/DEVELOPMENT.md` (Gap detection) is the usage home.
 
 Exit codes: 0 the report is written; 1 an unexpected error, with its traceback; 2 the command could
@@ -43,6 +45,7 @@ from typing import Final, TextIO
 from bko.bkb.errors import BKBError
 from bko.bkb.structure import BKB
 from bko.core.logs import configure
+from bko.core.versions import log_versions
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
@@ -139,6 +142,7 @@ def main(
     """
     context = Context() if context is None else context
     args = _parser(context.catalog).parse_args(argv)
+    log_versions()
     try:
         data_dir = args.data_dir.resolve() if args.data_dir is not None else default_data_dir()
         fixed = dict(zip(FIXED_COMMANDS, (_uci, _synthea, _first_flag), strict=True))
