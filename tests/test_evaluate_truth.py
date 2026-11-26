@@ -27,6 +27,7 @@ from bko.evaluate.truth import TRUTH_COLUMNS, truth_scores
 from tests._evaluate_bko_fixtures import NARROW
 from tests.test_evaluate_membership import PRIVATE, _context, _header, _rewrite, _stored
 from tests.test_evaluate_privacy import random_records
+from tests.test_evaluate_shared import edit_log
 
 
 def _truth(
@@ -67,6 +68,14 @@ def test_fewer_than_two_rows_read_nan():
         assert math.isnan(found.shapes)
         assert math.isnan(found.pair_trends)
         assert all(math.isnan(value) for value in found.columns.values())
+
+
+def test_two_rows_on_each_side_are_scored():
+    rows = random_records(UCI_FRAME, 4, seed=3)
+    found = truth_scores(rows.iloc[:2], rows.iloc[2:], frame=UCI_FRAME)
+    assert 0 <= found.shapes <= 1
+    assert 0 <= found.pair_trends <= 1
+    assert all(0 <= value <= 1 for value in found.columns.values())
 
 
 def test_the_dropped_records_are_the_removals(tmp_path, caplog, monkeypatch):
@@ -206,3 +215,49 @@ def test_the_run_is_required(tmp_path, capsys):
         main(argv, context=_context(tmp_path), out=io.StringIO())
     assert exited.value.code == 2
     assert "run" in capsys.readouterr().err
+
+
+def test_column_shapes_is_the_mean_of_its_column_shapes(tmp_path, caplog):
+    _, store = _stored(tmp_path, caplog)
+    code, text = _truth(tmp_path, store)
+    assert code == 0
+    table = pd.read_csv(io.StringIO(text))
+    scored = table[table["arm"] == "smote"]
+    assert len(scored)
+    for _, rows in scored.groupby("holdout"):
+        (shapes,) = rows.loc[rows["measure"] == "column-shapes", "value"]
+        assert shapes == pytest.approx(rows.loc[rows["measure"] == "column-shape", "value"].mean())
+
+
+def test_rows_counts_the_added_rows_in_the_removed_cell(tmp_path, caplog, monkeypatch):
+    _, store = _stored(tmp_path, caplog)
+    scored: list[int] = []
+    filled: list[int] = []
+    real_scores, real_fills = truth_module.truth_scores, truth_module.read_fills
+
+    def spying(added: pd.DataFrame, removed: pd.DataFrame, *, frame: FrameSpec) -> ReportScores:
+        scored.append(len(added))
+        return real_scores(added, removed, frame=frame)
+
+    def counting(*args, **kwargs) -> dict[str, pd.DataFrame]:
+        fills = real_fills(*args, **kwargs)
+        filled.extend(len(rows) for rows in fills.values())
+        return fills
+
+    monkeypatch.setattr(truth_module, "truth_scores", spying)
+    monkeypatch.setattr(truth_module, "read_fills", counting)
+    code, text = _truth(tmp_path, store)
+    assert code == 0
+    table = pd.read_csv(io.StringIO(text))
+    counts = table.groupby(["holdout", "arm"], sort=False)["rows"].first()
+    assert list(counts) == scored
+    assert any(inside < added for inside, added in zip(scored, filled, strict=True))
+
+
+def test_a_split_line_the_data_does_not_reproduce_exits_3(tmp_path, caplog):
+    folder, store = _stored(tmp_path, caplog)
+    edit_log(folder, "split seed=1", lambda line: re.sub(r"fingerprint=\w+", "fingerprint=0", line))
+    log = hashlib.sha256((folder / "scores.log").read_bytes()).hexdigest()
+    _rewrite(store, _header("log_sha256", log))
+    assert _truth(tmp_path, store) == (3, "")
+    assert f"which the store {store} is bound to" in caplog.text
