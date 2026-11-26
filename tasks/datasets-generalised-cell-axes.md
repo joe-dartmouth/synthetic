@@ -1,8 +1,8 @@
 ---
 id: datasets-generalised-cell-axes
 title: Let a frame name its own two cell axes in place of age band and sex
-status: blocked
-depends_on: datasets-non-health-selection
+status: ready
+depends_on: --
 blocks: datasets-nvd-frame, datasets-vcdb-frame
 parallel_safe: true
 milestone: direct-method-research
@@ -16,9 +16,11 @@ The set's graph is [`direct-index.md`](direct-index.md).
 
 ## Why this unit exists
 
-Every frame so far describes a person, so a cell is an age band by a sex. A chosen non-health
-frame by unit [`datasets-non-health-selection`](datasets-non-health-selection.md) has other
-axes. The cell machinery has to read them before any such frame loads.
+Every frame so far describes a person, so a cell is an age band by a sex. The non-health frames
+ADR
+[`research/non-health-dataset-selection`](../docs/adr/research/non-health-dataset-selection.md)
+chooses, NVD CVE records with the KEV label and the VERIS Community Database, have other axes. The
+cell machinery has to read them before any such frame loads.
 
 ## Scope
 
@@ -27,8 +29,8 @@ axes. The cell machinery has to read them before any such frame loads.
 - A frame names its own two cell axes and their bands in place of age band and sex.
 - Cells, quotas, gap listings and the removed-cell rule read them.
 - Every existing frame keeps age band by sex.
-- Each non-health frame unit [`datasets-non-health-selection`](datasets-non-health-selection.md)
-  adds depends on this unit.
+- Each non-health frame unit, [`datasets-nvd-frame`](datasets-nvd-frame.md) and
+  [`datasets-vcdb-frame`](datasets-vcdb-frame.md), depends on this unit.
 - A new ADR under `docs/adr/research/` that records the generalisation.
 
 **Out.**
