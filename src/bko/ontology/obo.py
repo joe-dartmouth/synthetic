@@ -65,10 +65,18 @@ def parse_obo(path: Path, *, name: str) -> Ontology:
             qualified = _xref_qualifiers(path)
             # pronto resolves some values lazily, so the conversion is guarded too.
             terms = {term.id: _term(term, qualified.get(term.id, {})) for term in parsed.terms()}
+            unkept = _unkept_annotations(parsed)
         except (SyntaxError, ValueError, KeyError) as exc:
             msg = f"{path}: pronto cannot read it: {type(exc).__name__}: {exc}"
             raise ReleaseFormatError(msg) from exc
     _refuse_skipped(caught, path)
+    if unkept:
+        logger.warning(
+            "%s: %d property_values of %s are not literals, which no term keeps",
+            path,
+            unkept,
+            ", ".join(ANNOTATION_PREDICATES),
+        )
     metadata = parsed.metadata
     if metadata.imports:
         msg = f"{path} imports {sorted(metadata.imports)}; a pinned release must be self-contained"
@@ -148,6 +156,16 @@ def _matches(term: pronto.Term) -> tuple[tuple[str, str], ...]:
         if isinstance(resource, str) and pv.property in MATCH_PREDICATES:
             found.append((pv.property, resource))
     return tuple(sorted(found))
+
+
+def _unkept_annotations(parsed: pronto.Ontology) -> int:
+    """How many `property_value`s of `ANNOTATION_PREDICATES` across the terms are not literals."""
+    return sum(
+        not isinstance(getattr(pv, "literal", None), str)
+        for term in parsed.terms()
+        for pv in term.annotations
+        if pv.property in ANNOTATION_PREDICATES
+    )
 
 
 def _annotations(term: pronto.Term) -> tuple[tuple[str, str], ...]:

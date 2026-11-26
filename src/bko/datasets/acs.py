@@ -250,13 +250,14 @@ KEPT_PATTERNS: Final[Mapping[str, str]] = MappingProxyType(
     {
         "OCCP": r"[0-9]{4}",
         "POBP": r"[0-9]{3}",
-        "SOCP": r"[0-9]{2}[0-9]{0,4}[XY]{0,4}",
+        "SOCP": r"[0-9]{2}[0-9]{0,4}[XY]{0,3}",
         "AGEP": r"[0-9]{1,2}",
         "WKHP": r"[0-9]{1,2}",
     }
 )
-"""What a kept row's other read columns must look like: `SOCP` six characters, digits then any
-trailing `X` or `Y` (its length is checked apart)."""
+"""What a kept row's other read columns must look like: `SOCP` six characters, digits then at
+most three trailing `X` or `Y`, the codes `bko.ontology.occupations.soc_ids` reads (its length is
+checked apart)."""
 
 
 def parse_acs(text: str) -> pd.DataFrame:

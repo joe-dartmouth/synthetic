@@ -22,7 +22,7 @@ from bko.ontology.obo import parse_obo
 from bko.ontology.schema import OccupationCode, UnmappedCode
 from bko.ontology.terms import Ontology
 from tests._datasets_fixtures import pin
-from tests._occupation_fixtures import OCCO_TEXT
+from tests._occupation_fixtures import CHIEF_EXECUTIVE, OCCO_TEXT
 from tests._ontology_fixtures import FakeRobot, RoutingOpener, write_obo
 
 
@@ -60,6 +60,25 @@ def test_an_occupation_row_whose_soc_id_differs_fails_the_check(tmp_path):
             "occo releases/2025-10-06 gives OCCO:00000001 OCCO:00000008 none; the row says 11-0000",
         ),
     ]
+
+
+def test_an_occupation_row_whose_class_carries_two_soc_ids_fails_the_check(tmp_path):
+    stanza = CHIEF_EXECUTIVE + 'property_value: OCCO:00000008 "11-1011.03" xsd:string\n'
+    occo = parse_obo(write_obo(tmp_path, OCCO_TEXT.replace(CHIEF_EXECUTIVE, stanza)), name="occo")
+    [verdict] = check((CHIEF,), {"OCCO": occo})
+    assert verdict.problem == (
+        "occo releases/2025-10-06 gives OCCO:11101100 OCCO:00000008 11-1011.00, 11-1011.03; "
+        "the row says 11-1011.00"
+    )
+
+
+def test_an_occupation_row_whose_class_repeats_its_soc_id_passes_the_check(tmp_path):
+    occo = _occo(tmp_path)
+    chief = occo.terms[CHIEF.concept]
+    doubled = dataclasses.replace(chief, annotations=chief.annotations * 2)
+    terms = {**occo.terms, CHIEF.concept: doubled}
+    [verdict] = check((CHIEF,), {"OCCO": dataclasses.replace(occo, terms=terms)})
+    assert verdict.problem is None
 
 
 def test_an_occupation_row_is_checked_for_its_name_first(tmp_path):

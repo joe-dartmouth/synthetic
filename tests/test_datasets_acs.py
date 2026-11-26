@@ -134,6 +134,7 @@ def test_the_record_ids_count_the_kept_rows_in_file_order():
         ({"POBP": ""}, "POBP is ''"),
         ({"SOCP": "11915"}, "SOCP is '11915', not six characters"),
         ({"SOCP": "11X151"}, "SOCP is '11X151'"),
+        ({"SOCP": "11XXXX"}, "SOCP is '11XXXX'"),
     ],
 )
 def test_a_value_outside_the_dictionary_names_its_line(values, match):

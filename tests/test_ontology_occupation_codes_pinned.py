@@ -30,7 +30,7 @@ from bko.ontology.schema import OccupationCode
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
 
-UNMAPPED = Counter({"no class": 1, "several classes": 0})
+UNMAPPED = Counter({"no class": 1, "several classes": 0, "several SOC ids": 0})
 """The unmapped tallies ADR `research/acs-frame` states for the pinned release and archive."""
 
 

@@ -16,9 +16,9 @@ import pytest
 
 from bko.ontology.__main__ import Context, main
 from bko.ontology.obo import parse_obo
-from bko.ontology.occupations import REASONS, generate, part, render, soc_ids
+from bko.ontology.occupations import REASONS, generate, part, render, soc_classes, soc_ids
 from bko.ontology.schema import OccupationCode
-from bko.ontology.terms import Ontology
+from bko.ontology.terms import SOC_ID, Ontology
 from tests._acs_fixtures import acs_archive
 from tests._datasets_fixtures import pin
 from tests._occupation_fixtures import CHIEF_EXECUTIVE, OCCO_TEXT
@@ -40,7 +40,7 @@ def test_a_detailed_soc_code_maps_to_its_onet_00_class(tmp_path):
         ("0010", "11-1011.00", "OCCO:11101100", "chief executive"),
         ("0120", "11-3031", "OCCO:11303100", "financial manager"),
     ]
-    assert unmapped == Counter({"no class": 0, "several classes": 0})
+    assert unmapped == Counter({"no class": 0, "several classes": 0, "several SOC ids": 0})
     assert soc_ids("113031") == ("11-3031.00", "11-3031")
 
 
@@ -77,8 +77,30 @@ def test_a_code_with_no_class_is_counted_by_reason(tmp_path):
         twice.replace(CHIEF_EXECUTIVE, obsolete),
     )
     assert rows == []
-    assert REASONS == ("no class", "several classes")
-    assert unmapped == Counter({"no class": 3, "several classes": 1})
+    assert REASONS == ("no class", "several classes", "several SOC ids")
+    assert unmapped == Counter({"no class": 3, "several classes": 1, "several SOC ids": 0})
+
+
+def test_a_class_carrying_two_soc_ids_is_refused_and_counted(tmp_path):
+    stanza = CHIEF_EXECUTIVE + 'property_value: OCCO:00000008 "11-1011.03" xsd:string\n'
+    rows, unmapped = _rows(
+        tmp_path, {"0010": "111011", "0120": "113031"}, OCCO_TEXT.replace(CHIEF_EXECUTIVE, stanza)
+    )
+    assert rows == [("0120", "11-3031", "OCCO:11303100", "financial manager")]
+    assert unmapped == Counter({"no class": 0, "several classes": 0, "several SOC ids": 1})
+
+
+def test_a_class_carrying_one_soc_id_twice_counts_once(tmp_path):
+    # pronto collapses a repeated literal, so the doubled term is built directly.
+    occo = _occo(tmp_path)
+    chief = occo.terms["OCCO:11101100"]
+    doubled = dataclasses.replace(chief, annotations=chief.annotations * 2)
+    assert doubled.annotation(SOC_ID) == ("11-1011.00", "11-1011.00")
+    terms = {**occo.terms, chief.curie: doubled}
+    rows, unmapped = generate({"0010": "111011"}, dataclasses.replace(occo, terms=terms))
+    assert rows == [OccupationCode("0010", "11-1011.00", "OCCO:11101100", "chief executive")]
+    assert unmapped == Counter({"no class": 0, "several classes": 0, "several SOC ids": 0})
+    assert soc_classes(dataclasses.replace(occo, terms=terms))[chief.curie] == {"11-1011.00"}
 
 
 @pytest.mark.parametrize("socp", ["11101", "1110111", "11XXXX", "1X1011", "11-101", ""])
@@ -119,8 +141,9 @@ def test_a_row_of_the_other_part_or_with_a_control_character_is_refused():
         ValueError, match=r"OCCP '0010': SOC id 11-1011\.00 belongs to the low part"
     ):
         render([ROW], "high")
-    with pytest.raises(ValueError, match="a control character"):
-        render([dataclasses.replace(ROW, label="chief\nexecutive")], "low")
+    for breaking in ("\n", "\x85", "\u2028", "\u2029"):
+        with pytest.raises(ValueError, match="a line-breaking character"):
+            render([dataclasses.replace(ROW, label=f"chief{breaking}executive")], "low")
 
 
 def _command(tmp_path, part_name: str, opener=None):
@@ -151,11 +174,14 @@ def test_the_occupations_command_writes_one_parts_module(tmp_path, caplog):
     assert '    ("0010", "11-1000", "OCCO:11100000", "top executive"),\n' in text
     assert '    ("6240", "47-2040", "OCCO:47204000",' not in text
     digest = hashlib.sha256(text.encode()).hexdigest()
-    assert 'occupations unmapped reason="no class" codes=2' in caplog.messages
-    assert 'occupations unmapped reason="several classes" codes=0' in caplog.messages
+    assert 'occupations unmapped parts=all reason="no class" codes=2' in caplog.messages
+    assert 'occupations unmapped parts=all reason="several classes" codes=0' in caplog.messages
+    assert 'occupations unmapped parts=all reason="several SOC ids" codes=0' in caplog.messages
+    # The archive holds four OCCP codes; the fixture's chief executive and eleven of `CLASSES`
+    # carry a SOC id.
     assert (
-        f"occupations part=low rows=1 of=2 sha256={digest} release=releases/2025-10-06"
-        in caplog.messages
+        f"occupations part=low rows=1 of=2 codes=4 holders=12 sha256={digest} "
+        "release=releases/2025-10-06" in caplog.messages
     )
     code, high = _command(tmp_path, "high")
     assert code == 0

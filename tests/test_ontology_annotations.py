@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from bko.ontology.obo import ANNOTATION_PREDICATES, parse_obo
@@ -30,13 +32,24 @@ def test_two_literals_of_a_kept_predicate_are_both_kept_sorted(tmp_path):
     assert occo.terms["OCCO:11101100"].annotation(SOC_ID) == ("11-1011.00", "11-1011.03")
 
 
-def test_a_resource_value_of_a_kept_predicate_is_not_a_literal(tmp_path):
+def test_a_resource_value_of_a_kept_predicate_is_not_a_literal_and_is_counted(tmp_path, caplog):
     stanza = CHIEF_EXECUTIVE.replace(
         'property_value: OCCO:00000008 "11-1011.00" xsd:string\n',
         "property_value: OCCO:00000008 OCCO:11101000\n",
     )
-    occo = parse_obo(write_obo(tmp_path, OCCO_TEXT.replace(CHIEF_EXECUTIVE, stanza)), name="occo")
+    path = write_obo(tmp_path, OCCO_TEXT.replace(CHIEF_EXECUTIVE, stanza))
+    with caplog.at_level(logging.WARNING, logger="bko.ontology.obo"):
+        occo = parse_obo(path, name="occo")
     assert occo.terms["OCCO:11101100"].annotations == ()
+    assert caplog.messages == [
+        f"{path}: 1 property_values of OCCO:00000008 are not literals, which no term keeps"
+    ]
+
+
+def test_a_release_whose_kept_values_are_all_literals_logs_no_count(tmp_path, caplog):
+    with caplog.at_level(logging.WARNING, logger="bko.ontology.obo"):
+        parse_obo(write_obo(tmp_path, OCCO_TEXT), name="occo")
+    assert caplog.messages == []
 
 
 @pytest.mark.parametrize(("text", "name"), [(MONDO_TEXT, "mondo"), (HPO_TEXT, "hpo")])

@@ -18,7 +18,8 @@ a closing `codes rows=` line; stdout stays empty until the text is complete. `oc
 low` or `--part high` fetches the pinned OccO release and ACS archive if they are absent, maps each
 kept `OCCP` code through its `SOCP` code with `bko.ontology.occupations.generate`, writes the module
 text of that part, `bko.ontology.occupation_codes_low` or `_high`, to stdout, and logs an
-`occupations unmapped` line per reason and a closing `occupations part=` line, stdout likewise
+`occupations unmapped parts=all` line per reason, counted over both parts, and a closing
+`occupations part=` line with the codes read and the classes holding a SOC id, stdout likewise
 empty until then. `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
 
 Exit codes: 0 every `check` row agrees, or `reproduce`, `elk`, `codes` or `occupations` wrote its
@@ -59,7 +60,7 @@ from bko.ontology.check import check, prefixes
 from bko.ontology.codes import generate, render
 from bko.ontology.convert import converted
 from bko.ontology.mapping import CHECKED_ROWS, MAPPED, RELEASES
-from bko.ontology.occupations import PARTS, Part, part
+from bko.ontology.occupations import PARTS, Part, part, soc_classes
 from bko.ontology.occupations import generate as generate_occupations
 from bko.ontology.occupations import render as render_occupations
 from bko.ontology.releases import load_releases
@@ -257,15 +258,18 @@ def _occupations(data_dir: Path, context: Context, out: TextIO, *, which: Part) 
     )["OCCO"]
     ensure(context.acs, data_dir, open_url=context.open_url)
     rows, _ = read_kept(data_dir, context.acs)
-    generated, unmapped = generate_occupations(occupation_pairs(rows), occo)
+    pairs = occupation_pairs(rows)
+    generated, unmapped = generate_occupations(pairs, occo)
     text = render_occupations([row for row in generated if part(row) == which], which)
     for reason, count in unmapped.items():
-        logger.info("occupations unmapped reason=%s codes=%d", json.dumps(reason), count)
+        logger.info("occupations unmapped parts=all reason=%s codes=%d", json.dumps(reason), count)
     logger.info(
-        "occupations part=%s rows=%d of=%d sha256=%s release=%s",
+        "occupations part=%s rows=%d of=%d codes=%d holders=%d sha256=%s release=%s",
         which,
         sum(part(row) == which for row in generated),
         len(generated),
+        len(pairs),
+        len(soc_classes(occo)),
         hashlib.sha256(text.encode()).hexdigest(),
         occo.version,
     )

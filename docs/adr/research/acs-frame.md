@@ -105,11 +105,12 @@ level to the class whose `OCCO:00000008` is:
 - an aggregate with one trailing `X` or `Y`: its broad class, `XX-XXX0`;
 - an aggregate with two or three trailing `X` or `Y`: its minor class, `XX-X000`.
 
-A code no live class holds stays unmapped and is counted by reason. The rows are generated from
-the release and the file and committed, as ADR
-[`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md) does for ICD-9 codes. A row
-holds the `OCCP` code, the SOC id, the class and its name; the check refuses a row whose class is
-gone, renamed, or carries another SOC id.
+A code no live class holds, that two live classes hold, or whose one holder also carries another
+SOC id stays unmapped and is counted by reason; a class repeating one SOC id holds it once. The
+check reads a class's SOC ids the same way. The rows are generated from the release and the file
+and committed, as ADR [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md) does for
+ICD-9 codes. A row holds the `OCCP` code, the SOC id, the class and its name; the check refuses a
+row whose class is gone, renamed, or carries another SOC id.
 
 **5. Disability.** An item maps, on code 1, to the live HPO term whose name, or an exact synonym
 of it, names the item's difficulty: `DEAR` to Hearing impairment, `DEYE` to Visual impairment,
@@ -188,7 +189,7 @@ the archive sha256 `bb7d4009feaf8d190d687fc091fc7a56e2aa82b9972ae14a16d4ad70a8e0
 
 **The occupation rows.** 516 of the 517 `OCCP` codes map; `9830`, `SOCP` `559830`
 ("MIL-Military, Rank Not Specified"), reaches no class and is the one `no class` code, with none
-for `several classes`. 221 rows sit in the low part and 295 in the high one.
+for `several classes` or `several SOC ids`. 221 rows sit in the low part and 295 in the high one.
 
 **Gained**: a non-health frame whose occupation code reaches a five-level hierarchy, from SOC
 major group to O*NET occupation, through rows the check keeps against the release. **Accepted**:

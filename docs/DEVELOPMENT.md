@@ -1521,8 +1521,10 @@ inside `.venv`:
 
   The command fetches OccO's OWL file and the ACS archive into the data root if absent, converts
   the OWL to OBO with ROBOT (see OWL-only releases above; it needs a JDK), writes nothing to
-  stdout until the module text is complete, and logs one `occupations unmapped reason=...
-  codes=N` line per reason and a closing `occupations part=... rows=N of=M sha256=...` line.
+  stdout until the module text is complete, and logs one `occupations unmapped parts=all
+  reason=... codes=N` line per reason, counted over every code whichever part runs, and a closing
+  `occupations part=... rows=N of=M codes=C holders=H sha256=...` line: `C` the `OCCP` codes read
+  and `H` the live classes carrying a SOC id.
   `tests/test_ontology_occupation_codes_pinned.py` regenerates both parts from the pinned release
   and archive under `--releases` and compares them with the committed ones:
 

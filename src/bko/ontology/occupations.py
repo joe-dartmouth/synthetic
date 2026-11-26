@@ -5,7 +5,8 @@
 committed as `bko.ontology.occupation_codes_low` (SOC major groups below 31) and
 `bko.ontology.occupation_codes_high` (31 and up), since one module would pass the size cap. A
 `SOCP` code maps by its SOC level to the one live class whose `OCCO:00000008` literal is its SOC
-id (`soc_ids`); a code no live class holds, or two hold, stays unmapped and is counted by reason.
+id (`soc_ids`); a code no live class holds, two hold, or whose one holder carries several distinct
+SOC ids stays unmapped and is counted by reason.
 ADR `research/acs-frame` records the rule and the counts.
 """
 
@@ -21,9 +22,9 @@ from bko.ontology.schema import OccupationCode
 from bko.ontology.terms import SOC_ID, Ontology
 
 
-REASONS: Final = ("no class", "several classes")
-"""Why a code stays unmapped: no live class carries any of its SOC ids, or two carry the first
-that is carried."""
+REASONS: Final = ("no class", "several classes", "several SOC ids")
+"""Why a code stays unmapped: no live class carries any of its SOC ids, two carry the first that
+is carried, or the one class carrying it also carries another SOC id, which the check refuses."""
 
 type Part = Literal["low", "high"]
 
@@ -64,6 +65,15 @@ def soc_ids(socp: str) -> tuple[str, ...]:
     return (f"{major}-{rest}.00", f"{major}-{rest}")
 
 
+def soc_classes(occo: Ontology) -> dict[str, frozenset[str]]:
+    """Each live class carrying an `OCCO:00000008` literal and its distinct SOC ids."""
+    return {
+        curie: frozenset(socs)
+        for curie, term in occo.terms.items()
+        if not term.obsolete and (socs := term.annotation(SOC_ID))
+    }
+
+
 def generate(pairs: Mapping[str, str], occo: Ontology) -> tuple[list[OccupationCode], Counter[str]]:
     """Map each `OCCP` code to one OccO class through its `SOCP` code, or count why it is not.
 
@@ -78,11 +88,11 @@ def generate(pairs: Mapping[str, str], occo: Ontology) -> tuple[list[OccupationC
     Raises:
         ValueError: As `soc_ids`, or if a chosen class has no name.
     """
+    classes = soc_classes(occo)
     holders: dict[str, list[str]] = {}
-    for curie, term in occo.terms.items():
-        if not term.obsolete:
-            for soc in term.annotation(SOC_ID):
-                holders.setdefault(soc, []).append(curie)
+    for curie, socs in classes.items():
+        for soc in socs:
+            holders.setdefault(soc, []).append(curie)
     rows: list[OccupationCode] = []
     unmapped: Counter[str] = Counter(dict.fromkeys(REASONS, 0))
     for code, socp in sorted(pairs.items()):
@@ -91,6 +101,8 @@ def generate(pairs: Mapping[str, str], occo: Ontology) -> tuple[list[OccupationC
             unmapped["no class"] += 1
         elif len(found[1]) > 1:
             unmapped["several classes"] += 1
+        elif len(classes[found[1][0]]) > 1:
+            unmapped["several SOC ids"] += 1
         else:
             soc, [concept] = found
             rows.append(OccupationCode(code, soc, concept, _name(occo, concept)))
@@ -132,8 +144,8 @@ def render(rows: Sequence[OccupationCode], which: Part) -> str:
     `_ROWS` sits between `# fmt: off` and `# fmt: on`, so a long label keeps its tuple on one line.
 
     Raises:
-        ValueError: If a row belongs to the other part, or its fields hold a control character,
-            which would break its line, naming the row's code.
+        ValueError: If a row belongs to the other part, or its fields hold a control character or
+            a line or paragraph separator, which would break its line, naming the row's code.
     """
     span = f"below {SPLIT_MAJOR}" if which == "low" else f"from {SPLIT_MAJOR} up"
     lines = [
@@ -146,12 +158,16 @@ def render(rows: Sequence[OccupationCode], which: Part) -> str:
             msg = f"OCCP {row.code!r}: SOC id {row.soc} belongs to the {part(row)} part"
             raise ValueError(msg)
         fields = (row.code, row.soc, row.concept, row.label)
-        if any(unicodedata.category(char) == "Cc" for text in fields for char in text):
-            msg = f"OCCP {row.code!r}: a control character in {row!r} would break its line"
+        if any(unicodedata.category(char) in _BREAKING for text in fields for char in text):
+            msg = f"OCCP {row.code!r}: a line-breaking character in {row!r} would break its line"
             raise ValueError(msg)
         lines.append(f"    ({', '.join(_quoted(text) for text in fields)}),\n")
     lines.extend((")\n# fmt: on\n", _FOOTER))
     return "".join(lines)
+
+
+_BREAKING: Final = frozenset({"Cc", "Zl", "Zp"})
+"""The Unicode categories holding every character `str.splitlines` splits at."""
 
 
 def _name(occo: Ontology, concept: str) -> str:

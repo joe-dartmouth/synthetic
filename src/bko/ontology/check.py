@@ -89,10 +89,10 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     or the release's live holders of the xref differ from the row's declared ones; a generated code
     row likewise, counting only xrefs under the qualifier `EXACT`. A generated code row's concept
     joins no out-of-scope check, since it is outside the table's scope. An occupation row
-    disagrees when its concept's `OCCO:00000008` literals are not exactly its SOC id, and joins no
-    out-of-scope check either. Each release's holders are
-    collected in one pass per call, however many code rows, ICD-9 rows and excluded codes or
-    categories name its prefix.
+    disagrees when its concept's distinct `OCCO:00000008` literals are not exactly its SOC id, as
+    `bko.ontology.occupations.generate` maps only such a class, and joins no out-of-scope check
+    either. Each release's holders are collected in one pass per call, however many code rows,
+    ICD-9 rows and excluded codes or categories name its prefix.
     """
     rows = tuple(rows)
     mapped = frozenset(
@@ -223,8 +223,8 @@ def _kind_problem(
 
 
 def _soc_problem(row: OccupationCode, ontology: Ontology, where: str) -> str | None:
-    held = ontology.terms[row.concept].annotation(SOC_ID)
-    if held != (row.soc,):
+    held = sorted(set(ontology.terms[row.concept].annotation(SOC_ID)))
+    if held != [row.soc]:
         return f"{where} gives {row.concept} {SOC_ID} {_listed(held)}; the row says {row.soc}"
     return None
 
