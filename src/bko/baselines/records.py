@@ -15,6 +15,7 @@ import hashlib
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Final
 
 import numpy as np
@@ -22,6 +23,7 @@ import pandas as pd
 
 from bko.baselines.errors import OutputContractError
 from bko.baselines.request import Request, Stratum, stratum_keys
+from bko.datasets.cells import SEXES
 from bko.datasets.frames import FrameSpec
 
 
@@ -84,6 +86,29 @@ def no_rows(frame: FrameSpec) -> pd.DataFrame:
     """An added frame with no rows, `frame`'s columns and their dtypes."""
     columns = {name: pd.Series(dtype=dtype) for name, dtype in frame.dtypes.items()}
     return number(pd.DataFrame(columns))
+
+
+SEX_CODES: Final[Mapping[str, int]] = MappingProxyType({name: code for code, name in SEXES.items()})
+"""Each sex's code, `SEXES` inverted: what a cell's sex sets an added row's `sex` to."""
+
+
+def cell_rows(
+    part: pd.DataFrame, frame: FrameSpec, *, sex: str | None, label: int | None = None
+) -> pd.DataFrame:
+    """`part` with `sex` and `label` set when given, in `frame`'s column order and dtypes.
+
+    `part` is changed in place before the copy, so each caller passes rows it owns.
+    """
+    if sex is not None:
+        part["sex"] = SEX_CODES[sex]
+    if label is not None:
+        part[frame.label] = label
+    return part.loc[:, list(frame.columns)].astype(dict(frame.dtypes))
+
+
+def joined(parts: Sequence[pd.DataFrame], frame: FrameSpec) -> pd.DataFrame:
+    """`parts` concatenated and numbered (`number`), or `no_rows` when there are none."""
+    return number(pd.concat(parts)) if parts else no_rows(frame)
 
 
 def unit_weights(train: pd.DataFrame) -> pd.Series:

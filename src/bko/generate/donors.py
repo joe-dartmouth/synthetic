@@ -19,6 +19,7 @@ import pandas as pd
 
 from bko.datasets.frames import FrameSpec
 from bko.gaps.observe import Cell, Observed, cell_key, observe_records
+from bko.gaps.shares import cell_weight
 from bko.generate.errors import SamplingError
 from bko.ontology.schema import FieldMapping
 
@@ -70,14 +71,14 @@ def _pick_pooled(
 ) -> tuple[_Source, bool]:
     """A record by the pooled rule, with its id, and whether it came from `other`.
 
-    One uniform keeps `own`, the cell's n records, with probability n/(n + `weight`); one more
+    One uniform keeps `own`, the cell's n records, with probability `cell_weight`; one more
     picks uniformly from `own`, else from `other`, the whole label group.
 
     Raises:
         SamplingError: If the pool the uniform chose is empty, which only `other` can be.
     """
     count = len(own)
-    if rng.random() < (count / (count + weight) if count else 0.0):
+    if rng.random() < cell_weight(count, weight):
         return own[int(rng.integers(count))], False
     if other:
         return other[int(rng.integers(len(other)))], True

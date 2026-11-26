@@ -26,10 +26,10 @@ from scipy.special import gammaln
 from bko.baselines.categories import categorise
 from bko.baselines.errors import BaselineError
 from bko.baselines.fills import fill_names
-from bko.baselines.records import Baseline, no_rows, number, unit_weights
+from bko.baselines.records import Baseline, cell_rows, joined, unit_weights
 from bko.baselines.request import Request, Strata, Stratum
 from bko.datasets.cells import LABEL, SEXES, age_band_labels, cell_keys
-from bko.gaps.shares import GROUP_WEIGHT
+from bko.gaps.shares import GROUP_WEIGHT, cell_weight
 
 
 logger = logging.getLogger(__name__)
@@ -52,11 +52,6 @@ type Term[K: Hashable] = tuple[Mapping[K, int], Mapping[K, float]]
 PRIOR_PSEUDOCOUNT: Final = 0.5
 """Added to each category's count in a cell's prior, so a category the rest of the band lacks
 keeps a positive prior mean and the Dirichlet-multinomial likelihood stays finite."""
-
-
-def cell_weight(count: int, kappa: float) -> float:
-    """The chance a donor is one of the cell's own `count` records: `count / (count + kappa)`."""
-    return count / (count + kappa)
 
 
 def fit_kappa[K: Hashable](columns: Sequence[Sequence[Term[K]]]) -> float:
@@ -205,9 +200,8 @@ def _fill(
         key = "/".join(map(str, stratum))
         own, group = banded_pools(cells, stratum, key)
         pools[key] = {"own": len(own), "banded": len(group)}
-        weight = cell_weight(len(own), kappa)
         donors = np.array(
-            [[pooled_donor(rng, own, group, weight) for _ in range(slots)] for _ in range(rows)],
+            [[pooled_donor(rng, own, group, kappa) for _ in range(slots)] for _ in range(rows)],
             dtype="int64",
         ).reshape(rows, slots)
         if whole:
@@ -216,10 +210,8 @@ def _fill(
             part = pd.DataFrame(
                 {name: train[name].to_numpy()[donors[:, at]] for at, name in enumerate(drawn)}
             )
-        part["sex"] = {name: code for code, name in SEXES.items()}[str(stratum[1])]
-        part[frame.label] = stratum[2]
-        parts.append(part.loc[:, list(frame.columns)].astype(dict(frame.dtypes)))
-    added = number(pd.concat(parts)) if parts else no_rows(frame)
+        parts.append(cell_rows(part, frame, sex=str(stratum[1]), label=int(stratum[2])))
+    added = joined(parts, frame)
     params = {"kappa": kappa, "stream": stream, "pool": pools}
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
@@ -243,9 +235,7 @@ def banded_pools(cells: pd.DataFrame, stratum: Stratum, key: str) -> tuple[np.nd
     return own, group
 
 
-def pooled_donor(
-    rng: np.random.Generator, own: np.ndarray, group: np.ndarray, weight: float
-) -> int:
-    """One donor's position by the pooled rule: a coin at `weight`, then a uniform pool record."""
-    pool = own if rng.random() < weight else group
+def pooled_donor(rng: np.random.Generator, own: np.ndarray, group: np.ndarray, kappa: float) -> int:
+    """One donor's position by the pooled rule: a coin at `cell_weight`, then a pool record."""
+    pool = own if rng.random() < cell_weight(len(own), kappa) else group
     return int(pool[int(rng.integers(len(pool)))])

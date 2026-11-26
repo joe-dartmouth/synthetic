@@ -31,14 +31,13 @@ from bko.baselines.fills import fill_names
 from bko.baselines.multilevel_fit import Fit, category_order, fit_column
 from bko.baselines.pooling import (
     banded_pools,
-    cell_weight,
     drawn_columns,
     pooled_donor,
     refuse_label,
 )
-from bko.baselines.records import Baseline, no_rows, number, unit_weights
+from bko.baselines.records import Baseline, cell_rows, joined, unit_weights
 from bko.baselines.request import Request, Strata, Stratum
-from bko.datasets.cells import LABEL, SEXES, cell_keys
+from bko.datasets.cells import LABEL, cell_keys
 from bko.gaps.shares import GROUP_WEIGHT
 
 
@@ -70,10 +69,8 @@ def hb_marginals(train: pd.DataFrame, request: Request) -> Baseline:
         drawers = _drawers(train, cells, request, stratum, models)
         records = [[draw(rng) for draw in drawers.values()] for _ in range(rows)]
         part = pd.DataFrame(records, columns=list(drawers), index=range(rows))
-        part["sex"] = {name: code for code, name in SEXES.items()}[str(stratum[1])]
-        part[frame.label] = stratum[2]
-        parts.append(part.loc[:, list(frame.columns)].astype(dict(frame.dtypes)))
-    added = number(pd.concat(parts)) if parts else no_rows(frame)
+        parts.append(cell_rows(part, frame, sex=str(stratum[1]), label=int(stratum[2])))
+    added = joined(parts, frame)
     fits = {
         f"{label}/{name}": {
             "tau2": model.fit.tau2,
@@ -143,12 +140,12 @@ def _drawers(
     key = "/".join(map(str, stratum))
     label = int(stratum[2])
     own, group = banded_pools(cells, stratum, key)
-    weight = cell_weight(len(own), float(GROUP_WEIGHT))
     drawers: dict[str, Draw] = {}
     for name in drawn_columns(request):
         if name == "age":
             ages = train[name].to_numpy()
-            drawers[name] = partial(_pooled, values=ages, own=own, group=group, weight=weight)
+            kappa = float(GROUP_WEIGHT)
+            drawers[name] = partial(_pooled, values=ages, own=own, group=group, kappa=kappa)
             continue
         if (label, name) not in models:
             models[label, name] = _column(train, cells, request, name, label)
@@ -175,10 +172,10 @@ def _pooled(
     values: np.ndarray,
     own: np.ndarray,
     group: np.ndarray,
-    weight: float,
+    kappa: float,
 ) -> object:
     """One value of a donor by the pooled rule (`pooled_donor`)."""
-    return values[pooled_donor(rng, own, group, weight)]
+    return values[pooled_donor(rng, own, group, kappa)]
 
 
 def _column(

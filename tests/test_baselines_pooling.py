@@ -9,12 +9,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from bko.baselines import pooling as baseline_pooling
 from bko.baselines.categories import categorise
 from bko.baselines.errors import BaselineError
 from bko.baselines.pooling import (
     KAPPA_GRID,
     ROW_RESAMPLE_STREAM,
-    cell_weight,
     eb_marginals,
     fit_kappa,
     marginals,
@@ -24,7 +24,8 @@ from bko.baselines.records import check
 from bko.baselines.request import Request, Strata, Stratum
 from bko.datasets.cells import LABEL
 from bko.datasets.uci import UCI_FRAME
-from bko.gaps.shares import GROUP_WEIGHT
+from bko.gaps.shares import GROUP_WEIGHT, cell_weight
+from bko.generate import donors
 from tests._baselines_fixtures import full_records
 
 
@@ -80,6 +81,11 @@ def test_a_full_cell_weighs_its_own_rows_at_n_over_n_plus_20():
     assert cell_weight(19, 20.0) == 19 / 39  # ruff: ignore[float-equality-comparison]
     assert cell_weight(19, float(GROUP_WEIGHT)) == 19 / 39  # ruff: ignore[float-equality-comparison]
     assert cell_weight(0, 20.0) == 0.0  # ruff: ignore[float-equality-comparison]
+
+
+def test_the_pooled_weight_has_one_home():
+    assert baseline_pooling.cell_weight is cell_weight
+    assert donors.cell_weight is cell_weight
 
 
 def test_row_resample_copies_whole_rows():
