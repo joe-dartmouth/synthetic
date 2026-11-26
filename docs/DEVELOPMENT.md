@@ -1327,6 +1327,29 @@ line's sha256, whose holdouts overlap another store's or leave one of the run's 
 `arm` line's sha256, or a perturbation fill whose candidate lines do not rebuild its rows or are not
 one per draw, or whose lines or stored rows are not their re-draw outside the perturbed fields.
 
+**`truth`** reads each arm's gap fill of a run with a removal against the records the removal
+took (ADR [`research/removed-truth-reading`](adr/research/removed-truth-reading.md)). It takes
+the run's `rows` stores as `privacy` does, one `--rows` per slice, binds them by the same checks,
+and makes no API call:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/truth.csv && test ! -e runs/<run-id>/truth.log && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate truth <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/truth.csv 2> runs/<run-id>/truth.log </dev/null
+
+Per holdout it re-derives the removed records with `bko.evaluate.prepare.prepared`, keeps each
+arm's added rows in the removed cell, and scores them against the removed records with SDMetrics'
+quality report, as a replica's fidelity is scored. `real` is left out: its rows are the removed
+records. The `truth.csv` columns are `holdout,arm,rows,measure,column,value`: `rows` the arm's
+added rows in the cell, `measure` `column-shapes` or `column-pair-trends` with `column` empty, then
+`column-shape` once per frame column with `column` the column's name; `value` is empty (NaN) for an
+arm with fewer than two rows in the cell or a holdout with fewer than two removed records. Its
+`truth.log` opens with the `versions commit=` line, then `truth run=%s stores=%d holdouts=%d
+cell=%s fraction=%s root=%s`, one `truth store=%s run=%s folder=%s log_sha256=%s holdouts=%s
+sha256=%s` line per store, and per holdout the `removal` line, `truth holdout=%d removed=%d`, one
+`truth holdout=%d arm=%s rows=%d column_shapes=%.4f pair_trends=%.4f` line per arm (WARNING when
+the scores are NaN) and `truth holdout=%d done=%d/%d seconds=%.1f elapsed=%.1f`; the last line is
+`truth rows=%d sha256=%s seconds=%.1f`, the CSV's rows and sha256. `--runs-dir` and `--data-dir`
+read as `privacy`'s do. It exits 2 for a run that removes no cell, and 3 for a store that fails
+`privacy`'s store checks, a store of another run included.
+
 **SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
 metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR
 [`research/syntheval-reading`](adr/research/syntheval-reading.md)), each fill against its
