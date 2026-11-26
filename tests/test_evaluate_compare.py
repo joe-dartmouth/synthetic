@@ -238,7 +238,7 @@ def test_an_arm_without_a_models_rows_is_skipped_in_its_contrasts(tmp_path, capl
 
 
 def test_compares_log_opens_with_its_versions_line(tmp_path, caplog, monkeypatch):
-    monkeypatch.setattr("bko.evaluate.provenance.commit", lambda: ("0123abc", False))
+    monkeypatch.setattr("bko.core.versions.commit", lambda: ("0123abc", False))
     path = write(tmp_path, "default.csv", scores(panel=False))
     with caplog.at_level(logging.INFO):
         out = io.StringIO()

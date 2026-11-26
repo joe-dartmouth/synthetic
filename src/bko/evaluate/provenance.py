@@ -1,16 +1,14 @@
-"""What a `score` or `contradictions` run logs about the code and libraries that produced it."""
+"""What a `score` or `contradictions` run logs about the code and libraries that produced it.
+
+The `versions` line itself is `bko.core.versions`', re-exported here.
+"""
 
 from __future__ import annotations
 
-import importlib.metadata
-import json
 import logging
-import platform
-import subprocess  # ruff: ignore[suspicious-subprocess-import]
 from collections.abc import Iterable
-from pathlib import Path
-from typing import Final
 
+from bko.core.versions import VERSIONED, commit, log_versions, versions
 from bko.datasets.split import share_text
 from bko.evaluate.experiment import Experiment
 from bko.evaluate.utility import THRESHOLD
@@ -18,34 +16,21 @@ from bko.evaluate.utility import THRESHOLD
 
 logger = logging.getLogger("bko.evaluate")
 
-VERSIONED: Final = (
-    "numpy",
-    "pandas",
-    "scipy",
-    "scikit-learn",
-    "threadpoolctl",
-    "imbalanced-learn",
-    "sdv",
-    "sdmetrics",
-    "torch",
-    "anthropic",
-    "pronto",
-)
-"""The distributions whose installed versions a `score` or `contradictions` run logs."""
+__all__ = [
+    "VERSIONED",
+    "commit",
+    "experiment_line",
+    "log_experiment",
+    "log_versions",
+    "versions",
+]
+"""`bko.core.versions`' names stay importable here, where the stages first found them."""
 
 
 def log_experiment(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> None:
     """Log the run's `experiment_line`, then the commit and libraries it ran with."""
     logger.info("%s", experiment_line(name, experiment, models, frame=frame))
     log_versions()
-
-
-def log_versions() -> None:
-    """Log the `versions` line: the commit, whether its tree is dirty, and `versions()`."""
-    head, dirty = commit()
-    logger.info(
-        "versions commit=%s dirty=%s %s", head, dirty, json.dumps(versions(), sort_keys=True)
-    )
 
 
 def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *, frame: str) -> str:
@@ -77,38 +62,3 @@ def experiment_line(name: str, experiment: Experiment, models: Iterable[str], *,
         f"spend_ceiling={experiment.spend_ceiling:.2f} "
         f"criteria={','.join(experiment.criteria) or 'none'} models={','.join(models)}"
     )
-
-
-def commit() -> tuple[str, str]:
-    """The checkout's HEAD and whether its tree differs from it, or `unknown` for each."""
-    here = Path(__file__).parent
-    found: list[str] = []
-    for command in (["git", "rev-parse", "HEAD"], ["git", "status", "--porcelain"]):
-        try:
-            result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
-                command,
-                cwd=here,
-                capture_output=True,
-                text=True,
-                stdin=subprocess.DEVNULL,
-                timeout=30,
-                check=False,
-            )
-        except OSError, subprocess.TimeoutExpired:
-            return "unknown", "unknown"
-        if result.returncode != 0:
-            return "unknown", "unknown"
-        found.append(result.stdout.strip())
-    head, status = found
-    return head, "true" if status else "false"
-
-
-def versions() -> dict[str, str]:
-    """The Python, platform and `VERSIONED` distributions' versions, `absent` if not installed."""
-    found = {"python": platform.python_version(), "platform": platform.platform()}
-    for name in VERSIONED:
-        try:
-            found[name] = importlib.metadata.version(name)
-        except importlib.metadata.PackageNotFoundError:
-            found[name] = "absent"
-    return found

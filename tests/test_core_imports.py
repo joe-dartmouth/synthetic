@@ -16,7 +16,7 @@ def test_core_imports_no_stage() -> None:
         if not key.startswith(("PYTEST_", "COV_CORE_", "COVERAGE_"))
     }
     script = (
-        "import sys, bko.core.logs\n"
+        "import sys, bko.core.logs, bko.core.versions\n"
         "print(sorted(m for m in sys.modules if m.startswith('bko.') "
         "and m != 'bko.core' and not m.startswith('bko.core.')))"
     )

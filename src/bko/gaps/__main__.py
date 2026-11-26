@@ -19,7 +19,7 @@ input's identity, each cell's records, each flagged concept, each list's length,
 recovery and the report's digest go to stderr through logging, and `synthea` and `uci` also log
 D1's sweep there (`bko.gaps.sweep`): a `sweep` line per setting and, for `synthea`, a `chosen`
 line naming the level its rule picks.
-Every command first logs the `versions` line (`bko.evaluate.provenance.log_versions`): the commit,
+Every command first logs the `versions` line (`bko.core.versions.log_versions`): the commit,
 whether its tree is dirty, and the libraries' versions.
 `docs/DEVELOPMENT.md` (Gap detection) is the usage home.
 
@@ -45,6 +45,7 @@ from typing import Final, TextIO
 from bko.bkb.errors import BKBError
 from bko.bkb.structure import BKB
 from bko.core.logs import configure
+from bko.core.versions import log_versions
 from bko.datasets.ablation import AblationSpec
 from bko.datasets.cells import CELL_COLUMNS
 from bko.datasets.errors import DatasetError
@@ -55,7 +56,6 @@ from bko.datasets.split import SPLIT_SEED, log_split, split
 from bko.datasets.synthea import Population, load_population
 from bko.datasets.synthea_run import Runner, SyntheaRun, default_java, ensure_population, run_java
 from bko.datasets.uci import UCI_FRAME
-from bko.evaluate.provenance import log_versions
 from bko.gaps.definitions import Definition
 from bko.gaps.experiment import E2_ABLATIONS, E2_RUN, SYNTHEA, AblationRun, run_ablation, share
 from bko.gaps.listing import listed, log_cells, log_observed
