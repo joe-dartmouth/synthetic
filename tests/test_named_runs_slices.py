@@ -382,6 +382,28 @@ KEYS = [
     "e19-supported-emptyh",
     "e19-supported-emptyi",
     "e19-supported-emptyj",
+    "e20-thin",
+    "e20-thina",
+    "e20-thinb",
+    "e20-thinc",
+    "e20-thind",
+    "e20-thine",
+    "e20-thinf",
+    "e20-thing",
+    "e20-thinh",
+    "e20-thini",
+    "e20-thinj",
+    "e20-empty",
+    "e20-emptya",
+    "e20-emptyb",
+    "e20-emptyc",
+    "e20-emptyd",
+    "e20-emptye",
+    "e20-emptyf",
+    "e20-emptyg",
+    "e20-emptyh",
+    "e20-emptyi",
+    "e20-emptyj",
     "p1-id",
     "p1-ood",
     "p2",
@@ -389,8 +411,8 @@ KEYS = [
 """Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's,
 E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, the donor-limit runs E14, the
 tree-share runs E15, the conditional `is_a` runs E16, the coherent free-field runs E17, P3's
-removal fractions, the synthetic-share runs E18, the matched knowledge controls E19, P1's runs
-and P2's."""
+removal fractions, the synthetic-share runs E18, the matched knowledge controls E19, the
+microaggregation runs E20, P1's runs and P2's."""
 
 
 def test_the_runs_keys_are_the_literal_list():
@@ -398,7 +420,8 @@ def test_the_runs_keys_are_the_literal_list():
 
 
 @pytest.mark.parametrize(
-    "entry", ["e6", "e9", "e10-pram", "e12", "e14", "e15", "e16", "e17", "e19", "e19-supported"]
+    "entry",
+    ["e6", "e9", "e10-pram", "e12", "e14", "e15", "e16", "e17", "e19", "e19-supported", "e20"],
 )
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
 @pytest.mark.parametrize("letter", list(LETTERS))

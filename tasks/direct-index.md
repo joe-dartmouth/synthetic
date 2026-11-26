@@ -9,7 +9,6 @@ unit's `milestone` is `direct-method-research`, the
 ## Order of work
 
 1. Code units, in landing order:
-   [`privacy-value-microaggregation`](privacy-value-microaggregation.md) unblocks the variant runs;
    [`gaps-share-based-quota`](gaps-share-based-quota.md) unblocks the quota sweep;
    [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) gates the registration;
    [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) unblocks the TableShift runs;
@@ -17,9 +16,8 @@ unit's `milestone` is `direct-method-research`, the
 2. Free runs that need no code:
    [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and
    [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) both gate the
-   registration. The E14 to E17 families are in `RUNS` already; their unit,
-   [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md), opens when E20 is
-   registered.
+   registration, and [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) runs the
+   E14 to E17 and E20 families, which are in `RUNS`.
 3. After this batch: [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) lands
    alone; then [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md),
    [`slm-lora-day-budget`](slm-lora-day-budget.md),
@@ -34,8 +32,6 @@ Landing-order constraints that are not dependencies:
   `evaluate-p1-partial-replicas`, which inserts its two entries between `p1-ood` and `p2`.
 - `gaps-share-based-quota` lands before `evaluate-p1-partial-replicas`: both add an `Experiment`
   field.
-- `privacy-value-microaggregation` lands before `datasets-generalised-cell-axes`: both edit
-  `src/bko/generate/direct.py`.
 - `gaps-share-based-quota`'s `expected_size` reads the second cell axis by position, which
   `datasets-generalised-cell-axes` must keep.
 
@@ -52,8 +48,7 @@ Landing-order constraints that are not dependencies:
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`privacy-value-microaggregation`](privacy-value-microaggregation.md) | ready | -- | direct-method-research |
-| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | blocked | privacy-value-microaggregation | direct-method-research |
+| [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | ready | -- | direct-method-research |
 | [`gaps-share-based-quota`](gaps-share-based-quota.md) | ready | -- | direct-method-research |
 | [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | evaluate-diabetes-control-results, gaps-share-based-quota | direct-method-research |
 
@@ -129,11 +124,10 @@ flowchart LR
     p4[paper-scarcity] --> p5[paper-scarcity-results]
     p0[paper-novelty] --> p6[paper-manuscript]
     p5[paper-scarcity-results] --> p6[paper-manuscript]
-    u16[privacy-value-microaggregation] --> u19[evaluate-variant-dev-results]
     u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
     u50[datasets-generalised-cell-axes] --> u52[datasets-nvd-frame]
     u50 --> u53[datasets-vcdb-frame]
-    u19 --> u28[evaluate-composite-arm]
+    u19[evaluate-variant-dev-results] --> u28[evaluate-composite-arm]
     u21 --> u28
     u28 --> u29[evaluate-composite-dev-results]
     u7[evaluate-diabetes-control-results] --> u30[evaluate-confirmatory-registration]

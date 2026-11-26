@@ -368,6 +368,32 @@ the runs `e14-thin` and `e14-empty` hold it. Its `direct` and `fallback` lines r
 cell held fewer matching records than the floor, at least one, and the picks whose first pool
 held a donor at the cap. A fill whose pools run out is refused and retried at a derived seed.
 
+The microaggregation direct arm `bko-micro` draws as `bko-capped` does, but writes each numeric
+field other than `age` as the mean of three distinct donors that share the unit's coded values
+and the side of each of its cutoffs, rounded half-even to a whole number for an integer field and
+to the frame's `fraction_digits` otherwise, never -0; a NaN in an averaged field is refused.
+Coded fields come from the primary donor. Each other donor of a mean counts one third of a use
+against the cap, and the primary of a unit holding a coded field counts a whole use, so a donor
+already in any of that unit's means is never its primary (ADR
+[`research/microaggregated-donors`](adr/research/microaggregated-donors.md)). On E6's frame it
+averages the eight count fields. The runs `e20-thin` and `e20-empty` hold it. Its `direct` and
+`fallback` lines read ` min_donors=2 reuse_cap=1 microaggregate=3 presence=shares`, its `arm`
+line's params add `"min_donors": 2`, `"reuse_cap": 1` and `"microaggregate": 3`, its
+`direct arm=` line ends in `fallback_draws=%d`, and it writes `bko-capped`'s `limits` line, a cap
+skip counted at the pick's own weight. An averaged pick whose cell pool is under the floor of
+three, or holds no class of three free donors, reads the label group, logged on the `fallback`
+line, one line per averaged field; a fill whose label group holds no class either is refused,
+naming the holdout and the fill, and retried at a derived seed. After the `limits` line, the
+sampler writes one
+`micro-field holdout=%d fill=%s key=%s field=%s floor=%d values=%d equal=%d primary=%d under=%d classless=%d sse=%s sst=%s`
+line per cell and numeric field but `age`, written for a field no draw averaged too: the
+effective floor `max(min_donors, microaggregate)`; the values written; those equal to at least
+one of their own three donors' values; those equal to the primary's; the averaged picks that fell
+back because the cell pool was under the floor (`under`) or held no class of three
+(`classless`), which together make the `fallback` line's count for the field; and the donors'
+within-group and total sums of squares, `1 - sse/sst` the share of the donors' sum of squares
+the means keep.
+
 The tree-share direct arm `bko-tree` draws as `bko-direct` does but for each tree field, a column
 whose rows partition its codes, which it draws as one leaf of its ontology tree at its
 ancestor-shrunk share and copies from a donor of that column alone (ADR
@@ -1201,7 +1227,12 @@ start or the supervisor cannot run.
   [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md) lists per
   family, the candidate `bko-direct`, no replica, the ceiling inert) and their slices
   `e19-thina` to `e19-supported-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E19, describes
-  them. `RUNS` also holds P1's runs,
+  them. `RUNS` holds the microaggregation runs, `e20-thin` and `e20-empty`
+  (`bko.evaluate.runs_direct.E20_THIN` and `E20_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`,
+  `real`, `bko-direct`, `bko-capped` and the candidate `bko-micro`, comparators `bko-direct`,
+  `bko-capped` and `none`, no replica, the ceiling inert, `REFERENCE` `bko-capped`) and their
+  slices `e20-thina` to `e20-thinj` and `e20-emptya` to `e20-emptyj`, sliced as E6's are;
+  `docs/EVIDENCE.md`, E20, describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
@@ -1284,7 +1315,8 @@ measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-
 rows. It writes, for the added rows of every arm, the match attack's `match-auc`, `match-tpr01` and
 `match-tpr001`, suffixed by scope as the `mi-` measures are, and the donor reuse measures
 `donor-max` and `donor-p95`, NaN for an arm that is neither direct nor perturbation or a fill with
-no rows; a fill with rows but no donation reads `donor-max` 0 and `donor-p95` NaN. For a run with a
+no rows; a fill with rows but no donation reads `donor-max` 0 and `donor-p95` NaN, and a
+`bko-micro` fill counts a donation for every id an averaged field names. For a run with a
 direct or perturbation arm it loads the pinned releases of the dataset's mapped concepts, as `trace`
 does, fetching an absent one into the data root, and re-draws each such arm's gap fill at its `arm`
 line's seed to read each row's donors; a perturbation fill's candidate lines are paired with their
@@ -1465,7 +1497,7 @@ It makes no API call. `--arm` takes the `arm` line's arm, `<arm>-replica` for a 
 It reads the data the run used from the data root, and for a direct or perturbation arm the
 pinned ontology releases too, fetching what is absent ([Data](#data), [Ontologies](#ontologies)).
 Every arm of `DIRECT_ARMS` (`bko-direct`, `bko-logic`, `bko-direct-pram`, `bko-nomap`, `bko-capped`,
-`bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`, `bko-donor`,
+`bko-micro`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`, `bko-coherent`, `bko-donor`,
 `bko-pool-random`, `bko-pool-all`, `bko-kb`) re-draws at its `arm` line's seed with that arm's
 draw spec and no extra random draw; a `bko-logic` or `bko-kb` record's concepts are its closed
 draw, not share priors, a `bko-nomap` record names no concept, nor does a pooled direct arm's,
@@ -1475,18 +1507,19 @@ at the node and its parent, the weight, the conditional and the share. A `bko-hi
 broad concepts add `hierarchy` beside their share facts: the narrow concept `given`, the weighted
 counts `both` and `narrow`, the `pseudo`-count (null when closed), the `conditional`, the
 `complement` (null when the narrow concept's share is within one float of 1) and whether it was
-`clamped`. `bko-direct-pram`,
-`bko-direct-perturbed` and `bko-coherent` rebuild their rows from their candidate lines and re-draw
-underneath, and each of their records gets a `perturb` object: `result`, the line's schema-4
-`perturb` value (on a schema-3 line, `perturbed` or `unchanged` by comparison with the draw when the
-line names a call, `kept` when it names none, and PRAM's `changed` or `unchanged`); `fields`, the
-fields that differ from the draw; and `drawn`, the draw's values for them. `bko-coherent` then
-re-runs its change at the fill's seed, which reads its own stream, refuses unless the changed rows
-are the lines' records, and names each free field's leaf donor in `sources`. The other arm kinds
-read their facts from the run folder, a Messages arm's from its `calls.jsonl`. It writes
-`trace.jsonl`, one sorted-key JSON line per record (one per fill for a baseline), which holds source
-training record ids; keep the file in its run folder. `<run-id>` is the folder read, `<run>` the
-named run, `<h>` the holdout and `<arm>` the arm:
+`clamped`. A `bko-micro` record adds `averaged`, each averaged field's three donor training record
+ids, the primary's first, its `sources` entry the primary's; a record with no averaged field writes
+no `averaged` key. `bko-direct-pram`, `bko-direct-perturbed` and `bko-coherent` rebuild their rows
+from their candidate lines and re-draw underneath, and each of their records gets a `perturb`
+object: `result`, the line's schema-4 `perturb` value (on a schema-3 line, `perturbed` or
+`unchanged` by comparison with the draw when the line names a call, `kept` when it names none, and
+PRAM's `changed` or `unchanged`); `fields`, the fields that differ from the draw; and `drawn`, the
+draw's values for them. `bko-coherent` then re-runs its change at the fill's seed, which reads its
+own stream, refuses unless the changed rows are the lines' records, and names each free field's leaf
+donor in `sources`. The other arm kinds read their facts from the run folder, a Messages arm's from
+its `calls.jsonl`. It writes `trace.jsonl`, one sorted-key JSON line per record (one per fill for a
+baseline), which holds source training record ids; keep the file in its run folder. `<run-id>` is
+the folder read, `<run>` the named run, `<h>` the holdout and `<arm>` the arm:
 
     mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 
@@ -1508,7 +1541,8 @@ named run, `<h>` the holdout and `<arm>` the arm:
   `split` line the data does not reproduce, a direct arm's re-draw whose rows do not hash to the
   `arm` line's sha256, or whose kept records are not the candidates file's kept lines, a direct
   fill whose `arm` line's params are not a JSON object or whose logged spec fields (`presence`,
-  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`, `pool`, `donors`) differ
+  `mapped`, `min_donors`, `reuse_cap`, `tree`, `hierarchy`, `closed`, `pool`, `donors`,
+  `microaggregate`) differ
   from its arm's, and
   a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned attempt is not one
   line per draw, or whose unperturbed columns differ from the re-draw, or a `bko-coherent` fill
@@ -1520,12 +1554,16 @@ named run, `<h>` the holdout and `<arm>` the arm:
 attributed to (ADR [`research/record-explainability`](adr/research/record-explainability.md),
 decision 7): `knowledge`, a field a mapping row of `<run>`'s dataset reads under an arm whose draw
 reads the mapping table; `donor`, a field with a source training record id, a field
-`bko-coherent` changed among them; `prompt`, a Messages record's field or a rewritten one; `method-seed`, any other, a PRAM-changed field and every field
-of an `untraced` record among them. A pooled field of `bko-donor`, `bko-pool-random` or
+`bko-coherent` changed among them; `donor-mean`, a field a `bko-micro` record's `averaged`
+names, ranked after `knowledge` and before `donor`; `prompt`, a Messages record's field or a
+rewritten one; `method-seed`, any other, a PRAM-changed field and every field of an `untraced`
+record among them. A pooled field of `bko-donor`, `bko-pool-random` or
 `bko-pool-all` is `donor`, and a `bko-kb` record's mapped fields are `knowledge` and its `age`
 `method-seed`. It reads an arm's kind from each line, reads no data and
 makes no API call. Each record arm's fill gets one row per class, zeros included, in the unit
-`field`; a baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no
+`field`, but a `donor-mean` row only for an arm whose spec sets `microaggregate`, so every other
+fill's rows keep their bytes, and a fill naming an averaged field under any other arm exits 2; a
+baseline's fill gets one `method-seed` row in the unit `fill`, since its trace holds no
 record. `<run>` names the dataset whose field rows and frame columns are read, and `--trace`
 takes one or more files:
 

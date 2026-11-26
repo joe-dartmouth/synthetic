@@ -3,9 +3,9 @@
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
 `bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, `E15_THIN` and `E15_EMPTY` `bko-tree`,
 `E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, `E17_THIN` and `E17_EMPTY`
-`bko-coherent`, `E18` the synthetic-share sweep, and `E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN`
-and `E19_SUPPORTED_EMPTY` the matched knowledge controls. `bko.evaluate.named_runs.RUNS` names them
-(`docs/EVIDENCE.md`, E12 to E19).
+`bko-coherent`, `E18` the synthetic-share sweep, `E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN`
+and `E19_SUPPORTED_EMPTY` the matched knowledge controls, and `E20_THIN` and `E20_EMPTY`
+`bko-micro`. `bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E20).
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ from bko.evaluate.direct_arms import (
     HIER_W_ARM,
     KB_ARM,
     LOGIC_ARM,
+    MICRO_ARM,
     NOMAP_ARM,
     POOL_ALL_ARM,
     POOL_RANDOM_ARM,
@@ -232,3 +233,17 @@ E19_SUPPORTED_EMPTY: Final = _controls(E6_EMPTY, E19_SUPPORTED_ARMS)
 """E19's runs: E12's runs with each family's arms, `bko-direct` the candidate against every arm but
 `real`, and no replica. `bko.evaluate.named_runs.RUNS` scores the supported runs on
 `diabetes-supported`. No arm calls the API, so the ceiling is inert."""
+
+
+E20_THIN, E20_EMPTY = (
+    replace(
+        e9,
+        arms=("none", REAL_ARM, DIRECT_ARM, CAPPED_ARM, MICRO_ARM),
+        candidate=MICRO_ARM,
+        comparators=(DIRECT_ARM, CAPPED_ARM, "none"),
+    )
+    for e9 in (E9_THIN, E9_EMPTY)
+)
+"""E20's runs: `E9_THIN` and `E9_EMPTY` with `bko-micro` in place of `bko-logic` as the candidate
+against `bko-direct`, `bko-capped` and `none`, and no replica, as E14's (ADR
+`research/microaggregated-donors`). No arm calls the API, so the ceiling is inert."""

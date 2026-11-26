@@ -51,6 +51,10 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    * `bko-capped`: as `bko-direct`, drawn under a donor floor and a reuse cap (ADR
      `research/sampler-donor-limits`); a field read from outside the cell below the floor is a
      fallback field.
+   * `bko-micro`: as `bko-capped`, and each averaged field names, under `averaged`, the k
+     training record ids its mean was taken over, the primary's first; its source is the
+     primary's id (ADR `research/microaggregated-donors`, Decision 7). `averaged` is
+     written only when non-empty, so every other arm's trace line keeps its bytes.
    * `bko-tree`: as `bko-direct` for every concept no tree field reads, then, per tree field, its
      drawn leaf with each level's counts, weight, conditional and share (ADR
      `research/ancestor-shrunk-shares`); the field names its source training record id.
@@ -96,15 +100,20 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
 7. **Attribution.** A reading over `trace.jsonl` files counts, per arm, what each record field
    can be attributed to. An arm's kind is read from one trace line: a line whose `record` is null
    is a baseline's; one holding a `perturb` key is a perturbation arm's; one whose `request` holds
-   `quota` is a direct arm's; any other is a Messages arm's. Each field gets one of four classes,
-   in this precedence: knowledge fact, training donor id, prompt section only, method and seed
-   only.
+   `quota` is a direct arm's; any other is a Messages arm's. Each field gets one of five classes,
+   in this precedence: knowledge fact, donor mean, training donor id, prompt section only, method
+   and seed only.
    * Direct: a field a mapping row's `when` clause reads (the label aside), under an arm whose
      `DrawSpec` reads the mapping table at a presence other than `POOLED`, is a knowledge fact;
-     else a field with a source id is a donor, a pooled field among them, since the mapping chose
-     only which fields pool and the value is a donor's; else (`sex`, the label, and `bko-kb`'s
-     `age`, drawn from its band and range by the seed) it is method and seed. A `bko-kb` mapped
-     field is a knowledge fact, its value drawn from the mapping table and the codebook alone.
+     else a field the line's `averaged` names is a donor mean (`donor-mean`), its value the mean
+     of its donors'; else a field with a source id is a donor, a pooled field among them, since
+     the mapping chose only which fields pool and the value is a donor's; else (`sex`, the label,
+     and `bko-kb`'s `age`, drawn from its band and range by the seed) it is method and seed. A
+     `bko-kb` mapped field is a knowledge fact, its value drawn from the mapping table and the
+     codebook alone. A direct fill's reading writes one count per class, zeros included, but
+     writes `donor-mean` only for an arm whose `DrawSpec` sets `microaggregate`, so every other
+     fill's counts keep their bytes; a fill that names an averaged field under any other arm is
+     refused.
    * Perturbation: a field the line's `perturb` names as changed is prompt section only under the
      rewrite arm, method and seed only under PRAM, and a training donor id under `bko-coherent`,
      whose leaf donor it names, a mapped field among them, since its value is no longer the drawn
@@ -148,7 +157,7 @@ folder.
 | Keep schema 3 and re-derive perturbation outcomes in `trace` | It needs the reply and the merge code to stay unchanged, and a schema version may grow with its runs repeated | 2026-11-08 |
 | Donor over knowledge as the attribution precedence | Every mapped field of a direct record also names a donor, so the knowledge contrast would vanish | 2026-11-24 |
 | Per-record attribution counts for a baseline | The trace holds no baseline record, only the fill's method and seed | 2026-11-24 |
-| A fifth attribution class for untraced Messages records | The reading names four classes; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-24 |
+| A sixth attribution class for untraced Messages records | Each class names a value's source; an untraced record's fields are method and seed only, and the log counts the records | 2026-11-26 |
 | A new trace format for the attribution reading | Every class is read from the lines `trace` writes now | 2026-11-24 |
 
 ## Enforcement
@@ -166,7 +175,8 @@ folder.
   `tests/test_generate_prompt.py`, `tests/test_run_folders.py`, `tests/test_app_trace.py`,
   `tests/test_app_imports.py`; decision 6 by `tests/test_evaluate_holdout_candidates.py`,
   `tests/test_evaluate_perturb.py` and `tests/test_evaluate_pram.py`; decision 7 by
-  `tests/test_evaluate_attribution.py`
+  `tests/test_evaluate_attribution.py`; `bko-micro`'s `averaged` ids and `donor-mean` by
+  `tests/test_evaluate_micro.py`
 
 ## Reversal Conditions
 

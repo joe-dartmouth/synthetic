@@ -299,7 +299,8 @@ def donations(
     """How many of `rows` each training record donates to, row i over draw i.
 
     A record donates to a row when the row holds, as drawn, every field of a unit of `groups`
-    that the draw read from that record; a field a perturbation changed stops counting.
+    that the draw read from that record, and each donor id a `bko-micro` unit's averaged field
+    names (`Draw.averaged`) donates with it; a field a perturbation changed stops counting.
     """
     found: Counter[int] = Counter()
     for row, draw in zip(rows, draws, strict=True):
@@ -311,6 +312,7 @@ def donations(
             (source,) = sources
             if source is not None and all(_same(row[n], draw.record[n]) for n in unit):
                 donors.add(source)
+                donors.update(i for name in unit for i in draw.averaged.get(name, ()))
         found.update(donors)
     return found
 

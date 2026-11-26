@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # The `bko-capped` arm reads a pattern with fewer cell donors than a floor from outside the cell and skips a donor at a reuse cap per unit
 
@@ -102,8 +102,9 @@ may exceed the cap; a pool exhausted on every attempt refuses the fill.
   `src/bko/generate/direct.py`, `src/bko/evaluate/direct_arms.py`,
   `src/bko/evaluate/runs_direct.py`
 - Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`, `bko-direct`'s draw unchanged),
-  `tests/test_generate_capped.py` (the spec's refusals and logging, the cap per unit, the floor,
-  the barred cell donors, exhaustion and determinism), `tests/test_evaluate_capped.py` (the arm's
+  `tests/test_generate_capped.py` (`CAPPED_DIGEST`, `bko-capped`'s draw unchanged; the spec's
+  refusals and logging, the cap per unit, the floor, the barred cell donors, exhaustion and
+  determinism), `tests/test_evaluate_capped.py` (the arm's
   params, its trace and the refusal of a float cap, donor reuse per unit, E14's runs and their
   reference arm), `tests/test_generate_capped_pinned.py` (a fill of E6's cell completes at
   both fractions on the pinned data, run with `--releases`)
@@ -118,4 +119,5 @@ check is E14's `scores.log`.
 
 - [Direct generation draws each mapped concept at its fused share and reads fields from matching records](bkb-direct-generation.md)
 - [Membership inference, verbatim matches and NNDR read an arm's added rows against a null arm, outside the removed cell](membership-inference-reading.md)
+- [`bko-micro` averages each numeric field but `age` over three donors of one key class, on `bko-capped`'s floor and cap](microaggregated-donors.md)
 - [A perturbation arm rewrites the 19 unmapped Diabetes fields through the Messages API, beside a free PRAM arm, with per-call value quotas and a per-holdout reading of how far each moves the label-1 shapes](identifier-perturbation.md)

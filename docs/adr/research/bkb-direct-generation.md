@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-27
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # Direct generation draws each mapped concept at its fused share and reads fields from matching records
 
@@ -95,25 +95,30 @@ mapping table (ADR `research/no-mapping-ablation`).
     `bko.evaluate`'s `trace` re-draws a logged attempt to read it (ADR
     `research/record-explainability`).
 11. **The draw spec.** The sampler takes a `DrawSpec` of `presence`, `mapped`, `min_donors`,
-    `reuse_cap`, `tree`, `hierarchy` and `closed`. At its
+    `reuse_cap`, `tree`, `hierarchy`, `closed`, `pool`, `donors` and `microaggregate`. At its
     default, shares and the mapping table, Decisions 1 to 3 apply and the arm is `bko-direct`. At
     logic, the arm is `bko-logic`: ADR `research/logic-only-ablation` replaces the share and the
     concept draw of Decisions 1, 2 and 7 with one uniform draw per component of consistent
-    assignments, and the closure is read into fields in place of Decision 3. Decisions 4 to 6, 8
-    and 10 hold for both, so the two arms differ only in presence and closure. At
-    `mapped=False`, the arm is `bko-nomap`: ADR `research/no-mapping-ablation` reads an empty
-    mapping table, so no concept is drawn and every field but `age`, `sex` and the label is a free
-    field of Decision 6. At `min_donors=2` and `reuse_cap=1`, the arm is `bko-capped`: ADR
-    `research/sampler-donor-limits` reads a pattern below the donor floor from outside the cell
-    and skips a donor at the reuse cap, so only the pools of Decisions 4 to 6 change. At
-    `tree=True`, the arm is `bko-tree`: ADR `research/ancestor-shrunk-shares` draws each tree
-    field, a column whose rows partition its codes, as one leaf at its ancestor-shrunk share and
-    copies it from a donor of that column alone, so its concepts leave Decisions 1, 2 and 5. At
-    `hierarchy=0.0`, `hierarchy=20.0` and `closed=True`, the arms are `bko-hier-0`, `bko-hier-w`
-    and `bko-hier-closed`: Decision 12 draws each `is_a` pair's broad concept given its narrow
-    one, so only the pairs' concepts leave Decision 2. `bko-coherent` draws at the default spec,
-    as `bko-direct` does, and then redraws Decision 6's free fields by sequential CART outside the
-    sampler (ADR `research/free-field-synthesis`).
+    assignments, and the closure is read into fields in place of Decision 3. Decisions 4 to 6, 8 and
+    10 hold for both, so the two arms differ only in presence and closure. At `mapped=False`, the
+    arm is `bko-nomap`: ADR `research/no-mapping-ablation` reads an empty mapping table, so no
+    concept is drawn and every field but `age`, `sex` and the label is a free field of Decision 6.
+    At `min_donors=2` and `reuse_cap=1`, the arm is `bko-capped`: ADR
+    `research/sampler-donor-limits` reads a pattern below the donor floor from outside the cell and
+    skips a donor at the reuse cap, so only the pools of Decisions 4 to 6 change. At `bko-capped`'s
+    limits with `microaggregate=3`, the arm is `bko-micro`: ADR `research/microaggregated-donors`
+    writes each numeric field but `age` as the mean of three donors of one key class. At
+    `tree=True`, the arm is `bko-tree`: ADR `research/ancestor-shrunk-shares` draws each tree field,
+    a column whose rows partition its codes, as one leaf at its ancestor-shrunk share and copies it
+    from a donor of that column alone, so its concepts leave Decisions 1, 2 and 5. At
+    `hierarchy=0.0`, `hierarchy=20.0` and `closed=True`, the arms are `bko-hier-0`, `bko-hier-w` and
+    `bko-hier-closed`: Decision 12 draws each `is_a` pair's broad concept given its narrow one, so
+    only the pairs' concepts leave Decision 2. `bko-coherent` draws at the default spec, as
+    `bko-direct` does, and then redraws Decision 6's free fields by sequential CART outside the
+    sampler (ADR `research/free-field-synthesis`). At `presence` pooled, the arms are `bko-donor`
+    (`pool` mapped), `bko-pool-random` (`pool` random) and `bko-pool-all` (`pool` all), and at logic
+    with `donors=False` the arm is `bko-kb`, which reads no training record: ADR
+    `research/matched-knowledge-controls` fixes all four.
 12. **Conditional `is_a` draws.** Under `hierarchy` or `closed`, each `is_a` pair of drawn
     concepts (`bko.gaps.contradictions.is_a_pairs`), narrow `N` under broad `B`, draws `B` given
     `N`. With `n_c` and `w` as in Decision 1, `p` a source's prior of `N` and `c` its conditional

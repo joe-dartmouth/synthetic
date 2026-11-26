@@ -35,6 +35,10 @@ CAPPED_ARM: Final = "bko-capped"
 """The free arm that draws as `DIRECT_ARM` does under a donor floor of 2 and a reuse cap of 1 per
 unit (ADR `research/sampler-donor-limits`)."""
 
+MICRO_ARM: Final = "bko-micro"
+"""The free arm that draws as `CAPPED_ARM` does with each numeric field but `age` the mean of 3
+distinct donors of one key class (`bko.generate.micro`; ADR `research/microaggregated-donors`)."""
+
 TREE_ARM: Final = "bko-tree"
 """The free arm that draws as `DIRECT_ARM` does with each tree field drawn as one leaf of its
 ontology tree at its ancestor-shrunk share (ADR `research/ancestor-shrunk-shares`)."""
@@ -80,6 +84,7 @@ DIRECT_ARMS: Final[Mapping[str, DrawSpec]] = MappingProxyType(
         PRAM_ARM: DEFAULT_SPEC,
         NOMAP_ARM: DrawSpec(mapped=False),
         CAPPED_ARM: DrawSpec(min_donors=2, reuse_cap=1),
+        MICRO_ARM: DrawSpec(min_donors=2, reuse_cap=1, microaggregate=3),
         TREE_ARM: DrawSpec(tree=True),
         HIER_0_ARM: DrawSpec(hierarchy=0.0),
         HIER_W_ARM: DrawSpec(hierarchy=float(GROUP_WEIGHT)),

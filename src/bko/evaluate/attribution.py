@@ -1,10 +1,11 @@
 """`python -m bko.evaluate attribution`: what each arm's record fields can be attributed to.
 
 `attribution` reads `trace.jsonl` files (`bko.evaluate.trace`) and counts, per fill, each record
-field's class: a knowledge fact, a training donor id, a prompt section only, or the method and seed
-only (ADR `research/record-explainability`, decision 7). `arm_kind` reads an arm's kind from one
-trace line and `classify` gives each of the line's fields its class. A baseline's trace holds no
-record, so its fill counts once, in the unit `fill`. It reads no data and makes no API call.
+field's class: a knowledge fact, a donor mean, a training donor id, a prompt section only, or the
+method and seed only (ADR `research/record-explainability`, decision 7). `arm_kind` reads an
+arm's kind from one trace line and `classify` gives each of the line's fields its class. A
+baseline's trace holds no record, so its fill counts once, in the unit `fill`. It reads no data
+and makes no API call.
 """
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ class Attribution(enum.StrEnum):
     """What a record field can be attributed to, in precedence order."""
 
     KNOWLEDGE = "knowledge"
+    MEAN = "donor-mean"
     DONOR = "donor"
     PROMPT = "prompt"
     SEED = "method-seed"
@@ -79,9 +81,9 @@ def arm_kind(line: Mapping[str, object]) -> ArmKind:
     `quota` a direct arm's; any other record a Messages arm's.
 
     Raises:
-        EvaluationError: If `line` lacks `record`, or its `record`, `request`, `sources` or
-            `perturb` is not the shape `trace` writes, or a line holding `perturb` names an arm
-            outside `PERTURBATION_ARMS`.
+        EvaluationError: If `line` lacks `record`, or its `record`, `request`, `sources`,
+            `averaged` or `perturb` is not the shape `trace` writes, or a line holding `perturb`
+            names an arm outside `PERTURBATION_ARMS`.
     """
     if "record" not in line:
         msg = "a trace line holds no record key"
@@ -98,6 +100,9 @@ def arm_kind(line: Mapping[str, object]) -> ArmKind:
     sources = line.get("sources")
     if not isinstance(sources, Mapping):
         msg = f"a trace line's sources is not a JSON object: {sources!r}"
+        raise EvaluationError(msg)
+    if not isinstance(averaged := line.get("averaged", {}), Mapping):
+        msg = f"a trace line's averaged is not a JSON object: {averaged!r}"
         raise EvaluationError(msg)
     if "perturb" in line:
         perturb, arm = line["perturb"], line.get("arm")
@@ -120,7 +125,8 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
     `mapped` holds the fields a mapping row's `when` clause reads, the label aside. A direct
     arm's field in it is a knowledge fact when the arm's `DrawSpec` reads the mapping table at a
     presence other than pooled, `bko-kb`'s drawn from the mapping table and the codebook alone;
-    else a field with a source id is a donor's, a pooled field among them, and any other the
+    else a field the line's `averaged` names is a donor mean; else a field with a source id is a
+    donor's, a pooled field among them, and any other the
     method and seed's, `bko-kb`'s `age` among them. A
     perturbation arm's changed field is the prompt's under the rewrite arm, the method and seed's
     under PRAM and a donor's under `bko-coherent` (`CHANGED_CLASS`), its other fields read as a
@@ -146,6 +152,7 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
         raise EvaluationError(msg)
     # arm_kind refused sources that are not a JSON object and perturb fields that are not strings.
     donated = set(cast("Mapping[str, object]", line["sources"]))
+    averaged = set(cast("Mapping[str, object]", line.get("averaged", {})))
     perturb = cast("Mapping[str, list[str]] | None", line.get("perturb"))
     changed = set(perturb["fields"]) if perturb is not None else set()
     rewritten = CHANGED_CLASS.get(name, Attribution.PROMPT)
@@ -156,6 +163,8 @@ def classify(line: Mapping[str, object], *, mapped: frozenset[str]) -> dict[str,
             found[field] = rewritten
         elif knowledge and field in mapped:
             found[field] = Attribution.KNOWLEDGE
+        elif field in averaged:
+            found[field] = Attribution.MEAN
         elif field in donated:
             found[field] = Attribution.DONOR
         else:
@@ -168,9 +177,8 @@ def attribution(
 ) -> str:
     """Each fill's count per class over the trace files `traces`, as CSV.
 
-    A record arm's fill writes one row per class, zeros included, in the unit `field`; a
-    baseline's one `method-seed` row in the unit `fill`. Fills are in the order the files first
-    name them. Every record's fields must be `columns`, the frame columns of the run `run`. Logs
+    A fill writes the rows of `_fill_rows`. Fills are in the order the files first name them.
+    Every record's fields must be `columns`, the frame columns of the run `run`. Logs
     `attribution spec=` once per fill of a perturbation arm that reads `DEFAULT_SPEC`,
     `attribution trace=` per file with its sha256, its lines and its untraced records, and closes
     with `attribution rows=` and the CSV's sha256.
@@ -180,7 +188,7 @@ def attribution(
             holdout, no arm of lowercase letters, digits and hyphens, or a record id that is
             neither an integer nor null; two lines across the files name one holdout, arm and
             record id; a record's fields are not `columns`; a fill's lines are of two kinds; or
-            as `classify`.
+            as `classify` and `_fill_rows`.
         OSError: If a file cannot be read.
     """
     kinds: dict[tuple[int, str], ArmKind] = {}
@@ -233,14 +241,10 @@ def attribution(
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(ATTRIBUTION_COLUMNS)
     rows = 0
-    for (holdout, arm), tally in counts.items():
-        kind = kinds[holdout, arm]
-        if kind is ArmKind.BASELINE:
-            writer.writerow((holdout, arm, kind, Attribution.SEED, "fill", tally[Attribution.SEED]))
-            rows += 1
-            continue
-        writer.writerows((holdout, arm, kind, each, "field", tally[each]) for each in Attribution)
-        rows += len(Attribution)
+    for key, tally in counts.items():
+        found = _fill_rows(*key, kinds[key], tally)
+        writer.writerows(found)
+        rows += len(found)
     text = out.getvalue()
     logger.info(
         "attribution rows=%d sha256=%s files=%d",
@@ -249,6 +253,30 @@ def attribution(
         len(traces),
     )
     return text
+
+
+def _fill_rows(
+    holdout: int, arm: str, kind: ArmKind, tally: Mapping[Attribution, int]
+) -> list[tuple[object, ...]]:
+    """One fill's CSV rows.
+
+    A record arm's fill writes one row per class, zeros included, in the unit `field`, but
+    `donor-mean` only for an arm whose `DrawSpec` sets `microaggregate`, so every other fill keeps
+    its bytes; a baseline's fill writes one `method-seed` row in the unit `fill`.
+
+    Raises:
+        EvaluationError: If the fill counts a `donor-mean` field but its arm sets no
+            `microaggregate`.
+    """
+    if kind is ArmKind.BASELINE:
+        return [(holdout, arm, kind, Attribution.SEED, "fill", tally[Attribution.SEED])]
+    spec = DIRECT_ARMS.get(base(arm))
+    averages = spec is not None and spec.microaggregate is not None
+    if tally[Attribution.MEAN] and not averages:
+        msg = f"holdout {holdout}'s {arm} fill has {tally[Attribution.MEAN]} donor-mean fields"
+        raise EvaluationError(msg + ", but its arm sets no microaggregate")
+    classes = [each for each in Attribution if each is not Attribution.MEAN or averages]
+    return [(holdout, arm, kind, each, "field", tally[each]) for each in classes]
 
 
 def _text(raw: bytes, path: Path, number: int) -> str:
