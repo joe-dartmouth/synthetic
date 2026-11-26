@@ -59,8 +59,9 @@ splits one call's rows across a field's values and never sets how many rows a ce
 5. **Rules.** `QuotaRule` holds seven: `fill-to`, the current rule, `fill_to - count`;
    `coverage`, `coverage-x2`, `coverage-x4` and `coverage-x8`, one, two, four and eight times
    coverage; `expected-size`; and `recommended`. Every rule but `recommended` asks
-   `max(0, value - count)`. A cell asked 0 leaves the request, and a request left empty raises the
-   existing "nothing to fill" `EvaluationError`.
+   `max(0, value - count)`. A cell asked 0 leaves the request, and a request left empty raises an
+   `EvaluationError` that names the holdout seed and ends "nothing to fill", as the fixed fill's
+   does.
 6. **Experiment field.** `Experiment.quota_rule`, default `fill-to`, follows `fill_to`. It is
    refused beside `flagged_cell` or `synthetic_share`, whose requests are not read from the
    threshold. The `experiment` line names `quota_rule=<value>` after `fill_to=` and `cutoff=`
@@ -99,24 +100,25 @@ keeps it finite when a neighbour holds no record of a label. On E6's cell at hol
 n(6-7, male, 0) is 11,740 and the female cells hold 1,314 and 12,422, so the expected size is
 1,242 at both fractions.
 
-Against the fixed fill, computed on holdout 0: on `e12-thin` the cell holds 19 records and the
-fixed fill asks 1,250 rows; `expected-size` and `recommended` ask 1,223, within 30 rows of it,
-and `coverage`, `coverage-x2`, `coverage-x4` and `coverage-x8` ask 67, 153, 325 and 669. On
-`e12-empty` the fixed fill asks 1,269; `expected-size` and `recommended` ask 1,242, within 30
-rows, and the coverage rules ask 163, 326, 652 and 1,304, the last 35 rows above it. So the
-expected-size rules restate the fixed fill on this cell, and the coverage rules are the ones that
-test whether far fewer rows recover the cell.
+Against the fixed fill at holdout 0, as `bko.gaps.quota.asks` reads each E21 run's training
+split there and the run's `quota-rule` lines at holdout 0 restate it: on `e12-thin` the cell
+holds 19 records and the fixed fill asks 1,250 rows; `expected-size` and `recommended` ask
+1,223, within 30 rows of it, and `coverage`, `coverage-x2`, `coverage-x4` and `coverage-x8` ask
+67, 153, 325 and 669. On `e12-empty` the fixed fill asks 1,269; `expected-size` and
+`recommended` ask 1,242, within 30 rows, and the coverage rules ask 163, 326, 652 and 1,304, the
+last 35 rows above it. So the expected-size rules restate the fixed fill on this cell, and the
+coverage rules are the ones that test whether far fewer rows recover the cell.
 
 Reusing E12's runs as the fixed fill holds every arm, split, seed and cutoff equal, so a paired
 reading isolates the rule. E6's own runs carry paid Messages arms; E12's arms are all free.
 
 ## Consequences
 
-* A run whose `quota_rule` is `fill-to` writes the bytes it wrote before: its request, its
-  `experiment` line and every fill.
-* `shared`, `rows`, `privacy`, `trace` and `contradictions <run>` rebuild a share-based request
-  from the training split and the data's field rows, so each reads an E21 folder as it reads an
-  E12 one.
+* A run whose `quota_rule` is `fill-to` asks each flagged cell for `fill_to` less its count, its
+  `experiment` line names no `quota_rule`, and `DRAW_DIGEST` and `ADDED_DIGEST` pin its fills.
+* `shared` (its `--with` exclusion included), `rows`, `privacy`, `trace` and
+  `contradictions <run>` rebuild a share-based request from the training split and the data's
+  field rows, so each reads an E21 folder as it reads an E12 one.
 * The sweep reads representativeness and recall per rule; whether a count makes the cell
   representative, and at what cost in recall, is E21's Result.
 * The coverage rules ask far fewer rows than the fixed fill on E6's cell, so their flagged
@@ -138,12 +140,17 @@ reading isolates the rule. E6's own runs carry paid Messages arms; E12's arms ar
   value in `src/bko/evaluate/run_folder.py`, the reading in
   `src/bko/evaluate/representativeness.py` and the runs in `src/bko/evaluate/runs_direct.py` and
   `src/bko/evaluate/reference.py`
-- Pinned by: `tests/test_gaps_quota.py` (each count's hand fixtures, the multiples, a cell of no
-  record, the module's imports), `tests/test_evaluate_quota_rule.py` (the `experiment` line,
+- Pinned by: `tests/test_gaps_quota.py` (each count's hand fixtures, the exact boundaries and
+  the NaN refusal, the fused shares, the multiples, a cell of no record, an unknown rule, the
+  module's imports), `tests/test_datasets_cells.py` (`counts_by_cell`),
+  `tests/test_evaluate_quota_rule.py` (the `experiment` line, a rule given by value,
   `test_an_older_experiment_line_reads_at_the_assumed_quota_rule`, the default request, the
-  refusals, the `quota-rule` line, `test_a_coverage_rule_run_scores_end_to_end` and the
-  `shared`, `trace` and `contradictions` readers), `tests/test_evaluate_representativeness.py`
-  (the gap, the cell share beside `real`'s, the store and run refusals),
+  refusals beside a flagged cell and a synthetic share, the `quota-rule` line's hand counts,
+  the "nothing to fill" refusal, `test_a_coverage_rule_run_scores_end_to_end` and the `shared`,
+  `shared --with`, `trace`, `contradictions` and `privacy` readers, each writing the lines once
+  or not at all), `tests/test_evaluate_representativeness.py` (the gap, its tie and empty cases,
+  a row-adding arm's in-cell rows, the cell share beside `real`'s, each arm's recall and a
+  missing one, the swapped or missing `scores.csv`, the store and run refusals),
   `tests/test_evaluate_quota_runs.py` (E21's runs, their slices, no paid arm and the reference
   arm), `tests/test_generate_direct.py` (`DRAW_DIGEST`) and `tests/test_evaluate_direct.py`
   (`ADDED_DIGEST`), the fixed fill's draw unchanged

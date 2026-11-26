@@ -2053,13 +2053,10 @@ stores, gap and replica fills alike. `<run>` is the named run whose slices' stor
   `tests/test_contradictions_added_diabetes.py`).
 
 **Share-based quota counts.** `bko.gaps.quota` holds the counts a run under a share-based
-`Experiment.quota_rule` asks each flagged cell for (ADR
-[`research/share-based-quota`](adr/research/share-based-quota.md)): `coverage`, the smallest
-count at which every concept of fused share at least `SHARE_FLOOR` appears with probability at
-least 1 - `MISS_CHANCE`, by a union bound; `expected_size`, the cell's other label scaled by the
-label odds of its band's other values of the second cell axis; and `recommended`, the larger of
-the two less the cell's count. It has no command of its own: `score` reads it through the gap
-request, and every reader that rebuilds that request reads it the same way.
+`Experiment.quota_rule` asks each flagged cell for, `coverage`, `expected_size` and
+`recommended`; ADR [`research/share-based-quota`](adr/research/share-based-quota.md), Decision,
+defines each. It has no command of its own: `score` reads it through the gap request, and every
+reader that rebuilds that request reads it the same way.
 
 ## Generation
 

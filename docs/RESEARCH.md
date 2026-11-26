@@ -614,14 +614,14 @@ development reading and registers no confirmatory claim.
 
 ### Share-based quota
 
-Every run before E21 asks each flagged cell for a fixed fill, `fill_to` less its training
-records. E21 asks the cell for a count read from the cell instead: coverage, the rows at which
-every concept of fused share at least 0.02 appears with probability at least 0.95, and its
-multiples by 2, 4 and 8; the expected size, the cell's size were its label odds its band's other
-sex's; and the larger of the two. On E12's arms, splits and seeds, it reads per count how far
-each arm's added rows sit from the fused shares, the cell's share of the training set beside
-`real`'s, and removed-cell recall against the fixed fill. ADR
-[`research/share-based-quota`](adr/research/share-based-quota.md) holds the design and
+Every other run that flags cells by the threshold asks each flagged cell for a fixed fill,
+`fill_to` less its training records, the default `fill-to` rule. E21 asks the cell for a count
+read from the cell instead: coverage, the rows at which every concept of fused share at least
+0.02 appears with probability at least 0.95, and its multiples by 2, 4 and 8; the expected size,
+the cell's size were its label odds its band's other sex's; and the larger of the two. On E12's
+arms, splits and seeds, it reads per count how far each arm's added rows sit from the fused
+shares, the cell's share of the training set beside `real`'s, and removed-cell recall against
+the fixed fill. ADR [`research/share-based-quota`](adr/research/share-based-quota.md) holds the design and
 [E21](EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal) the runs. It is a
 development reading and registers no confirmatory claim.
 

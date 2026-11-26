@@ -7,7 +7,7 @@ blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/share-based-quota
 ---
 
 # Run the quota sweep and read representativeness and recall per count
@@ -36,26 +36,14 @@ ADR [`research/share-based-quota`](../docs/adr/research/share-based-quota.md)); 
 
 **Findings from planning.**
 
-- The runs: `e21-<word>-thin` and `e21-<word>-empty` for each word `coverage`,
-  `coverage-two`, `coverage-four`, `coverage-eight`, `expected-size` and `recommended`, naming
-  the rules `coverage`, `coverage-x2`, `coverage-x4`, `coverage-x8`, `expected-size` and
-  `recommended` (`bko.evaluate.runs_direct.E21_NAMES`), each sliced `a` to `j`, for
-  example `e21-coverage-thina` to `e21-coverage-thinj`. Each is E12's run with
-  `Experiment.quota_rule` set, so the fixed fill is read from `e12-thin` and `e12-empty` with
-  `compare --beside`, and E12's runs are this unit's prerequisite. Privacy reference arm: `real`.
-- Each holdout logs one
-  `quota-rule holdout=%d fill=gap key=%s rule=%s count=%d coverage=%d expected=%d asked=%d`
-  line per flagged cell in `scores.log`; the ADR states, for holdout 0, how far each count sits
-  from the fixed fill (`expected-size` and `recommended` within 30 rows, the coverage rules
-  further).
-- The reading, over each run's `rows` stores, one `--rows` per slice:
-
-  ```
-  mkdir -p runs/<run-id> && test ! -e runs/<run-id>/representativeness.csv && test ! -e runs/<run-id>/representativeness.log && uv run --no-sync python -m bko.evaluate representativeness <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/representativeness.csv 2> runs/<run-id>/representativeness.log </dev/null
-  ```
-
-  Its CSV holds `holdout,arm,cell,rows,gap,concept,cell_share,real_share,recall`; `recall` is
-  the arm's flagged-subgroup recall, removed-cell recall on E6's cell.
+- The runs, their slices, the fixed fill they read against and the privacy reference arm:
+  [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal),
+  E21's Configuration. E12's runs are this unit's prerequisite, since `compare --beside` reads
+  the fixed fill from them.
+- The `quota-rule` line, the `representativeness` command and its columns:
+  [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation). How far each count sits from the
+  fixed fill at holdout 0: ADR
+  [`research/share-based-quota`](../docs/adr/research/share-based-quota.md), Rationale.
 
 ## Acceptance
 
