@@ -19,6 +19,7 @@ from bko.baselines.pooling import (
     MARGINALS_STREAM,
     PRIOR_PSEUDOCOUNT,
     ROW_RESAMPLE_STREAM,
+    _terms,
     eb_marginals,
     fit_kappa,
     marginals,
@@ -250,3 +251,22 @@ def test_a_retry_seed_changes_the_fill(runner):
     first = runner(TRAIN, Request(quota=QUOTA, seed=3, frame=FRAME)).added
     retry = runner(TRAIN, Request(quota=QUOTA, seed=4, frame=FRAME)).added
     assert not first.equals(retry)
+
+
+def test_the_eb_terms_pin_the_pseudocount_and_the_cell_rule():
+    cells = pd.DataFrame(
+        {
+            "age_band": ["<50", "<50", "<50", "<50", ">=50"],
+            "sex": ["female", "female", "female", "male", "female"],
+        },
+        index=[11, 12, 13, 14, 15],
+    )
+    categories = pd.Series(["a", "a", "b", "a", "b"], index=cells.index, dtype=object)
+    terms = _terms(categories, cells, edges=(50,))
+    # `<50` female against the rest of its band, one `a`: (1 + 0.5) / (1 + 0.5 * 2), (0 + 0.5) / 2.
+    # `<50` male against two `a` and one `b`: (2 + 0.5) / (3 + 1), (1 + 0.5) / 4.
+    # `>=50` female holds a record but its band's rest holds none, and `>=50` male holds none.
+    assert terms == [
+        ({"a": 2, "b": 1}, {"a": 0.75, "b": 0.25}),
+        ({"a": 1}, {"a": 0.625, "b": 0.375}),
+    ]

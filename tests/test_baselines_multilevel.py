@@ -5,13 +5,15 @@ from __future__ import annotations
 import dataclasses
 import functools
 import logging
+import math
 
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import optimize
 
 from bko.baselines import multilevel, multilevel_fit
-from bko.baselines.categories import categorise
+from bko.baselines.categories import OTHER, categorise
 from bko.baselines.errors import BaselineError
 from bko.baselines.multilevel import hb_marginals
 from bko.baselines.multilevel_fit import (
@@ -318,3 +320,71 @@ def test_every_constant_is_pinned():
     assert NEWTON_STEPS == 20
     assert HALVINGS == 30
     assert MAX_PARAMETERS == 4096
+
+
+def test_one_cells_evidence_matches_its_laplace_closed_form():
+    cell = ("a0", "female", 1)
+    x, y = 3, 7
+    fit = fit_pair({cell: {"x": x, "y": y}}, 0.0, 0.0)
+    assert set(fit.index) == {("mu",), ("A", "a0"), ("S", "female"), ("Y", 1)}
+    # Four main terms at MAIN_SCALE s, each summing into the one log-odds eta of `x`; the mode
+    # holds each at t = eta / 4, where n sigmoid(eta) - x + t / s**2 = 0.
+    s2, n, d = MAIN_SCALE**2, x + y, 4
+
+    def slope(t: float) -> float:
+        return n / (1 + math.exp(-d * t)) - x + t / s2
+
+    t = optimize.brentq(slope, -10.0, 10.0, xtol=1e-14)
+    eta = d * t
+    likelihood = x * eta - n * math.log1p(math.exp(eta))
+    weight = n * math.exp(eta) / (1 + math.exp(eta)) ** 2
+    # The Hessian is weight * 1 1^T + I / s**2: by the determinant lemma its log det is
+    # d log(1 / s**2) + log(1 + d weight s**2), and the prior's d log(1 / s**2) / 2 cancels half.
+    evidence = likelihood - d * t**2 / (2 * s2) - 0.5 * math.log1p(d * weight * s2)
+    assert fit.evidence == pytest.approx(evidence, abs=1e-6)
+    assert fit.coefficients.ravel() == pytest.approx([t] * d, abs=1e-6)
+
+
+def _column_of(coded: bool) -> multilevel._Column:
+    """Six records: the cell's banded label group holds 0 and 2, the label group 0 to 2."""
+    categories = ("a", "d", "c", OTHER)
+    fit = Fit(
+        tau2=0.0,
+        tau3=0.0,
+        evidence=0.0,
+        iterations=0,
+        categories=categories,
+        reference="a",
+        index={},
+        coefficients=np.zeros((0, len(categories) - 1)),
+        gradient=0.0,
+    )
+    return multilevel._Column(
+        fit=fit,
+        coded=coded,
+        values=np.array([10, 11, 12, 13, 14, 15]),
+        categories=np.array(["a", "d", "a", "c", "c", OTHER], dtype=object),
+        label_group=np.array([True, True, True, False, False, False]),
+    )
+
+
+def _drawn(column: multilevel._Column, category: str, draws: int = 40) -> set[object]:
+    """The values `draws` draws of `category` give, the cell's banded label group 0 and 2."""
+    at = column.fit.categories.index(category)
+    cumulative = np.cumsum(np.eye(len(column.fit.categories))[at])
+    rng = np.random.default_rng(0)
+    banded = np.array([0, 2])
+    return {column.draw(rng, cumulative, banded) for _ in range(draws)}
+
+
+def test_a_measured_value_reads_the_banded_group_then_the_label_group_then_the_split():
+    column = _column_of(coded=False)
+    assert _drawn(column, "a") == {10, 12}
+    assert _drawn(column, "d") == {11}
+    assert _drawn(column, "c") == {13, 14}
+
+
+def test_a_coded_value_is_its_code_and_other_reads_a_record():
+    column = _column_of(coded=True)
+    assert _drawn(column, "a") == {"a"}
+    assert _drawn(column, OTHER) == {15}
