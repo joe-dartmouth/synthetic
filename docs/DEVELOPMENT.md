@@ -1472,17 +1472,17 @@ inside `.venv`:
 - **The gate does not run it.** `make check` tests the loader on OBO text built in `tmp_path` and
   the table's invariants; a row naming a concept the release lacks passes `make check` and fails
   this command, so run it after editing the table or re-pinning a release.
-- **The release tests**: `tests/test_ontology_pinned_releases.py` loads MONDO, HPO and DO from the
-  data root and asserts that every row agrees and that the
+- **The release tests**: `tests/test_ontology_pinned_releases.py` loads MONDO, HPO, DO and the
+  converted OccO from the data root and asserts that every row agrees and that the
   [fusion reproduction](#fusion-reproduction) differs nowhere. The gate skips them, and no `-m`
   expression runs them; `--releases` does:
 
       uv run --no-sync pytest tests/test_ontology_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
-  They read and never fetch, so run `check` and `reproduce` first: `check` fetches MONDO and HPO,
-  `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
-  `bko.ontology.obo`, or a change to pronto or fastobo in `uv.lock`, from the checkout whose `data/` holds
-  the releases.
+  They read and never fetch or convert, so run `check` and `reproduce` first: `check` fetches
+  MONDO, HPO and OccO and converts OccO, `reproduce` fetches MONDO and DO. An absent release fails
+  them. Run them after a re-pin, a change to `bko.ontology.obo`, or a change to pronto or fastobo
+  in `uv.lock`, from the checkout whose `data/` holds the releases.
 - **OWL-only releases**: a release pinned as OWL, a `Source` whose `filename` ends `.owl`, is
   converted to OBO when a command first loads it: the pinned ROBOT jar's `convert`, run with no
   reasoning, writes a hidden partial file beside the OWL in its snapshot directory, renamed to

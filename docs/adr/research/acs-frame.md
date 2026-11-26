@@ -151,8 +151,8 @@ and NIST's dictionary calls `DPHY` "Ambulatory (walking) difficulty".
 ## Consequences
 
 **The order, by commit.** The rows are at `107c2e5` (Add the ACS loader, frame, field rows and
-catalog entry). The training split's count is recorded in the commit after it, before any gap
-listing or census ran: `CATALOG["acs"].read` on the data root, then `split(records, seed=0,
+catalog entry). The training split's count is recorded in `836f4f3`, before any gap listing or
+census ran: `CATALOG["acs"].read` on the data root, then `split(records, seed=0,
 edges=frame.edges).train`. The file holds 74,617 rows; Folktables' filters keep 63,191 above age
 16, 58,029 with income above $100, 42,543 with usual hours above 0, and all 42,543 with a person
 weight of at least 1. The cohort holds 42,543 records, 24,896 of them with income above $50,000;
@@ -162,13 +162,38 @@ records condition 5 asks. Each of the 517 `OCCP` codes among the kept rows carri
 code, and no used column is blank among them. These are commits of pull request #136, kept at
 `refs/pull/136/head` after its squash merge.
 
+**The readings, at `836f4f3`, after the count.** `uv run --no-sync python -m bko.ontology check`
+exited 0, its log ending `checked 609 rows: 0 disagree`, OccO converted by the pinned ROBOT. The
+gap listing is run `d1-5`, `uv run --no-sync python -m bko.gaps acs` into
+`runs/d1-5/gaps-acs.csv` and `runs/d1-5/gaps-acs.log`, exit 0, closing `gaps rows=10111
+sha256=530bd629acc8870dbfb18fc5692ba927ce66a2edb5ca9f03889688150e03dbfd`: per-subgroup 8,320 gaps
+in 16 cells, population-level 176, frequency-aware 1,615 in 16 cells, and no cell below the count
+threshold; 511 of the 515 mapped concepts are held in the training split. Its csv sha256 is
+`530bd629acc8870dbfb18fc5692ba927ce66a2edb5ca9f03889688150e03dbfd` and its log sha256
+`9fd2a2aa21ba0e276a320ac02a24c5b6be112e3f832f230107414d6c4d265cf4`; its `data` line gives the
+42,543 records' digest `1dd0fbe777cdcdfcbb16a42f412a3d37afd6cb6093e7efd096949b4e7f6226e6` and its
+`split` line the test fingerprint
+`d2d2760fd6745a51963c83ac5f01d96fc207dd7e0563bc33d489bdf3d00f74ff`. The census is run `d2-5`,
+`uv run --no-sync python -m bko.evaluate contradictions --dataset acs` into
+`runs/d2-5/contradictions.csv` and `runs/d2-5/contradictions.log`, exit 0, over 16 of 16 cells,
+520 rows and 247 `is_a` pairs: `narrow-without-broad` 1,791, `child-share-above-parent` 841,
+`empty-cell` 0, `all-show` 0 and `code-overlap` 0. Every pair is one occupation class under
+another the rows also map, and every record that shows the narrower class lacks the broader one,
+since a record holds one `OCCP` code and a row maps a code to one class, not to its ancestors. Its
+csv sha256 is `2270e982928841ed92f067d7605d4f61c949207f1f044e1256bde20586303872` (2,632 rows)
+and its log sha256 `d5f7c1cf6f150b3fa6e34de33cf27e69728c911e18977191fe4665c932e50287`. Both read
+the archive sha256 `bb7d4009feaf8d190d687fc091fc7a56e2aa82b9972ae14a16d4ad70a8e0eef7`, HPO
+`hp/releases/2026-09-01` and OccO `releases/2025-10-06`.
+
 **The occupation rows.** 516 of the 517 `OCCP` codes map; `9830`, `SOCP` `559830`
 ("MIL-Military, Rank Not Specified"), reaches no class and is the one `no class` code, with none
 for `several classes`. 221 rows sit in the low part and 295 in the high one.
 
 **Gained**: a non-health frame whose occupation code reaches a five-level hierarchy, from SOC
 major group to O*NET occupation, through rows the check keeps against the release. **Accepted**:
-no surveyed column beyond occupation is mapped; the income label is unadjusted.
+no surveyed column beyond occupation is mapped; the income label is unadjusted; the census reads
+every occupation pair as a contradiction, because a row maps an `OCCP` code to its own class and
+leaves its ancestors to the hierarchy.
 
 ## Ruled Out
 
@@ -197,7 +222,8 @@ no surveyed column beyond occupation is mapped; the income label is unadjusted.
   `tests/test_ontology_occupations.py::test_an_occupation_row_whose_soc_id_differs_fails_the_check`,
   `tests/test_datasets_acs.py::test_each_folktables_filter_drops_its_rows`,
   `tests/test_datasets_acs.py::test_occp_to_socp_must_be_a_function`,
-  `tests/test_ontology_occupation_codes_pinned.py` (with `--releases`)
+  `tests/test_ontology_occupation_codes_pinned.py` and `tests/test_datasets_acs_pinned.py` (with
+  `--releases`)
 
 ## Reversal Conditions
 
