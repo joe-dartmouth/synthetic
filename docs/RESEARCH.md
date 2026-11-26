@@ -498,8 +498,8 @@ registered `candidate` stays `bko`.
 
 The BKO variants `bko`, `bko-population`, `bko-frequency`, `bko-logic`, `bko-nomap`,
 `bko-capped`, `bko-micro`, `bko-tree`, `bko-hier-0`, `bko-hier-w`, `bko-hier-closed`,
-`bko-coherent`, `bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and the guidance
-levels, are ablations: each changes one part of how the BKB guides generation. The retained-data
+`bko-coherent`, `bko-skeleton`, `bko-donor`, `bko-pool-random`, `bko-pool-all` and `bko-kb`, and
+the guidance levels, are ablations: each changes one part of how the BKB guides generation. The retained-data
 methods `row-resample`, `marginals` and `eb-marginals` are ablations of the pooling itself, from
 `label-bootstrap` to one weight per cell fitted by empirical Bayes [`efron-1975`][efron-1975]
 (ADR [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). The
@@ -684,9 +684,13 @@ A variant enters `bko-direct-2` when, on each development frame it
 runs on, its target measure improves on `bko-direct`'s (interval excludes 0) and its removed-cell
 recall is non-inferior within the margin above. Each variant registers one parameter value, except
 the `is_a` pseudo-count: of the registered values that pass, the largest enters. `bko-capped`'s
-pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value, and `bko-micro`'s
-mean over 3 donors at those limits is another. The closed arm
-`bko-hier-closed` is an ablation and registers no value.
+pair of limits, a donor floor of 2 and a reuse cap of 1, is one registered value. `bko-micro` is a
+variant of its own that refines `bko-capped`'s: its one registered value, a mean over 3 donors at
+`bko-capped`'s limits, is read against `bko-capped` rather than `bko-direct`. It enters only if
+`bko-capped`'s value enters and, on each development frame it runs on, `bko-micro`'s target
+measure improves on `bko-capped`'s (interval excludes 0) with removed-cell recall non-inferior to
+`bko-capped`'s within the margin above. The closed arm `bko-hier-closed` is an ablation and
+registers no value.
 
 "Improves" means the interval lies wholly on the measure's better side (below 0 for Brier). Each
 variant's target measure is the one its register entry names, and no correction is made across

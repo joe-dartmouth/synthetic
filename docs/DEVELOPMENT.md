@@ -1221,7 +1221,7 @@ start or the supervisor cannot run.
   them. `RUNS` holds the microaggregation runs, `e20-thin` and `e20-empty`
   (`bko.evaluate.runs_direct.E20_THIN` and `E20_EMPTY`: `E9_THIN` and `E9_EMPTY` with `none`,
   `real`, `bko-direct`, `bko-capped` and the candidate `bko-micro`, comparators `bko-direct`,
-  `bko-capped` and `none`, no replica, the ceiling inert, `REFERENCE` `bko-direct`) and their
+  `bko-capped` and `none`, no replica, the ceiling inert, `REFERENCE` `bko-capped`) and their
   slices `e20-thina` to `e20-thinj` and `e20-emptya` to `e20-emptyj`, sliced as E6's are;
   `docs/EVIDENCE.md`, E20, describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1

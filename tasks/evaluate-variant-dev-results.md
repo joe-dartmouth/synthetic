@@ -51,7 +51,8 @@ says which enter `bko-direct-2`.
 
 **Findings from planning.**
 
-- E20's primary contrast is `bko-micro` minus `bko-capped`.
+- E20's primary contrast is `bko-micro` minus `bko-capped`, which `privacy` reads per holdout
+  with `bko-capped` the reference arm; `bko-direct` minus `bko-capped` is read beside it.
 - `bko-micro`'s count fields carry about one third of their donors' variance, as ADR
   [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md) states; its
   fidelity reading is read with that.

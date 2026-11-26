@@ -12,6 +12,7 @@ from types import MappingProxyType
 from typing import Final
 
 from bko.baselines.request import Stratum
+from bko.evaluate.direct_arms import CAPPED_ARM
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_runs import NamedRun, wholes_of
@@ -22,7 +23,7 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     {"e6-thin": REAL_ARM, "e6-empty": REAL_ARM, "e6-curated": REAL_ARM}
     | {"e12-thin": REAL_ARM, "e12-empty": REAL_ARM, "e13": REAL_ARM}
     | {"e14-thin": DIRECT_ARM, "e14-empty": DIRECT_ARM}
-    | {"e20-thin": DIRECT_ARM, "e20-empty": DIRECT_ARM}
+    | {"e20-thin": CAPPED_ARM, "e20-empty": CAPPED_ARM}
     | {"e15-thin": DIRECT_ARM, "e15-empty": DIRECT_ARM}
     | {"e16-thin": DIRECT_ARM, "e16-empty": DIRECT_ARM}
     | {"e17-thin": DIRECT_ARM, "e17-empty": DIRECT_ARM}
@@ -39,9 +40,10 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
 )
 """Each run family's reference arm, which every other arm's privacy is read against: `real`, or
 `bko-direct` for the perturbation runs and the coherent free-field runs, whose arms perturb its
-rows, for the donor-limit, microaggregation, tree-share and conditional `is_a` runs, whose arms
-change who donates them or what they draw, and for the synthetic-share runs, whose comparators
-each read against `bko-direct`."""
+rows, for the donor-limit, tree-share and conditional `is_a` runs, whose arms change who donates
+them or what they draw, and for the synthetic-share runs, whose comparators each read against
+`bko-direct`; or `bko-capped` for the microaggregation runs, whose candidate `bko-micro` refines
+`bko-capped`'s draw, so `bko-micro` and `bko-direct` each read against it."""
 
 
 def reference_of(

@@ -52,8 +52,8 @@ def test_each_e20_runs_slices_cover_its_holdouts_once(name, micro, e9):
 
 
 @pytest.mark.parametrize(("name", "micro", "e9"), PAIRS)
-def test_the_reference_of_an_e20_run_is_bko_direct(name, micro, e9):
-    assert REFERENCE[f"e20-{name}"] == DIRECT_ARM
+def test_the_reference_of_an_e20_run_is_bko_capped(name, micro, e9):
+    assert REFERENCE[f"e20-{name}"] == CAPPED_ARM
     assert micro.removal is not None
     for run in (f"e20-{name}", f"e20-{name}c"):
-        assert reference_of(run, RUNS[run].experiment, RUNS) == (DIRECT_ARM, micro.removal.cell)
+        assert reference_of(run, RUNS[run].experiment, RUNS) == (CAPPED_ARM, micro.removal.cell)

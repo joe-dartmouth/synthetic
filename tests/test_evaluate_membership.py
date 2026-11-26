@@ -27,6 +27,7 @@ from bko.evaluate import membership
 from bko.evaluate.__main__ import main
 from bko.evaluate.attack_stats import Attack
 from bko.evaluate.context import Context
+from bko.evaluate.direct_arms import CAPPED_ARM
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.membership import (
@@ -815,7 +816,7 @@ def test_a_run_lacking_its_reference_arm_or_a_removed_cell_is_refused(monkeypatc
         reference_of("e1", dataclasses.replace(lacking, removal=None), {})
 
 
-def test_the_e6_and_control_runs_read_against_real_and_e10_e14_to_e18_and_e20_against_bko_direct():
+def test_each_run_family_reads_against_its_reference_arm():
     assert dict(membership.REFERENCE) == {
         "e6-thin": REAL_ARM,
         "e6-empty": REAL_ARM,
@@ -825,8 +826,8 @@ def test_the_e6_and_control_runs_read_against_real_and_e10_e14_to_e18_and_e20_ag
         "e13": REAL_ARM,
         "e14-thin": DIRECT_ARM,
         "e14-empty": DIRECT_ARM,
-        "e20-thin": DIRECT_ARM,
-        "e20-empty": DIRECT_ARM,
+        "e20-thin": CAPPED_ARM,
+        "e20-empty": CAPPED_ARM,
         "e15-thin": DIRECT_ARM,
         "e15-empty": DIRECT_ARM,
         "e16-thin": DIRECT_ARM,
