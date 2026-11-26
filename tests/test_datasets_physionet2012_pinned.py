@@ -161,8 +161,9 @@ def test_the_cohort_line_and_the_records_are_the_adrs(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
         records = frame_records(list(_stays()), deaths)
     assert caplog.messages[-1].startswith(
-        "cohort dataset=physionet2012 stays=12000 unknown_age=0 unknown_sex=12 left_out=12 "
-        "records=11988 died=1706 unnamed=2403 below_zero=59 "
+        "cohort dataset=physionet2012 stays=12000 stays_a=4000 stays_b=4000 stays_c=4000 "
+        "unknown_age=0 unknown_sex=12 left_out=12 records=11988 died=1706 unnamed=2403 missing=0 "
+        "below_zero=59 "
     )
     assert digest(records) == "5ca824f645d6a37af0aa99c29d37556f8994ba3cde2941cdac61b807b0678f48"
 

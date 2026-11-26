@@ -1,8 +1,8 @@
 """PhysioNet/CinC Challenge 2012: one frame record per ICU stay, labelled by in-hospital death.
 
 `load_physionet2012` reads the three sets' stays from their verified archives, never extracting
-them (`bko.datasets.archive`), and each set's outcomes file. A stay is a CSV of `Time,Parameter,
-Value` lines over its first 48 hours; `-1` means missing. Each variable is reduced over the whole
+them (`bko.datasets.archive`), and each set's outcomes file. A stay is an ASCII CSV of
+`Time,Parameter,Value` lines over its first 48 hours; `-1` means missing. Each variable is reduced over the whole
 48 hours and over the values at or above 0 to its minimum and its maximum, and each field the
 frame names is coded at its cited cutoff (`bko.datasets.states.coded`), `0` = not measured. A
 stay whose `Age` or `Gender` is -1 is left out and counted; an empty `Parameter`, which names no
@@ -78,20 +78,20 @@ GENDERS: Final = frozenset({0, 1})
 MISSING: Final = -1.0
 """The value the files write for missing or unknown data."""
 
-_SIRS: Final = "singer-2016"
+_SINGER: Final = "singer-2016"
 REDUCED: Final[Mapping[str, tuple[str, str, Cutoffs]]] = MappingProxyType(
     {
-        "hr_max": ("HR", "max", Cutoffs(above=(90.0,), source=_SIRS)),
-        "resprate_max": ("RespRate", "max", Cutoffs(above=(20.0,), source=_SIRS)),
-        "temp_max": ("Temp", "max", Cutoffs(above=(38.0,), source=_SIRS)),
-        "temp_min": ("Temp", "min", Cutoffs(at_or_above=(36.0,), source=_SIRS)),
-        "wbc_max": ("WBC", "max", Cutoffs(above=(12.0,), source=_SIRS)),
-        "wbc_min": ("WBC", "min", Cutoffs(at_or_above=(4.0,), source=_SIRS)),
-        "map_min": ("MAP", "min", Cutoffs(at_or_above=(70.0,), source=_SIRS)),
-        "creatinine_max": ("Creatinine", "max", Cutoffs(at_or_above=(1.2,), source=_SIRS)),
-        "bilirubin_max": ("Bilirubin", "max", Cutoffs(at_or_above=(1.2,), source=_SIRS)),
-        "platelets_min": ("Platelets", "min", Cutoffs(at_or_above=(150.0,), source=_SIRS)),
-        "gcs_min": ("GCS", "min", Cutoffs(at_or_above=(15.0,), source=_SIRS)),
+        "hr_max": ("HR", "max", Cutoffs(above=(90.0,), source=_SINGER)),
+        "resprate_max": ("RespRate", "max", Cutoffs(above=(20.0,), source=_SINGER)),
+        "temp_max": ("Temp", "max", Cutoffs(above=(38.0,), source=_SINGER)),
+        "temp_min": ("Temp", "min", Cutoffs(at_or_above=(36.0,), source=_SINGER)),
+        "wbc_max": ("WBC", "max", Cutoffs(above=(12.0,), source=_SINGER)),
+        "wbc_min": ("WBC", "min", Cutoffs(at_or_above=(4.0,), source=_SINGER)),
+        "map_min": ("MAP", "min", Cutoffs(at_or_above=(70.0,), source=_SINGER)),
+        "creatinine_max": ("Creatinine", "max", Cutoffs(at_or_above=(1.2,), source=_SINGER)),
+        "bilirubin_max": ("Bilirubin", "max", Cutoffs(at_or_above=(1.2,), source=_SINGER)),
+        "platelets_min": ("Platelets", "min", Cutoffs(at_or_above=(150.0,), source=_SINGER)),
+        "gcs_min": ("GCS", "min", Cutoffs(at_or_above=(15.0,), source=_SINGER)),
     }
 )
 """Each coded field: the variable it reduces, `max` or `min`, and its cutoffs, the SIRS criteria
@@ -117,9 +117,11 @@ READ: Final = frozenset(
 FEATURES: Final = ("age", "sex", "ICUType", *MEASURED, "mechvent")
 """The frame's features, in record order."""
 
-_TIME: Final = re.compile(r"(\d\d):([0-5]\d)")
+_TIME: Final = re.compile(r"([0-9][0-9]):([0-5][0-9])")
 _LAST_MINUTE: Final = 48 * 60
-_NAME: Final = re.compile(r"set-([abc])/(\d+)\.txt")
+_NAME: Final = re.compile(r"set-([abc])/([0-9]+)\.txt")
+_NUMBER: Final = re.compile(r"-?[0-9]+(\.[0-9]+)?(e\+[0-9]+)?")
+"""A value as the files write it: decimal digits, or the exponent form such as `1.213e+04`."""
 
 
 @dataclass(slots=True)
@@ -127,22 +129,32 @@ class Stay:
     """One stay as read: its descriptors and the values at or above 0 of each variable it reads.
 
     Attributes:
+        label: Its set, `a`, `b` or `c`, from its member's name.
         record_id: Its `RecordID`, equal to its member's name.
         age: `Age`, -1 when unknown.
         gender: `Gender`, -1 when unknown.
         icu_type: `ICUType`.
         values: Each read variable's values at or above 0, in file order.
         unnamed: Its lines with an empty `Parameter`, skipped.
-        below_zero: Its lines of a read variable whose value is below 0, -1 included.
+        missing: Its lines of a read variable whose value is -1, missing by the page's rule.
+        below_zero: Its lines of a read variable whose value is below 0 but not -1. Only
+            `MechVent`'s values are checked against a set of codes; any other read variable's
+            value below 0 is counted here, not refused, and no value is checked against a range.
     """
 
+    label: str
     record_id: int
     age: float
     gender: float
     icu_type: float
     values: dict[str, list[float]] = field(default_factory=dict)
     unnamed: int = 0
+    missing: int = 0
     below_zero: int = 0
+
+    def fell_back(self, variable: str) -> bool:
+        """Whether `reduced(variable, ...)` reads its fallback: no value of it, one of that."""
+        return not self.values.get(variable) and bool(self.values.get(FALLBACK.get(variable, "")))
 
     def reduced(self, variable: str, how: str) -> float:
         """The minimum or maximum of `variable`'s values, then of its fallback's; NaN if none."""
@@ -153,11 +165,10 @@ class Stay:
 
 
 def _value(where: str, text: str) -> float:
-    try:
-        value = float(text)
-    except ValueError as exc:
-        msg = f"{where}: value {text!r} is not a number"
-        raise ContractError(msg) from exc
+    if not _NUMBER.fullmatch(text):
+        msg = f"{where}: value {text!r} is not a decimal number"
+        raise ContractError(msg)
+    value = float(text)
     if not math.isfinite(value):
         msg = f"{where}: value {text!r} is not finite"
         raise ContractError(msg)
@@ -177,16 +188,19 @@ def parse_stay(name: str, text: str) -> Stay:
     """Read one stay's member `name`, `set-x/<RecordID>.txt`, and its text.
 
     Raises:
-        ContractError: If the name is not a stay's, the text does not end in a newline or start
-            with `HEADER`, a line does not hold three fields, a time from `00:00` to `48:00` and
-            a finite number, a `Parameter` is neither empty nor a descriptor or time series, a
-            descriptor of `ONCE` is missing, repeated or not at `00:00`, `RecordID` is not the
-            name's, `Age` is not whole, `Gender` is not 0, 1 or -1, `ICUType` is not 1 to 4, or
-            `MechVent` is not 0, 1 or -1.
+        ContractError: If the name is not a stay's, the text is not ASCII, does not end in a
+            newline or start with `HEADER`, a line does not hold three fields, a time from `00:00`
+            to `48:00` and a finite decimal number (`_NUMBER`), a `Parameter` is neither empty
+            nor a descriptor or time series, a descriptor of `ONCE` is missing, repeated or not at
+            `00:00`, `RecordID` is not the name's, `Age` is not whole, `Gender` is not 0, 1 or -1,
+            `ICUType` is not 1 to 4, or `MechVent` is not 0, 1 or -1.
     """
     named = _NAME.fullmatch(name)
     if named is None:
         msg = f"{name}: not a stay's name set-x/<RecordID>.txt"
+        raise ContractError(msg)
+    if not text.isascii():
+        msg = f"{name}: not ASCII text"
         raise ContractError(msg)
     if not text.endswith("\n"):
         msg = f"{name}: does not end in a newline"
@@ -197,7 +211,7 @@ def parse_stay(name: str, text: str) -> Stay:
         raise ContractError(msg)
     found: dict[str, float] = {}
     values: dict[str, list[float]] = {variable: [] for variable in READ}
-    unnamed = below_zero = 0
+    counts = {"unnamed": 0, "missing": 0, "below_zero": 0}
     for number, line in enumerate(lines[1:], start=2):
         where = f"{name} line {number}"
         fields = line.split(",")
@@ -207,7 +221,7 @@ def parse_stay(name: str, text: str) -> Stay:
         minute = _minute(where, fields[0])
         parameter, value = fields[1], _value(where, fields[2])
         if not parameter:
-            unnamed += 1
+            counts["unnamed"] += 1
         elif parameter in ONCE:
             if minute or parameter in found:
                 msg = f"{where}: {parameter} must appear once, at 00:00"
@@ -223,23 +237,23 @@ def parse_stay(name: str, text: str) -> Stay:
             if value >= 0:
                 values[parameter].append(value)
             else:
-                below_zero += 1
-    return _checked(name, int(named[2]), found, values, unnamed, below_zero)
+                counts["missing" if value == MISSING else "below_zero"] += 1
+    return _checked(name, (named[1], int(named[2])), found, values, counts)
 
 
 def _checked(
     name: str,
-    record_id: int,
+    member: tuple[str, int],
     found: Mapping[str, float],
     values: dict[str, list[float]],
-    unnamed: int,
-    below_zero: int,
+    counts: Mapping[str, int],
 ) -> Stay:
     """The stay from its parsed descriptors, refusing one that is missing or out of its codes."""
     absent = [descriptor for descriptor in ONCE if descriptor not in found]
     if absent:
         msg = f"{name}: no {absent[0]} at 00:00"
         raise ContractError(msg)
+    label, record_id = member
     checks = (
         ("RecordID", found["RecordID"] == record_id, f"not the name's {record_id}"),
         (
@@ -255,13 +269,15 @@ def _checked(
             msg = f"{name}: {descriptor} is {found[descriptor]:g}, {why}"
             raise ContractError(msg)
     return Stay(
+        label=label,
         record_id=record_id,
         age=found["Age"],
         gender=found["Gender"],
         icu_type=found["ICUType"],
         values=values,
-        unnamed=unnamed,
-        below_zero=below_zero,
+        unnamed=counts["unnamed"],
+        missing=counts["missing"],
+        below_zero=counts["below_zero"],
     )
 
 
@@ -295,7 +311,7 @@ def parse_outcomes(text: str, where: str) -> dict[int, int]:
 
 
 def _stays(data: bytes, label: str, source: Source) -> Iterator[Stay]:
-    pattern = re.compile(rf"set-{label}/\d+\.txt")
+    pattern = re.compile(rf"set-{label}/[0-9]+\.txt")
     read = tar_members if label in TARRED else members
     for name, text in read(data, pattern, source):
         yield parse_stay(name, text)
@@ -317,9 +333,11 @@ def _matched(label: str, stays: Sequence[Stay], deaths: Mapping[int, int]) -> No
 def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFrame:
     """Return the records of the stays whose age and sex are known, in `RecordID` order.
 
-    Logs one `cohort` line: the stays, those of unknown age and of unknown sex, the stays left
-    out, the records and their deaths, the skipped empty-`Parameter` lines and read values
-    below 0, and per coded field the records it was measured on.
+    Logs one `cohort` line: the stays, in all and per set, those of unknown age and of unknown
+    sex, the stays left out, the records and their deaths, the skipped empty-`Parameter` lines,
+    the read values of -1 and those below 0 but not -1, per coded field the records it was
+    measured on, the records whose `map_min` reads `NIMAP` for want of `MAP`, and the records
+    ventilated.
 
     Returns:
         `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
@@ -346,18 +364,21 @@ def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFr
     }
     records = pd.DataFrame(columns, index=index).astype("int64")
     logger.info(
-        "cohort dataset=%s stays=%d unknown_age=%d unknown_sex=%d left_out=%d records=%d died=%d "
-        "unnamed=%d below_zero=%d %s mechvent=%d",
+        "cohort dataset=%s stays=%d %s unknown_age=%d unknown_sex=%d left_out=%d records=%d "
+        "died=%d unnamed=%d missing=%d below_zero=%d %s map_from_nimap=%d mechvent=%d",
         PHYSIONET2012_NAME,
         len(stays),
+        " ".join(f"stays_{label}={sum(s.label == label for s in stays)}" for label in SETS),
         sum(stay.age == MISSING for stay in stays),
         sum(stay.gender == MISSING for stay in stays),
         len(stays) - len(kept),
         len(records),
         int(records[LABEL].sum()),
         sum(stay.unnamed for stay in stays),
+        sum(stay.missing for stay in stays),
         sum(stay.below_zero for stay in stays),
         " ".join(f"measured_{name}={int((records[name] != 0).sum())}" for name in MEASURED),
+        sum(stay.fell_back("MAP") for stay in kept),
         int(records["mechvent"].sum()),
     )
     return records

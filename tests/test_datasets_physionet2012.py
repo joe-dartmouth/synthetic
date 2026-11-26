@@ -160,11 +160,18 @@ def test_minus_1_is_missing() -> None:
     assert (record["hr_max"], record["temp_max"], record["temp_min"]) == (0, 1, 2)
 
 
-def test_a_value_below_0_is_no_reading_and_is_counted(caplog) -> None:
+def test_a_value_below_0_is_no_reading_and_is_counted_apart_from_minus_1(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
-        record = one(("01:00", "Temp", "-17.8"), ("02:00", "Temp", "36.5"), ("03:00", "HR", "-1"))
-    assert (record["temp_min"], record["hr_max"]) == (2, 0)
-    assert " below_zero=2 " in caplog.messages[-1]
+        record = one(
+            ("01:00", "Temp", "-17.8"),
+            ("02:00", "Temp", "36.5"),
+            ("03:00", "HR", "-1"),
+            ("04:00", "WBC", "-1"),
+            ("05:00", "WBC", "-0.5"),
+            ("06:00", "Lactate", "-2"),
+        )
+    assert (record["temp_min"], record["hr_max"], record["wbc_min"]) == (2, 0, 0)
+    assert " missing=2 below_zero=2 " in caplog.messages[-1]
 
 
 def test_a_recorded_0_is_a_reading() -> None:
@@ -216,8 +223,8 @@ def test_a_stay_with_unknown_age_or_gender_is_left_out_and_counted(unknown, capl
     assert list(found.index) == [2]
     ages, sexes = int("age" in unknown), int("gender" in unknown)
     assert caplog.messages[-1].startswith(
-        f"cohort dataset=physionet2012 stays=2 unknown_age={ages} unknown_sex={sexes} "
-        "left_out=1 records=1 died=0 unnamed=0 below_zero=0 "
+        f"cohort dataset=physionet2012 stays=2 stays_a=2 stays_b=0 stays_c=0 unknown_age={ages} "
+        f"unknown_sex={sexes} left_out=1 records=1 died=0 unnamed=0 missing=0 below_zero=0 "
     )
 
 
@@ -233,7 +240,28 @@ def test_the_cohort_line_counts_measured_fields_and_ventilation(caplog) -> None:
         records((stay(1, ("01:00", "HR", "70"), ("02:00", "MechVent", "1")), 0), (stay(2), 1))
     message = caplog.messages[-1]
     assert " measured_hr_max=1 measured_resprate_max=0 " in message
-    assert message.endswith(" measured_gcs_min=0 mechvent=1")
+    assert message.endswith(" measured_gcs_min=0 map_from_nimap=0 mechvent=1")
+
+
+def test_the_cohort_line_counts_the_records_whose_map_is_the_cuffs(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
+        records(
+            (stay(1, ("01:00", "MAP", "80"), ("02:00", "NIMAP", "60")), 0),
+            (stay(2, ("01:00", "NIMAP", "60")), 0),
+            (stay(3, ("01:00", "MAP", "-1"), ("02:00", "NIMAP", "65")), 0),
+            (stay(4, ("01:00", "NIMAP", "65"), gender="-1"), 0),
+            (stay(5), 1),
+        )
+    assert " measured_map_min=3 " in caplog.messages[-1]
+    assert " map_from_nimap=2 " in caplog.messages[-1]
+
+
+def test_the_cohort_line_counts_each_sets_stays(tmp_path: Path, caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
+        load_physionet2012(tmp_path, sources=planted(tmp_path, real_sets()))
+    assert caplog.messages[-1].startswith(
+        "cohort dataset=physionet2012 stays=14 stays_a=6 stays_b=4 stays_c=4 "
+    )
 
 
 def test_the_header_must_be_the_published_one() -> None:
@@ -252,8 +280,17 @@ def test_the_header_must_be_the_published_one() -> None:
         ("48:01,HR,70", r"line 8: time '48:01' is not hh:mm from 00:00 to 48:00"),
         ("1:00,HR,70", r"line 8: time '1:00' is not hh:mm"),
         ("01:60,HR,70", r"line 8: time '01:60' is not hh:mm"),
-        ("01:00,HR,", r"line 8: value '' is not a number"),
-        ("01:00,HR,nan", r"line 8: value 'nan' is not finite"),
+        ("01:00,HR,", r"line 8: value '' is not a decimal number"),
+        ("01:00,HR,nan", r"line 8: value 'nan' is not a decimal number"),
+        ("01:00,HR,inf", r"line 8: value 'inf' is not a decimal number"),
+        ("01:00,HR,1_000", r"line 8: value '1_000' is not a decimal number"),
+        ("01:00,HR, 70", r"line 8: value ' 70' is not a decimal number"),
+        ("01:00,HR,+70", r"line 8: value '\+70' is not a decimal number"),
+        ("01:00,HR,.5", r"line 8: value '\.5' is not a decimal number"),
+        ("01:00,HR,70.", r"line 8: value '70\.' is not a decimal number"),
+        ("01:00,HR,1e4", r"line 8: value '1e4' is not a decimal number"),
+        ("01:00,HR,1E+04", r"line 8: value '1E\+04' is not a decimal number"),
+        ("01:00,HR,1e+999", r"line 8: value '1e\+999' is not finite"),
         ("01:00,Heart,70", r"line 8: 'Heart' is no descriptor or time series"),
         ("01:00,Age,70", r"line 8: Age must appear once, at 00:00"),
         ("00:00,Gender,0", r"line 8: Gender must appear once, at 00:00"),
@@ -283,6 +320,22 @@ def test_a_malformed_line_names_its_line(line: str, match: str) -> None:
 def test_a_malformed_stay_is_refused(edit, match: str) -> None:
     with pytest.raises(ContractError, match=rf"set-a/1\.txt: {match}"):
         parse_stay("set-a/1.txt", edit(stay(1)))
+
+
+def test_the_exponent_form_the_files_hold_is_read() -> None:
+    record = one(("01:00", "Platelets", "1.213e+02"), ("02:00", "WBC", "-1.2e+01"))
+    assert (record["platelets_min"], record["wbc_min"]) == (1, 0)
+
+
+def test_a_stay_that_is_not_ascii_is_refused() -> None:
+    text = stay(1) + "01:00,HR,\u0667\u0660\n"
+    with pytest.raises(ContractError, match=r"set-a/1\.txt: not ASCII text"):
+        parse_stay("set-a/1.txt", text)
+
+
+def test_a_name_with_other_than_ascii_digits_is_refused() -> None:
+    with pytest.raises(ContractError, match=r"set-a/\u0661\.txt: not a stay's name"):
+        parse_stay("set-a/\u0661.txt", stay(1))
 
 
 def test_a_descriptor_once_but_not_at_0000_is_refused() -> None:

@@ -90,9 +90,10 @@ all, and a damaged archive are refused.
 **2. The records.** One record per stay, `record_id` its `RecordID`, which must equal its member's
 name; a `RecordID` repeated across the three sets is refused. Each set's outcomes file must hold
 exactly one line per stay of that set: a stay with no outcome line and an outcome line with no
-stay are refused. A stay must end in a newline, start with the header, and hold three fields per
-line, a time from `00:00` to `48:00`, and a finite number. `RecordID`, `Age`, `Gender`, `Height`
-and `ICUType` each appear once, at `00:00`; `Age` must be whole, `Gender` 0, 1 or -1, `ICUType`
+stay are refused. A stay must be ASCII text, end in a newline, start with the header, and hold
+three fields per line, a time from `00:00` to `48:00`, and a finite decimal number: digits with an
+optional fraction, or the exponent form the files hold, such as `1.213e+04`. `RecordID`, `Age`,
+`Gender`, `Height` and `ICUType` each appear once, at `00:00`; `Age` must be whole, `Gender` 0, 1 or -1, `ICUType`
 1 to 4, and each `MechVent` value 0, 1 or -1. A `Parameter` that is none of the six descriptors and 37 time series is refused, except
 an empty one, which names no variable: its line is skipped and counted.
 
@@ -101,8 +102,10 @@ an empty one, which names no variable: its line is skipped and counted.
 Age bands start at 50, 65 and 80.
 
 **4. The reduction rule.** Per stay and variable, over the whole 48 hours and over the values at
-or above 0: the minimum and the maximum. A value below 0, -1 or another, is not a reading; such
-lines of the variables the frame reads are counted. A stay with no value at or above 0 of a
+or above 0: the minimum and the maximum. A value below 0, -1 or another, is not a reading; of the
+variables the frame reads, the lines of -1 are counted as missing and the lines of another value
+below 0 apart. Only `MechVent`'s values are checked against codes; no value is checked against a
+range. A stay with no value at or above 0 of a
 variable did not measure it.
 
 **5. The fields.** `age`, `sex`, `ICUType` (its four codes, as the page gives them), then these

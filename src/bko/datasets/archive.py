@@ -11,6 +11,7 @@ device, an absolute or parent path, a name outside its pattern, a repeated name,
 from __future__ import annotations
 
 import io
+import lzma
 import re
 import stat
 import tarfile
@@ -36,8 +37,11 @@ _ZIP_ERRORS: Final = (
     NotImplementedError,
     RuntimeError,
     EOFError,
+    OSError,
+    lzma.LZMAError,
 )
-"""What reading a damaged, encrypted or non-UTF-8 zip raises."""
+"""What reading a damaged, encrypted or non-UTF-8 zip raises: a corrupt bzip2 member raises
+`OSError`, a corrupt LZMA member `lzma.LZMAError`."""
 
 _TAR_ERRORS: Final = (tarfile.TarError, zlib.error, UnicodeDecodeError, EOFError, OSError)
 """What reading a damaged gzip stream, tar or non-UTF-8 member raises."""

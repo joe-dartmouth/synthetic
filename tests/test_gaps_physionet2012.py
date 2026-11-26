@@ -113,8 +113,10 @@ def test_gaps_physionet2012_logs_its_records_and_its_split_once(tmp_path: Path, 
     ]
     assert [name for name, _ in found] == ["bko.datasets.physionet2012", "bko.gaps", "bko.datasets"]
     assert found[0][1].startswith(
-        f"cohort dataset=physionet2012 stays={RECORDS} unknown_age=0 unknown_sex=0 left_out=0 "
-        f"records={RECORDS} died={DIED} unnamed=0 below_zero=0 measured_hr_max={MEASURED_HR} "
+        f"cohort dataset=physionet2012 stays={RECORDS} stays_a={len(STAYS['a'])} "
+        f"stays_b={len(STAYS['b'])} stays_c={len(STAYS['c'])} unknown_age=0 unknown_sex=0 "
+        f"left_out=0 records={RECORDS} died={DIED} unnamed=0 missing=0 below_zero=0 "
+        f"measured_hr_max={MEASURED_HR} "
     )
     assert TRAIN + TEST == RECORDS
     assert found[1:] == [

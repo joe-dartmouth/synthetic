@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator
 
 import pytest
 
-from bko.datasets.archive import members, tar_members
+from bko.datasets.archive import member_text, members, tar_members
 from bko.datasets.errors import ContractError
 from bko.datasets.sources import Source
 from tests._datasets_fixtures import pin
@@ -282,3 +282,38 @@ def test_a_damaged_zip_is_a_contract_error(make, match: str) -> None:
 def test_the_zip_fixture_deflates_its_members() -> None:
     bundle = zipfile.ZipFile(io.BytesIO(zipped(("set-a/1.txt", "a\n"))))
     assert [info.compress_type for info in bundle.infolist()] == [zipfile.ZIP_DEFLATED]
+
+
+def _member_zip(method: int) -> bytes:
+    """A zip of one member compressed by `method`."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as bundle:
+        info = zipfile.ZipInfo("set-a/1.txt", date_time=(2012, 5, 8, 1, 23, 0))
+        info.compress_type = method
+        bundle.writestr(info, "a\n" * 2000)
+    return buffer.getvalue()
+
+
+def _corrupt_stream(data: bytes) -> bytes:
+    """Overwrite eight bytes of the first member's compressed stream, past its first four."""
+    name, extra = struct.unpack("<HH", data[26:30])
+    at = 30 + name + extra + 4
+    return data[:at] + b"\x00" * 8 + data[at + 8 :]
+
+
+@pytest.mark.parametrize(
+    ("method", "match"),
+    [
+        (zipfile.ZIP_BZIP2, "OSError: Invalid data stream"),
+        (zipfile.ZIP_LZMA, "LZMAError: Corrupt input data"),
+    ],
+    ids=["bzip2", "lzma"],
+)
+def test_a_corrupt_bzip2_or_lzma_member_is_a_contract_error(method: int, match: str) -> None:
+    data = _corrupt_stream(_member_zip(method))
+    with pytest.raises(
+        ContractError, match=re.escape(f"physionet2012-set-a: cannot read the archive: {match}")
+    ):
+        list(members(data, PATTERN, SOURCE))
+    with pytest.raises(ContractError, match=re.escape(f"cannot read set-a/1.txt: {match}")):
+        member_text(data, "set-a/1.txt", SOURCE)
