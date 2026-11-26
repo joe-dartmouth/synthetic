@@ -13,7 +13,6 @@ from typing import BinaryIO
 import pytest
 
 from bko.datasets.sources import Source
-from bko.datasets.support2 import load_support2
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, dataset_releases, digest, field_rows, frame, load
 from bko.ontology.catalog import CATALOG
@@ -25,6 +24,8 @@ from tests._support2_fixtures import support2_archive
 
 ARCHIVE = support2_archive()
 PIN = pin(ARCHIVE, "support2")
+MIXED_DIGEST = "b82d2872761d699238d7045ebb7485b05449640f33b5755a8c335c3fcf2177a9"
+"""The sha256 of `mixed_rows()`'s records as `bko.evaluate.data.digest` renders them."""
 
 
 def _refusing_opener(url: str, timeout: float) -> BinaryIO:
@@ -46,17 +47,15 @@ def test_the_support2_dataset_loads_and_logs_its_data_line(tmp_path: Path, caplo
     assert Dataset.SUPPORT2.value == "support2"
     assert data.frame.name == "support2"
     assert tuple(data.records.columns) == data.frame.columns
-    assert data.records.equals(load_support2(tmp_path, sources=(PIN,)))
+    assert len(data.records) == 12
+    assert digest(data.records) == MIXED_DIGEST
     assert (data.field_rows, data.name, data.agreement, data.held) == (
         SUPPORT2_FIELD_ROWS,
         "support2",
         None,
         None,
     )
-    line = (
-        f"data dataset=support2 frame=support2 records={len(data.records)} "
-        f"digest={digest(data.records)} agreement=none"
-    )
+    line = f"data dataset=support2 frame=support2 records=12 digest={MIXED_DIGEST} agreement=none"
     assert line in caplog.messages
 
 

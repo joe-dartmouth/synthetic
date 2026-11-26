@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from bko.datasets.errors import ContractError
+from bko.datasets.frames import digest
 from bko.datasets.sources import SUPPORT2, Agreement
 from bko.datasets.support2 import load_support2
 from bko.datasets.support2_frame import support2_frame
@@ -48,7 +49,8 @@ def test_read_fetches_each_source_then_loads_and_checks(tmp_path: Path) -> None:
     assert [url for url, _ in opener.calls] == [PIN.url]
     assert frame.name == "support2"
     assert tuple(records.columns) == frame.columns
-    pd.testing.assert_frame_equal(records, load_support2(tmp_path, sources=(PIN,)))
+    assert len(records) == 12
+    assert digest(records) == "b82d2872761d699238d7045ebb7485b05449640f33b5755a8c335c3fcf2177a9"
     again, _ = entry.read(tmp_path, open_url=_refusing_opener)
     assert again.equals(records)
 

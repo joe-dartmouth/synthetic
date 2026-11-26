@@ -14,6 +14,7 @@ from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.contradictions import CENSUS, CHOICES, Framed, run
 from bko.evaluate.data import Dataset
+from bko.gaps.contradictions import KINDS
 from bko.ontology.catalog import CATALOG
 from bko.ontology.schema import Codes, FieldMapping
 from tests._datasets_fixtures import pin
@@ -133,4 +134,4 @@ def test_the_support2_census_reads_its_training_split(tmp_path: Path, caplog) ->
         text = run(tmp_path, context, (Dataset.SUPPORT2,))
     assert text.startswith("kind,frame,cell,")
     assert any(m.startswith("census data frame=support2 records=") for m in caplog.messages)
-    assert sum(m.startswith("census kind=") for m in caplog.messages) == 5
+    assert sum(m.startswith("census kind=") for m in caplog.messages) == len(KINDS)

@@ -21,6 +21,7 @@ from bko.datasets.split import split
 from bko.datasets.states import tertiles
 from bko.datasets.support2 import DECIMALS, MEMBER, TERTILES, checked, measured, parse_support2
 from bko.ontology.catalog import CATALOG
+from tests._support2_fixtures import REAL_HEADER, REAL_ROW
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
@@ -42,6 +43,12 @@ def test_the_archive_is_the_pinned_bytes() -> None:
         "8ed43980742a18e1847a8dfc5530bc4b30564ad9e4ad1b1b50bbc5d29d8c86fe"
     )
     assert zipfile.ZipFile(io.BytesIO(data)).namelist() == [MEMBER]
+
+
+def test_the_fixtures_real_header_and_row_are_the_files() -> None:
+    data = read_verified(SUPPORT2, default_data_dir())
+    lines = zipfile.ZipFile(io.BytesIO(data)).read(MEMBER).decode("utf-8").splitlines()
+    assert (lines[0], lines[1]) == (REAL_HEADER, REAL_ROW)
 
 
 def test_the_cohort_and_the_training_splits_death_rate() -> None:

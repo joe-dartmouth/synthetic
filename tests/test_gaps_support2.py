@@ -6,6 +6,7 @@ import dataclasses
 import io
 import logging
 import urllib.error
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ from bko.ontology.schema import Codes, FieldMapping
 from tests._datasets_fixtures import pin
 from tests._gaps_fixtures import ladder_releases
 from tests._ontology_fixtures import RoutingOpener
-from tests._support2_fixtures import support2_archive
+from tests._support2_fixtures import row, support2_archive
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -39,7 +40,24 @@ DEATH = FieldMapping(
     source="t",
     limits="t",
 )
-"""Rows on SUPPORT2's fields that name the ladder releases' concepts."""
+DEMENTIA = FieldMapping(
+    when=(Codes("dementia", frozenset({1})),),
+    concept="MONDO:9000005",
+    label="unrelated disorder",
+    source="t",
+    limits="t",
+)
+"""Rows on SUPPORT2's fields that name the ladder releases' concepts; no record has dementia."""
+
+CELLS = 4 * 2 * 2
+"""The grid: four age bands (edges 50, 65 and 80), two sexes and two labels."""
+
+SPLIT_ROWS = (
+    *(row(n, age=" 70.5", sex="male", hospdead="0", hrt=" 91.0") for n in range(1, 21)),
+    *(row(n, age=" 70.5", sex="female", hospdead="0", hrt=" 80.0") for n in range(21, 41)),
+    row(41, age=" 40.5", sex="male", hospdead="1", hrt=" 80.0"),
+)
+"""Tachycardia in every 65-79 male survivor and in no 65-79 female survivor, one death under 50."""
 
 
 def make_context(**change) -> Context:
@@ -59,26 +77,46 @@ def run(data_dir: Path, context: Context) -> tuple[int, str]:
     return code, out.getvalue()
 
 
-def test_gaps_support2_lists_the_training_splits_gaps(tmp_path: Path, caplog) -> None:
+def test_gaps_support2_lists_every_detectors_gaps(tmp_path: Path, caplog) -> None:
+    pins, served = ladder_releases()
+    archive = support2_archive(*SPLIT_ROWS)
+    source = pin(archive, "support2")
+    entry = dataclasses.replace(
+        CATALOG["support2"], sources=(source,), rows=(TACHYCARDIA, DEATH, DEMENTIA)
+    )
+    context = Context(
+        open_url=RoutingOpener({**served, source.url: archive}),
+        releases=pins,
+        catalog={"support2": entry},
+    )
     with caplog.at_level(logging.INFO, logger="bko.gaps"):
-        code, out = run(tmp_path, make_context())
+        code, out = run(tmp_path, context)
     assert code == 0
     lines = out.splitlines()
     assert lines[0] == (
         "detector,source,antecedent,antecedent_label,consequent,consequent_label,"
         "age_band,sex,target,count"
     )
-    assert {line.split(",")[0] for line in lines[1:]} <= {
-        "per-subgroup",
-        "population-level",
-        "frequency-aware",
-        "count",
+    detectors = Counter(line.split(",")[0] for line in lines[1:])
+    assert detectors == {
+        "per-subgroup": 60,
+        "population-level": CELLS,
+        "frequency-aware": 2,
+        "count": CELLS,
     }
-    counts = [line for line in lines if line.startswith("count,")]
-    assert len(counts) == 16
-    assert "count,,,,,,>=80,male,1,0" in counts
-    assert any(m.startswith("observed dataset=support2 records=") for m in caplog.messages)
-    assert any(m.startswith("gaps rows=") for m in caplog.messages)
+    assert [line for line in lines if line.startswith("frequency-aware,")] == [
+        (
+            "frequency-aware,hpo,HP:9000002,Chest pain,HP:9000001,Phenotypic abnormality,"
+            "65-79,female,0,"
+        ),
+        "frequency-aware,hpo,HP:9000003,Angina pectoris,HP:9000002,Chest pain,65-79,female,0,",
+    ]
+    assert (
+        "population-level,mondo,MONDO:9000005,unrelated disorder,MONDO:9000001,disease,>=80,male,1,"
+    ) in lines
+    assert "count,,,,,,65-79,female,0,16" in lines
+    assert "observed dataset=support2 records=33 held=2 of=3 " in caplog.text
+    assert any(m.startswith("gaps rows=94 sha256=") for m in caplog.messages)
 
 
 def test_gaps_support2_logs_its_records_and_its_split_once(tmp_path: Path, caplog) -> None:

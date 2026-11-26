@@ -14,6 +14,10 @@ from tests._registry import REGISTRY, read, registry_entries
 from tests._support2_fixtures import mixed_rows, text
 
 
+TWO_SIDED = ("temp", "wblc")
+"""The cited fields that map a band on each side of normal; every other cited field maps one."""
+
+
 def _frame():
     return support2_frame(frame_records(parse_support2(text(*mixed_rows()))))
 
@@ -103,7 +107,7 @@ def test_no_row_reads_scoma_or_a_tertile_field() -> None:
 def test_every_cutoff_row_cites_a_registered_source() -> None:
     keys = {key for _, key, _ in registry_entries(read(REGISTRY))}
     cutoff_rows = [row for row in SUPPORT2_FIELD_ROWS if any(c.field in CITED for c in row.when)]
-    assert len(cutoff_rows) == 10
+    assert len(cutoff_rows) == len(CITED) + len(TWO_SIDED)
     for row in cutoff_rows:
         assert row.source == "singer-2016", row
         assert "read in singer-2016's reproduction" in row.limits, row

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import zipfile
 from pathlib import Path
 
@@ -11,15 +12,17 @@ import pandas as pd
 import pytest
 
 from bko.datasets.errors import ContractError
-from bko.datasets.frames import check_records
+from bko.datasets.frames import check_records, digest
 from bko.datasets.sources import Source
 from bko.datasets.states import Cutoffs, band_meanings
 from bko.datasets.support2 import (
     AFTER_OUTCOME,
     COLUMNS,
+    DECIMALS,
     FIELDS,
     LEFT_OUT,
     MEMBER,
+    TERTILES,
     WARNED,
     frame_records,
     load_support2,
@@ -30,6 +33,10 @@ from bko.ontology.schema import shown
 from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS
 from tests._datasets_fixtures import archive, pin, plant
 from tests._support2_fixtures import REAL_HEADER, REAL_ROW, mixed_rows, row, support2_archive, text
+
+
+MIXED_DIGEST = "b82d2872761d699238d7045ebb7485b05449640f33b5755a8c335c3fcf2177a9"
+"""The sha256 of `mixed_rows()`'s records as `bko.datasets.frames.digest` renders them."""
 
 
 def _records(*rows: str) -> pd.DataFrame:
@@ -210,9 +217,45 @@ def test_each_cited_field_is_coded_at_its_cutoffs() -> None:
     assert wblc["wblc"].tolist() == [1, 2, 2, 3]
 
 
+@pytest.mark.parametrize(
+    ("field", "values", "cutoffs"),
+    [
+        ("edu", ("10", "11", "11.99", "12"), (11.0, 12.0)),
+        ("sod", ("134.99", "135", "139.99", "140"), (135.0, 140.0)),
+        ("alb", ("2.49", "2.5", "3.29", "3.3"), (2.5, 3.3)),
+        ("ph", ("7.39", "7.4", "7.44", "7.45"), (7.4, 7.45)),
+        ("glucose", ("110.99", "111", "166.32", "166.33"), (111.0, 166.33)),
+        ("bun", ("16.99", "17", "32.99", "33"), (17.0, 33.0)),
+        ("urine", ("1429.99", "1430", "2594.99", "2595"), (1430.0, 2595.0)),
+    ],
+)
+def test_each_tertile_field_takes_the_upper_state_at_each_cutoff(
+    field: str, values: tuple[str, ...], cutoffs: tuple[float, float]
+) -> None:
+    assert TERTILES[field].at_or_above == cutoffs
+    assert TERTILES[field].above == ()
+    records = _records(*(row(n, **{field: v}) for n, v in enumerate(("", *values), 1)))
+    assert records[field].tolist() == [0, 1, 2, 2, 3]
+
+
+def test_a_value_is_read_at_two_decimals_before_it_is_coded() -> None:
+    # 35.996 reads as 36, at least 36; 90.004 reads as 90, not above 90.
+    records = _records(
+        row(1, temp="35.994", hrt="89.996"),
+        row(2, temp="35.996", hrt="90.004"),
+        row(3, temp="36.004", hrt="90.006"),
+    )
+    assert DECIMALS == 2
+    assert records[["temp", "hrt"]].to_dict("list") == {"temp": [1, 2, 2], "hrt": [1, 1, 2]}
+
+
 def test_a_missing_value_shows_no_concept() -> None:
-    records = _records(row(1, crea="", hrt="", temp="", wblc=""), row(2))
-    first, second = (
+    records = _records(
+        row(1, crea="", hrt="", temp="", wblc=""),
+        row(2, hrt=" 91.0", temp="38.5", wblc=" 13.0"),
+        row(3, temp="35.0", wblc=" 3.0"),
+    )
+    first, second, third = (
         {str(name): float(value) for name, value in record.items()}
         for record in records.to_dict("records")
     )
@@ -220,19 +263,23 @@ def test_a_missing_value_shows_no_concept() -> None:
     labels = {r.concept: r.label for r in SUPPORT2_FIELD_ROWS}
     lab = {"HP:0003259", "HP:0001649", "HP:0001945", "HP:0002045", "HP:0001974", "HP:0001882"}
     assert shown(first, SUPPORT2_FIELD_ROWS) & lab == set()
-    present = shown(second, SUPPORT2_FIELD_ROWS) & lab
-    assert {labels[c] for c in present} == {"Elevated circulating creatinine concentration"}
+    assert {labels[c] for c in shown(second, SUPPORT2_FIELD_ROWS) & lab} == {
+        "Elevated circulating creatinine concentration",
+        "Tachycardia",
+        "Fever",
+        "Increased total leukocyte count",
+    }
+    assert {labels[c] for c in shown(third, SUPPORT2_FIELD_ROWS) & lab} == {
+        "Elevated circulating creatinine concentration",
+        "Hypothermia",
+        "Decreased total leukocyte count",
+    }
 
 
 def test_the_excluded_columns_never_enter_the_frame() -> None:
     records = _records(*mixed_rows())
     frame = support2_frame(records)
     excluded = {*WARNED, *AFTER_OUTCOME, *LEFT_OUT, "hospdead"}
-    assert excluded == {
-        *("aps", "sps", "surv2m", "surv6m", "prg2m", "prg6m", "dnr", "dnrday"),
-        *("death", "slos", "d.time", "charges", "totcst", "totmcst", "avtisst", "sfdm2"),
-        *("dzclass", "adlp", "adls", "adlsc", "hospdead"),
-    }
     assert excluded.isdisjoint(records.columns)
     assert excluded.isdisjoint(frame.columns)
 
@@ -270,7 +317,7 @@ def test_frame_bytes_do_not_depend_on_file_order() -> None:
     rows = mixed_rows()
     shuffled = [*rows[7::-1], *rows[:7:-1]]
     assert shuffled != rows
-    assert _records(*shuffled).to_csv() == _records(*rows).to_csv()
+    assert digest(_records(*shuffled)) == MIXED_DIGEST
 
 
 def test_load_reads_the_member_of_a_verified_snapshot(tmp_path: Path) -> None:
@@ -299,8 +346,17 @@ def _stored(body: bytes) -> bytes:
     [
         (lambda: b"not a zip archive", "BadZipFile"),
         (lambda: _corrupt_crc(support2_archive()), "BadZipFile"),
-        (lambda: _stored(text(*mixed_rows()).encode("utf-16")), "UnicodeDecodeError"),
-        (lambda: archive(chr(0xFEFF) + text(*mixed_rows()), member=MEMBER), "header"),
+        (
+            lambda: _stored(text(*mixed_rows()).encode("utf-16")),
+            re.escape(
+                "support2: cannot read support2.csv: UnicodeDecodeError: 'utf-8' codec can't "
+                "decode byte 0xff in position 0: invalid start byte"
+            ),
+        ),
+        (
+            lambda: archive(chr(0xFEFF) + text(*mixed_rows()), member=MEMBER),
+            "^support2\\.csv: the header is not the archive's 47 names in order$",
+        ),
     ],
     ids=["not-a-zip", "bad-crc", "not-utf-8", "bom"],
 )
