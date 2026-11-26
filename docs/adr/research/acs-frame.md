@@ -69,8 +69,8 @@ no occupation code and four of the six disability items.
   figure picks them.
 * **Must map an occupation only through the file's own SOC code**, and refuse a file where one
   `OCCP` code carries two.
-* **Must map a disability item only to a term whose name names it**, and list the rest as
-  unmapped.
+* **Must map a disability item only to the nearest live HPO term whose name or exact synonym
+  names an impairment of its faculty**, and list the rest as unmapped.
 * **Must keep ACS and the CRC excerpts apart**, since they share no schema.
 
 ## Decision
@@ -112,15 +112,20 @@ and committed, as ADR [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-c
 ICD-9 codes. A row holds the `OCCP` code, the SOC id, the class and its name; the check refuses a
 row whose class is gone, renamed, or carries another SOC id.
 
-**5. Disability.** An item maps, on code 1, to the live HPO term whose name, or an exact synonym
-of it, names the item's difficulty: `DEAR` to Hearing impairment, `DEYE` to Visual impairment,
-`DREM` to Cognitive impairment, and `DPHY` to Gait disturbance, whose exact synonyms include
-"Difficulty in walking" and which replaced the obsolete term "Difficulty walking". `DDRS` and
-`DOUT` are unmapped: no term names self-care or independent living.
+**5. Disability.** No live HPO term is named for an item's own label, such as "Hearing
+difficulty", so an item maps, on code 1, to the nearest live HPO term whose name or an exact
+synonym names an impairment of the item's faculty: `DEAR` to Hearing impairment, `DEYE` to Visual
+impairment and `DREM` to Cognitive impairment by name, and `DPHY` to Gait disturbance by its
+exact synonym "Difficulty in walking"; Gait disturbance also replaced the obsolete term
+`HP:0002355`, "obsolete Difficulty walking". `DDRS` and `DOUT` are unmapped: no term names
+self-care or independent living.
 
 **6. Releases.** ACS's catalog entry holds its own release map, HP and OccO
 (ADR [`research/ontology-mapping-design`](ontology-mapping-design.md)). OccO is pinned as its
-tagged OWL file and converted to OBO at fetch time. A surveyed column whose ontology is openly
+tagged OWL file and converted to OBO by the pinned ROBOT when a command first loads it, so
+`python -m bko.ontology check` needs a JDK until the converted file exists; without one, `check`
+leaves OccO out with a warning, its occupation rows report `no release for prefix OCCO`, and the
+HPO and MONDO rows still check. A surveyed column whose ontology is openly
 licensed and converts to OBO would be mapped as `OCCP` is, with its own pin and release-map entry;
 none is.
 
@@ -142,8 +147,15 @@ one state-year needs no adjustment across years. Massachusetts is one of the exc
 Mapping an occupation through `SOCP` uses the Census Bureau's own crosswalk on each record rather
 than a crosswalk written here. Reading a `SOCP` code by its SOC level keeps each code's meaning:
 a broad occupation such as `472040` names the broad class, not a detailed one. An aggregate's
-trailing `X` or `Y` marks the SOC digits it leaves open, so it maps to the narrowest class that
-holds every code it may stand for.
+trailing `X` marks the SOC digits it leaves open, so it maps to the class that holds every code it
+may stand for. A trailing `Y` marks a Census grouping, such as `1721YY`, "ENG-Other Engineers";
+the rule reads it as it reads `X`, so a `Y` aggregate maps to the class its kept digits name,
+which is not shown to be the narrowest class holding each code the grouping stands for.
+
+The loader reads the member with `csv.reader` rather than `pandas.read_csv` so it can refuse a
+row whose width is not the header's 286 fields, naming its line: `read_csv` with no value read as
+missing pads a short row with blanks, which a later check could not tell from blanks the file
+holds.
 
 A disability item is a yes or no to a difficulty, and the HPO terms named for an impairment of
 that faculty say the same of a person. Gait disturbance is HPO's term for difficulty in walking,
@@ -206,6 +218,7 @@ leaves its ancestors to the hierarchy.
 | `RELP` as Folktables names it | The 2024 file has no `RELP`; `RELSHIPP` is its relationship column | 2026-11-25 |
 | Mapping education, class of worker or insurance through OMRSE | The pinned ROBOT cannot write OMRSE as OBO | 2026-11-25 |
 | Mapping place of birth through GAZ or GEO | GAZ's OBO file has no `data-version`, and GEO's OWL names imports | 2026-11-25 |
+| Matching a disability item's own label, such as "Hearing difficulty", to live HPO term names alone | It maps none of the four items: no live term is named "Hearing difficulty", "Vision difficulty", "Cognitive difficulty" or "Ambulatory difficulty", and the one term named for walking difficulty, `HP:0002355` "obsolete Difficulty walking", is obsolete with `replaced_by: HP:0001288` | 2026-11-25 |
 | Impairment of activities of daily living for `DDRS` or `DOUT` | Its name names neither self-care nor independent living | 2026-11-25 |
 | Pooling ACS with the CRC excerpts | The excerpts hold no occupation code and another schema | 2026-11-25 |
 
@@ -216,7 +229,7 @@ leaves its ancestors to the hierarchy.
   `tests/test_datasets_acs.py::test_the_frame_holds_exactly_the_named_fields`,
   `tests/test_datasets_acs.py::test_occp_keeps_its_leading_zeros`,
   `tests/test_evaluate_acs.py::test_every_occp_code_is_in_exactly_one_row`,
-  `tests/test_evaluate_acs.py::test_each_disability_item_with_an_exact_hpo_term_maps_to_it`,
+  `tests/test_evaluate_acs.py::test_four_disability_items_map_yes_to_their_hpo_terms_and_two_map_none`,
   `tests/test_evaluate_acs.py::test_acs_reads_its_own_releases`,
   `tests/test_ontology_occupation_codes.py::test_a_detailed_soc_code_maps_to_its_onet_00_class`,
   `tests/test_ontology_occupation_codes.py::test_a_five_digit_aggregate_maps_to_its_broad_class`,

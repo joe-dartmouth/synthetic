@@ -2,8 +2,10 @@
 
 `check` fetches the pinned release of each prefix its rows name into the data root if it is absent,
 from `RELEASES` or, for a prefix those lack, a catalog entry's release map (OccO for ACS), converts
-an OWL-only one to OBO, verifies and parses them, and writes one CSV row per checked row of
-`bko.ontology.mapping` to stdout: `ok`, or how the release disagrees. `reproduce` does the same for
+an OWL-only one to OBO with ROBOT, which needs a JDK the first time, verifies and parses them, and
+writes one CSV row per checked row of `bko.ontology.mapping` to stdout: `ok`, or how the release
+disagrees. With no JDK an unconverted OWL-only release is left out with a warning, so its rows
+report no release and the others still check. `reproduce` does the same for
 the pinned MONDO and DO releases, rebuilds Santos et al.'s fusion example with
 `bko.ontology.santos`, and writes one CSV row per quantity of the example. `elk` fetches the pinned
 OWL releases and ROBOT, classifies each release with ELK (`bko.ontology.elk`), which needs a JDK,
@@ -50,7 +52,7 @@ from bko.core.logs import configure
 from bko.datasets.acs import occupation_pairs, read_kept
 from bko.datasets.diabetes import DIAGNOSES, load_diabetes
 from bko.datasets.diagnoses import code_text
-from bko.datasets.errors import DatasetError
+from bko.datasets.errors import DatasetError, UnavailableError
 from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import ACS_MA_2024, DIABETES_130, OCCO, ROBOT_JAR, Source
 from bko.datasets.synthea_run import default_java
@@ -202,16 +204,51 @@ def check_releases(context: Context) -> dict[str, Source]:
     return chosen
 
 
-def _check(data_dir: Path, context: Context, out: TextIO) -> int:
+class _NoJavaError(Exception):
+    """No Java to convert an OWL-only release with."""
+
+
+def _check_loaded(
+    chosen: Mapping[str, Source], data_dir: Path, context: Context
+) -> dict[str, Ontology]:
+    """Each of `chosen` parsed, leaving out with a warning an OWL-only one no Java can convert.
+
+    The OBO releases load together, then each OWL-only one alone, so a missing JDK leaves its
+    rows reporting no release while every other row still checks.
+    """
+
+    def resolve_java() -> tuple[Path, str]:
+        try:
+            return context.resolve_java()
+        except UnavailableError as exc:
+            raise _NoJavaError(str(exc)) from exc
+
     convert = partial(
-        converted,
-        resolve_java=context.resolve_java,
-        robot=context.robot,
-        runner=context.robot_runner,
+        converted, resolve_java=resolve_java, robot=context.robot, runner=context.robot_runner
     )
-    releases = load_releases(
-        check_releases(context), data_dir, open_url=context.open_url, convert=convert
+    owl = {prefix for prefix, source in chosen.items() if source.filename.endswith(".owl")}
+    loaded = load_releases(
+        {prefix: source for prefix, source in chosen.items() if prefix not in owl},
+        data_dir,
+        open_url=context.open_url,
     )
+    for prefix in sorted(owl):
+        source = chosen[prefix]
+        try:
+            loaded |= load_releases(
+                {prefix: source}, data_dir, open_url=context.open_url, convert=convert
+            )
+        except _NoJavaError as exc:
+            logger.warning(
+                "release %s is OWL only and needs a JDK to convert: %s; its rows report no release",
+                source.name,
+                exc,
+            )
+    return dict(sorted(loaded.items()))
+
+
+def _check(data_dir: Path, context: Context, out: TextIO) -> int:
+    releases = _check_loaded(check_releases(context), data_dir, context)
     verdicts = check(context.rows, releases)
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(("table", "subject", "concept", "label", "status"))

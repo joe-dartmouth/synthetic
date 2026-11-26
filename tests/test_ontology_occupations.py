@@ -14,8 +14,10 @@ from typing import Final
 
 import pytest
 
+from bko.datasets.errors import UnavailableError
 from bko.datasets.fetch import snapshot_dir
 from bko.ontology.__main__ import Context, check_releases, main
+from bko.ontology.acs_rows import DISABILITY_ROWS
 from bko.ontology.catalog import CATALOG
 from bko.ontology.check import check, prefixes
 from bko.ontology.obo import parse_obo
@@ -23,7 +25,7 @@ from bko.ontology.schema import OccupationCode, UnmappedCode
 from bko.ontology.terms import Ontology
 from tests._datasets_fixtures import pin
 from tests._occupation_fixtures import CHIEF_EXECUTIVE, OCCO_TEXT
-from tests._ontology_fixtures import FakeRobot, RoutingOpener, write_obo
+from tests._ontology_fixtures import HPO_TEXT, FakeRobot, RoutingOpener, write_obo
 
 
 JAVA: Final = Path("/opt/jdk/bin/java")
@@ -146,3 +148,37 @@ def test_two_catalog_entries_pinning_a_prefix_differently_are_refused():
     context = Context(releases={}, rows=(CHIEF,), catalog=entries)
     with pytest.raises(ValueError, match="prefix OCCO to different releases: first, second"):
         check_releases(context)
+
+
+def test_with_no_jdk_the_owl_only_release_is_left_out_and_the_rest_checks(tmp_path, caplog):
+    owl_source = dataclasses.replace(pin(OWL, name="occo"), filename="occo.owl")
+    jar = pin(JAR, name="robot-jar")
+    hpo = dataclasses.replace(pin(HPO_TEXT.encode(), name="hpo"), filename="hp.obo")
+    hearing = DISABILITY_ROWS[0]
+
+    def no_java() -> tuple[Path, str]:
+        msg = "no runnable java on PATH"
+        raise UnavailableError(msg)
+
+    robot = FakeRobot(text=OCCO_TEXT)
+    context = dataclasses.replace(
+        _context(owl_source, jar, robot),
+        open_url=RoutingOpener({owl_source.url: OWL, jar.url: JAR, hpo.url: HPO_TEXT.encode()}),
+        releases={"HP": hpo},
+        rows=(hearing, CHIEF),
+        resolve_java=no_java,
+    )
+    out = io.StringIO()
+    with caplog.at_level(logging.INFO, logger="bko.ontology"):
+        code = main(["check", "--data-dir", str(tmp_path)], context=context, out=out)
+    assert code == 4
+    assert out.getvalue() == (
+        "table,subject,concept,label,status\n"
+        "field,DEAR in 1,HP:0000365,Hearing impairment,ok\n"
+        "occupation-code,OCCP:0010,OCCO:11101100,chief executive,no release for prefix OCCO\n"
+    )
+    assert robot.calls == []
+    assert (
+        "release occo is OWL only and needs a JDK to convert: no runnable java on PATH; its rows "
+        "report no release" in caplog.messages
+    )

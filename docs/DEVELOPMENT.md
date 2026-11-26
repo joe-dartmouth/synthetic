@@ -1445,8 +1445,9 @@ inside `.venv`:
 
 - **What it does**: it fetches the release of each prefix its rows name into the data root if
   absent, from `bko.ontology.mapping.RELEASES` or, for a prefix those lack, a catalog entry's
-  release map, verifies each against its pin, converts an OWL-only one to OBO, parses them with
-  pronto (and each xref's qualifiers with fastobo), and checks every row:
+  release map, verifies each against its pin, converts an OWL-only one to OBO, which needs a JDK
+  until the converted file exists (OWL-only releases below), parses them with pronto (and each
+  xref's qualifiers with fastobo), and checks every row:
   a concept row's concept exists and is not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a `skos:exactMatch`
   of its concept and of no other live concept, an excluded Synthea code is a `skos:exactMatch` of no
   live MONDO concept (the check reads MONDO only for it), an ICD-9 row's concept carries its
@@ -1462,8 +1463,8 @@ inside `.venv`:
   release disagrees; for an `excluded-code` or `excluded-icd9` row, `ok` means the code still has
   no live holder), one row per checked row, the same bytes on every run over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
-  [Data](#data)), the `data-version` its header names, its term counts, and one warning per
-  disagreeing row.
+  [Data](#data)), the `data-version` its header names, its term counts, one warning per
+  disagreeing row, and a warning for each OWL-only release left unconverted for want of a JDK.
 - **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
   could not run; 3 a release contradicts its pin or is not OBO the loader reads (stdout is
   empty); 4 a row disagrees with its release (the report is written first).
@@ -1492,7 +1493,9 @@ inside `.venv`:
   quotes the last lines. Conversion needs a JDK, found as
   [ELK comparison](#elk-comparison) finds it. Exit 2 means no JDK or a ROBOT failure; exit 3 an
   OWL file that names an import, refused before ROBOT runs, or a converted file the loader
-  refuses. OccO, which ACS's occupation rows name, is the one OWL-only release; `check`, the
+  refuses. `check` alone goes on without a JDK: it leaves the unconverted release out with a
+  warning, so its rows report `no release for prefix OCCO` and exit 4 while every other row still
+  checks. OccO, which ACS's occupation rows name, is the one OWL-only release; `check`, the
   `occupations` command and every command that reads the `acs` dataset convert it (ADR
   [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)).
 - **The generated code rows**: `bko.ontology.icd9_codes` maps each exact diagnosis code of the

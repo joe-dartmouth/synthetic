@@ -94,7 +94,7 @@ def test_every_occp_code_is_in_exactly_one_row() -> None:
     assert all(LOW[i].code < LOW[i + 1].code for i in range(len(LOW) - 1))
 
 
-def test_each_disability_item_with_an_exact_hpo_term_maps_to_it() -> None:
+def test_four_disability_items_map_yes_to_their_hpo_terms_and_two_map_none() -> None:
     mapped = {
         (row.when[0].field, row.concept, row.label)
         for row in DISABILITY_ROWS
