@@ -130,3 +130,22 @@ def cell_counts(
     counts = sizes.reindex(grid, fill_value=0).rename("count").reset_index()
     counts["underrepresented"] = counts["count"] < below
     return counts
+
+
+def counts_by_cell(
+    frame: pd.DataFrame, *, edges: Sequence[int]
+) -> dict[tuple[str | int, ...], int]:
+    """Each cell's record count, keyed `(age_band, sex, target)`, in `cell_counts`' grid order.
+
+    A key is a cell key as `bko.gaps.observe.Cell` types it: two strings and an int label.
+
+    Args:
+        frame: Records with integer `age`, `sex` and `target`.
+        edges: Age band starts.
+    """
+    table = cell_counts(frame, edges=edges)
+    band, sex, label = (table[column] for column in CELL_COLUMNS)
+    return {
+        (str(b), str(s), int(y)): int(n)
+        for b, s, y, n in zip(band, sex, label, table["count"], strict=True)
+    }

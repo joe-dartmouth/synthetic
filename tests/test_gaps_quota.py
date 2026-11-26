@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import math
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -16,11 +17,11 @@ from bko.datasets.uci import UCI_FRAME
 from bko.gaps import quota as quota_module
 from bko.gaps.observe import Cell
 from bko.gaps.quota import (
-    MULTIPLES,
     QuotaRule,
     asks,
     coverage,
     expected_size,
+    fused_shares,
     quota,
     recommended,
 )
@@ -50,6 +51,33 @@ def test_coverage_gives_the_hand_computed_count(share, count):
 
 def test_coverage_of_concepts_all_below_the_floor_is_0():
     assert coverage({"a": 0.019, "b": 0.0}) == 0
+
+
+def test_a_share_one_ulp_below_the_floor_reads_as_the_floor():
+    # A share is the float nearest a ratio of counts, so 0.02's lower neighbour is read as 1/50.
+    below = math.nextafter(0.02, 0.0)
+    assert below < 0.02
+    assert coverage({"a": below}) == coverage({"a": 0.02}) == 149
+
+
+@pytest.mark.parametrize(
+    "share",
+    [
+        # A miss of exactly 1 - 19/20 = 1/20 meets MISS_CHANCE after one row; read in floats,
+        # 1 - 0.95 is 0.05000000000000004 and would take two.
+        {"a": 0.95},
+        # Two misses of 1/40 sum to exactly 1/20; read in floats, each is above 0.025.
+        {"a": 0.975, "b": 0.975},
+    ],
+    ids=["one-twentieth", "two-fortieths"],
+)
+def test_coverage_meets_the_miss_chance_exactly_at_the_boundary(share):
+    assert coverage(share) == 1
+
+
+def test_a_nan_share_is_refused():
+    with pytest.raises(ValueError, match="NaN"):
+        coverage({"a": 0.5, "b": math.nan})
 
 
 def test_expected_size_scales_the_other_label_by_the_neighbours_odds():
@@ -103,24 +131,8 @@ def test_expected_size_with_empty_neighbours_reads_the_splits_label_counts():
 
 def test_recommended_is_the_larger_count_less_the_cells():
     assert recommended(2, 29, 5) == 27
+    assert recommended(2, 5, 29) == 27
     assert recommended(40, 29, 5) == 0
-
-
-def test_the_multiples_are_coverage_times_2_4_and_8():
-    assert dict(MULTIPLES) == {
-        QuotaRule.COVERAGE: 1,
-        QuotaRule.COVERAGE_2: 2,
-        QuotaRule.COVERAGE_4: 4,
-        QuotaRule.COVERAGE_8: 8,
-    }
-    train = _train()
-    cell = ("<55", "male", 1)
-    base = asks(train, [cell], QuotaRule.COVERAGE, name="t", rows=ROWS, frame=UCI_FRAME)[cell]
-    assert base.coverage > 0
-    for rule, times in MULTIPLES.items():
-        found = asks(train, [cell], rule, name="t", rows=ROWS, frame=UCI_FRAME)[cell]
-        assert found.coverage == base.coverage
-        assert found.asked == max(0, times * base.coverage - found.count)
 
 
 ROWS = (ANGINA, STENOSIS)
@@ -146,19 +158,74 @@ def _train() -> pd.DataFrame:
     return pd.DataFrame(rows).astype("int64")
 
 
-def test_a_cell_of_no_record_gets_a_finite_count_from_each_function():
+def test_fused_shares_read_each_cell_against_its_own_label_group():
+    train = _train()
+    young_men = (("<55", "male", 1), ("<55", "male", 0))
+    found = fused_shares(train, young_men, name="t", rows=ROWS, frame=UCI_FRAME)
+    # Label 1: angina in 6 of 19 records, stenosis in all; the whole split's would be 12 and 19
+    # of 36. The cell's 3 records show angina once, weighed against the group's 20:
+    # (3 * 1/3 + 20 * 6/19) / 23 = 139/437.
+    assert found[young_men[0]] == pytest.approx({"HP:9000003": 139 / 437, "MONDO:9000004": 1.0})
+    # Label 0: angina in 6 of 17 records, no stenosis; the cell's 5 show angina twice:
+    # (5 * 2/5 + 20 * 6/17) / 25 = 154/425.
+    assert found[young_men[1]] == pytest.approx({"HP:9000003": 154 / 425, "MONDO:9000004": 0.0})
+
+
+@pytest.mark.parametrize(
+    ("rule", "asked"),
+    [
+        # The cell holds 3 records; its shares 139/437 and 1 give coverage 8, as 0.682^8 = 0.047.
+        (QuotaRule.COVERAGE, 5),
+        (QuotaRule.COVERAGE_2, 13),
+        (QuotaRule.COVERAGE_4, 29),
+        (QuotaRule.COVERAGE_8, 61),
+    ],
+)
+def test_each_coverage_rule_asks_its_multiple_of_coverage_less_the_count(rule, asked):
+    cell = ("<55", "male", 1)
+    found = asks(_train(), [cell], rule, name="t", rows=ROWS, frame=UCI_FRAME)[cell]
+    assert (found.count, found.coverage, found.asked) == (3, 8, asked)
+
+
+@pytest.mark.parametrize(
+    ("rule", "asked"),
+    [
+        # Shares 6/19 and 1: 0.684^7 = 0.070 and 0.684^8 = 0.048, so coverage is 8.
+        (QuotaRule.COVERAGE, 8),
+        (QuotaRule.COVERAGE_2, 16),
+        (QuotaRule.COVERAGE_4, 32),
+        (QuotaRule.COVERAGE_8, 64),
+        (QuotaRule.EXPECTED, 3),
+        (QuotaRule.RECOMMENDED, 8),
+    ],
+)
+def test_a_cell_of_no_record_gets_a_count_from_each_function(rule, asked):
     train, cell = _train(), ("<55", "female", 1)
-    for rule in QuotaRule:
-        if rule is QuotaRule.FILL_TO:
-            continue
-        found = asks(train, [cell], rule, name="t", rows=ROWS, frame=UCI_FRAME)[cell]
-        assert found.count == 0
-        # n(<55, female, 0) = 4, N1 = 3, N0 = 5: 4 * 3.5 / 5.5 = 2.55, rounded to 3.
-        assert found.expected == 3
-        # The label group's shares: angina in 6 of 19 label-1 records, stenosis in all 19.
-        assert found.coverage == coverage({"HP:9000003": 6 / 19, "MONDO:9000004": 1.0})
-        assert all(math.isfinite(value) for value in (found.coverage, found.asked))
-    assert recommended(0, coverage({}), expected_size(cell, {cell: 0})) == 0
+    found = asks(train, [cell], rule, name="t", rows=ROWS, frame=UCI_FRAME)[cell]
+    # n(<55, female, 0) = 4, N1 = 3, N0 = 5: 4 * 3.5 / 5.5 = 2.55, rounded to 3.
+    assert (found.count, found.coverage, found.expected, found.asked) == (0, 8, 3, asked)
+
+
+def test_recommended_asks_the_expected_size_where_it_exceeds_coverage():
+    # Stenosis alone, at share 1, is shown by the first row: coverage 1 against expected 3.
+    cell = ("<55", "female", 1)
+    rows = (STENOSIS,)
+    found = asks(_train(), [cell], QuotaRule.RECOMMENDED, name="t", rows=rows, frame=UCI_FRAME)
+    assert (found[cell].coverage, found[cell].expected, found[cell].asked) == (1, 3, 3)
+
+
+def test_an_unknown_rule_is_refused():
+    cell, unknown = ("<55", "female", 1), cast(QuotaRule, "no-such-rule")
+    with pytest.raises(ValueError, match="no-such-rule"):
+        asks(_train(), [cell], unknown, name="t", rows=ROWS, frame=UCI_FRAME)
+
+
+def test_no_cell_asks_nothing_and_reads_no_share(monkeypatch):
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError
+
+    monkeypatch.setattr(quota_module, "fused_shares", refuse)
+    assert asks(_train(), [], QuotaRule.COVERAGE, name="t", rows=ROWS, frame=UCI_FRAME) == {}
 
 
 def test_a_cell_asked_0_leaves_the_quota_and_fill_to_is_refused():

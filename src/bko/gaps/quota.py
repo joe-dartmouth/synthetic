@@ -21,7 +21,7 @@ from typing import Final
 
 import pandas as pd
 
-from bko.datasets.cells import cell_counts
+from bko.datasets.cells import counts_by_cell
 from bko.datasets.frames import FrameSpec
 from bko.gaps.observe import Cell, observe_records, record_cells
 from bko.gaps.shares import shares
@@ -74,18 +74,37 @@ class Ask:
     asked: int
 
 
+DENOMINATOR: Final = 10**9
+"""The largest denominator a share is read at: each share is the float nearest a ratio of counts."""
+
+
+def _exact(value: float) -> Fraction:
+    """`value` as the ratio of denominator at most `DENOMINATOR` nearest it."""
+    return Fraction(value).limit_denominator(DENOMINATOR)
+
+
 def coverage(share: Mapping[str, float]) -> int:
     """The smallest n at which every concept of share at least `SHARE_FLOOR` appears, w.p. 0.95.
 
     By a union bound: the least n at which the sum over those concepts of (1 - p)^n is at most
-    `MISS_CHANCE`; 0 when no concept qualifies.
+    `MISS_CHANCE`; 0 when no concept qualifies. Each share, the floor and the miss chance are read
+    as exact fractions (`_exact`), so a share one ulp off a ratio of counts reads as that ratio and
+    a sum that meets `MISS_CHANCE` exactly stops.
+
+    Raises:
+        ValueError: If a share is NaN.
     """
-    misses = [1 - p for p in share.values() if p >= SHARE_FLOOR]
+    if any(math.isnan(p) for p in share.values()):
+        msg = f"a share is NaN: {dict(share)}"
+        raise ValueError(msg)
+    floor, chance = _exact(SHARE_FLOOR), _exact(MISS_CHANCE)
+    misses = [1 - exact for p in share.values() if (exact := _exact(p)) >= floor]
     if not misses:
         return 0
-    n = 0
-    while math.fsum(miss**n for miss in misses) > MISS_CHANCE:
+    n, powers = 0, [Fraction(1)] * len(misses)
+    while sum(powers) > chance:
         n += 1
+        powers = [power * miss for power, miss in zip(powers, misses, strict=True)]
     return n
 
 
@@ -151,35 +170,42 @@ def asks(
     name: str,
     rows: Sequence[FieldMapping],
     frame: FrameSpec,
+    counts: Mapping[Cell, int] | None = None,
 ) -> dict[Cell, Ask]:
     """Each of `cells`' counts under `rule`, a rule other than `QuotaRule.FILL_TO`.
 
-    The fused shares are `fused_shares`'.
+    The fused shares are `fused_shares`'. `counts` is every cell's training count
+    (`bko.datasets.cells.counts_by_cell` of `train`), read from `train` when None; no cell reads
+    no share.
 
     Raises:
-        ValueError: If `rule` is `QuotaRule.FILL_TO`, whose count is the experiment's `fill_to`.
+        ValueError: If `rule` is `QuotaRule.FILL_TO`, whose count is the experiment's `fill_to`,
+            or no rule this module knows.
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
     """
     if rule is QuotaRule.FILL_TO:
         msg = f"the {rule} rule asks fill_to less the count, which this module does not hold"
         raise ValueError(msg)
-    table = cell_counts(train, edges=frame.edges)
-    counts: dict[Cell, int] = {
-        (str(band), str(sex), int(label)): int(count)
-        for band, sex, label, count, _ in table.itertuples(index=False)
-    }
+    if not cells:
+        return {}
+    table: Mapping[Cell, int] = (
+        counts_by_cell(train, edges=frame.edges) if counts is None else counts
+    )
     fused = fused_shares(train, cells, name=name, rows=rows, frame=frame)
     found: dict[Cell, Ask] = {}
     for cell in cells:
-        count = counts[cell]
+        count = table[cell]
         covered = coverage(fused[cell])
-        expected = expected_size(cell, counts)
+        expected = expected_size(cell, table)
         if rule is QuotaRule.RECOMMENDED:
             asked = recommended(count, covered, expected)
         elif rule is QuotaRule.EXPECTED:
             asked = max(0, expected - count)
-        else:
+        elif rule in MULTIPLES:
             asked = max(0, MULTIPLES[rule] * covered - count)
+        else:
+            msg = f"no quota rule is named {rule!r}"
+            raise ValueError(msg)
         found[cell] = Ask(count, covered, expected, asked)
     return found
 

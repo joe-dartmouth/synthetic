@@ -20,6 +20,7 @@ from bko.datasets.cells import (
     age_band_labels,
     cell_counts,
     cell_keys,
+    counts_by_cell,
 )
 from bko.datasets.errors import ContractError
 from bko.datasets.split import SPLIT_SEED, held_out_count, split, uci_split
@@ -65,6 +66,14 @@ def test_the_grid_lists_every_cell_including_empty_ones():
     empty = counts.loc[counts["count"] == 0]
     assert len(empty) == len(GRID) - 1
     assert empty["underrepresented"].all()
+
+
+def test_counts_by_cell_keys_each_grid_cell_by_band_sex_and_label():
+    counts = counts_by_cell(records({(YOUNG, 1, 0): 3, (OLD, 0, 1): 2}), edges=UCI_FRAME.edges)
+    assert list(counts) == GRID
+    assert counts[f"<{EDGE}", "male", 0] == 3
+    assert counts[f">={EDGE}", "female", 1] == 2
+    assert sum(counts.values()) == 5
 
 
 def test_the_rule_is_fewer_than_twenty():

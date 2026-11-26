@@ -46,7 +46,10 @@ splits one call's rows across a field's values and never sets how many rows a ce
 2. **Coverage.** `coverage(share)` is the smallest n at which every concept of fused share at
    least `SHARE_FLOOR` = 0.02 appears with probability at least 0.95, by a union bound: the sum
    over those concepts of (1 - p)^n is at most `MISS_CHANCE` = 0.05. It is 0 when no concept
-   qualifies.
+   qualifies. Each share, the floor and the miss chance are read as the fraction of denominator
+   at most 10^9 nearest them, and the sum is compared exactly: a share is the float nearest a
+   ratio of counts, so a share one ulp below 0.02 reads as 1/50, and a share of 0.95 meets the
+   miss chance after one row. A NaN share is refused.
 3. **Expected size.** For cell (a, b, y), `expected_size` is n(a, b, not y) times
    (N1 + 1/2) / (N0 + 1/2), N1 and N0 the counts of (a, b', y) and (a, b', not y) over every
    other value b' of the second cell axis, read by position. When both are 0, N1 and N0 are the

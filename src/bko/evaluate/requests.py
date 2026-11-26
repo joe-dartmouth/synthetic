@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from bko.baselines.request import Request, Strata, Stratum
-from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.cells import UNDERREPRESENTED_BELOW, counts_by_cell
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import dropped_count, kept_count
 from bko.evaluate.errors import EvaluationError
@@ -102,8 +102,9 @@ def _ruled(
     if not rows:
         msg = f"quota rule {rule} reads the cells' fused shares, so it needs the data's field rows"
         raise EvaluationError(msg)
-    cells = tuple(_short(train, experiment, edges=frame.edges))
-    found = asks(train, cells, rule, name=name, rows=rows, frame=frame)
+    counts = counts_by_cell(train, edges=frame.edges)
+    cells = tuple(cell for cell, count in counts.items() if count < experiment.threshold)
+    found = asks(train, cells, rule, name=name, rows=rows, frame=frame, counts=counts)
     for cell in cells:
         ask = found[cell]
         logger.info(
@@ -175,8 +176,5 @@ def _cells(
     *,
     edges: Sequence[int],
 ) -> list[tuple[Stratum, int, bool]]:
-    counts = cell_counts(train, edges=edges, below=below)
-    return [
-        ((str(band), str(sex), int(label)), int(count), bool(short))
-        for band, sex, label, count, short in counts.itertuples(index=False)
-    ]
+    counts = counts_by_cell(train, edges=edges)
+    return [(cell, count, count < below) for cell, count in counts.items()]
