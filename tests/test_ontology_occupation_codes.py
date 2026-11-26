@@ -9,15 +9,18 @@ import dataclasses
 import hashlib
 import io
 import logging
+import re
 from collections import Counter
 from pathlib import Path
 
 import pytest
 
+from bko.ontology import occupation_codes_high, occupation_codes_low
 from bko.ontology.__main__ import Context, main
+from bko.ontology.acs_rows import ACS_FIELD_ROWS
 from bko.ontology.obo import parse_obo
 from bko.ontology.occupations import REASONS, generate, part, render, soc_classes, soc_ids
-from bko.ontology.schema import OccupationCode
+from bko.ontology.schema import Codes, OccupationCode
 from bko.ontology.terms import SOC_ID, Ontology
 from tests._acs_fixtures import acs_archive
 from tests._datasets_fixtures import pin
@@ -191,3 +194,20 @@ def test_the_occupations_command_writes_one_parts_module(tmp_path, caplog):
 def test_the_occupations_command_needs_a_part(tmp_path):
     with pytest.raises(SystemExit):
         main(["occupations", "--data-dir", str(tmp_path)])
+
+
+def test_the_committed_rows_keep_the_generators_invariants():
+    low, high = occupation_codes_low.OCCUPATION_CODES, occupation_codes_high.OCCUPATION_CODES
+    assert {part(row) for row in low} == {"low"}
+    assert {part(row) for row in high} == {"high"}
+    codes = [row.code for row in (*low, *high)]
+    assert all(re.fullmatch(r"[0-9]{4}", code) for code in codes)
+    assert codes == sorted(set(codes))
+    socs = {int(row.code): row.soc for row in (*low, *high)}
+    occupation_rows = [row for row in ACS_FIELD_ROWS if row.source == "occo"]
+    assert len(occupation_rows) == len(codes)
+    for row in occupation_rows:
+        [clause] = row.when
+        assert isinstance(clause, Codes)
+        [code] = clause.codes
+        assert f"OCCP {code:04d} reaches SOC id {socs[code]} " in row.limits

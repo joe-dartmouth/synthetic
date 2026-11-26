@@ -9,7 +9,7 @@ from types import MappingProxyType
 
 import pytest
 
-from bko.ontology.acs_rows import DISABILITY_ROWS, OCCUPATION_CODES
+from bko.ontology.acs_rows import OCCUPATION_CODES
 from bko.ontology.check import Verdict, check
 from bko.ontology.icd9 import EXACT, Icd9Code, UnmappedIcd9
 from bko.ontology.icd9_codes import ICD9_CODES
@@ -256,11 +256,10 @@ def _fixture_releases(tmp_path: Path) -> dict[str, Ontology]:
     }
 
 
-_CURATED_ROWS = tuple(
-    row for row in CHECKED_ROWS if row not in {*ICD9_CODES, *OCCUPATION_CODES, *DISABILITY_ROWS}
-)
+_CURATED_ROWS = tuple(row for row in CHECKED_ROWS if row not in {*ICD9_CODES, *OCCUPATION_CODES})
 """The checked rows but the generated code rows, which `tests/test_ontology_codes.py` checks, and
-ACS's rows, whose releases `tests/test_ontology_occupations.py` and the `--releases` tests read."""
+ACS's occupation rows, whose release `tests/test_ontology_occupations.py` and the `--releases`
+tests read."""
 
 
 def test_the_table_agrees_with_the_fixture_releases(tmp_path: Path) -> None:
