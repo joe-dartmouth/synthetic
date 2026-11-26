@@ -5,12 +5,14 @@ from __future__ import annotations
 import hashlib
 import io
 import logging
+import string
 from dataclasses import replace
+from itertools import product
 from pathlib import Path
 
 import pytest
 
-from bko.datasets.icd10_tokens import BLANK, UNKNOWN, token_number, token_text
+from bko.datasets.icd10_tokens import BLANK, NOT_ICD, UNKNOWN, token_number, token_text
 from bko.ontology.__main__ import Context, main
 from bko.ontology.check import check
 from bko.ontology.codes import render
@@ -125,8 +127,13 @@ def test_the_token_number_is_reversible_and_distinct() -> None:
     assert token_number("A00-") == 11 * 37**3 + 1 * 37**2 + 1 * 37 + 0
     assert token_number("A000") == token_number("A00-") + 1
     assert token_number("ZZZ5") == 36 * 37**3 + 36 * 37**2 + 36 * 37 + 6
-    for token in (BLANK, "A00-", "A000", "I509", "F32A", "M1A0", "ZZZ0", "ZZZ5", "Z992"):
-        assert token_text(token_number(token)) == token
+    letters, digits = string.ascii_uppercase, string.digits
+    codes = product(letters, digits, digits + letters, digits + letters + "-")
+    tokens = [BLANK, *sorted(NOT_ICD), *("".join(chars) for chars in codes)]
+    assert len(tokens) == 1 + 5 + 26 * 10 * 36 * 37
+    numbers = [token_number(token) for token in tokens]
+    assert len(set(numbers)) == len(tokens)
+    assert [token_text(number) for number in numbers] == tokens
 
 
 @pytest.mark.parametrize("number", [-1, 1, 37**4, token_number("A00-") - 1])

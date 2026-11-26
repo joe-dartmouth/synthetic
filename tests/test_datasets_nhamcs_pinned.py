@@ -1,4 +1,4 @@
-"""NHAMCS's pinned archive under `data/`: its sha256, its real record, its counts and label rate.
+"""NHAMCS's pinned archive under `data/`: its sha256, its real records, its counts and label rate.
 
 It is skipped unless `--releases` is passed, since the gate reads no `data/`; an absent snapshot
 fails it rather than skipping it. ADR `research/nhamcs-frame` records the figures.
@@ -20,7 +20,7 @@ from bko.datasets.nhamcs import MEMBER
 from bko.datasets.sources import NHAMCS_ED_2022
 from bko.datasets.split import split
 from bko.ontology.catalog import CATALOG
-from tests._nhamcs_fixtures import REAL_LINE
+from tests._nhamcs_fixtures import REAL_ADMITTED, REAL_LINE
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
@@ -44,10 +44,18 @@ def test_the_archive_is_the_pinned_bytes() -> None:
     assert zipfile.ZipFile(io.BytesIO(data)).namelist() == [MEMBER]
 
 
-def test_the_fixtures_real_record_is_the_files_first() -> None:
+def test_the_fixtures_real_records_are_the_files_first_and_twelfth() -> None:
     data = read_verified(NHAMCS_ED_2022, default_data_dir())
-    first = zipfile.ZipFile(io.BytesIO(data)).read(MEMBER).split(b"\r\n", 1)[0]
-    assert first.decode("ascii") == REAL_LINE
+    lines = zipfile.ZipFile(io.BytesIO(data)).read(MEMBER).split(b"\r\n", 12)
+    assert lines[0].decode("ascii") == REAL_LINE
+    assert lines[11].decode("ascii") == REAL_ADMITTED
+
+
+def test_some_chronic_flags_hold_their_counts() -> None:
+    records, _ = _loaded()
+    ticked = {name: int((records[name] == 1).sum()) for name in ("CHF", "DIABTYP2", "HTN", "OSA")}
+    assert ticked == {"CHF": 643, "DIABTYP2": 1138, "HTN": 4303, "OSA": 549}
+    assert int((records["HTN"] == 2).sum()) == 259
 
 
 def test_the_records_and_the_training_splits_admission_rate() -> None:

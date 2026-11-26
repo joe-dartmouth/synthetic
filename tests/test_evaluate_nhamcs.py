@@ -23,14 +23,12 @@ from bko.ontology.mapping import CHECKED_ROWS, CONCEPT_ROWS
 from bko.ontology.nhamcs_rows import DIAGNOSIS_ROWS, FLAG_ROWS, NHAMCS_FIELD_ROWS
 from bko.ontology.schema import Codes
 from tests._datasets_fixtures import pin
-from tests._nhamcs_fixtures import nhamcs_archive
+from tests._nhamcs_fixtures import MIXED_DIGEST, nhamcs_archive
 from tests._ontology_fixtures import RoutingOpener
 
 
 ARCHIVE = nhamcs_archive()
 PIN = pin(ARCHIVE, "nhamcs-ed-2022")
-MIXED_DIGEST = "f878ed8d0354a333cbd904c7f6d5497a79745e65a4708fa5f19922ebd76014ce"
-"""The sha256 of `mixed()`'s records as `bko.evaluate.data.digest` renders them."""
 
 
 def _refusing_opener(url: str, timeout: float) -> BinaryIO:
@@ -89,10 +87,11 @@ def test_the_frame_of_nhamcs_needs_its_records() -> None:
 
 
 def test_each_diagnosis_columns_rows_partition_its_mapped_codes() -> None:
-    mapped = {token_number(row.token): row.concept for row in ICD10CM_CODES}
+    mapped = {token_number(row.token): row for row in ICD10CM_CODES}
     assert len(mapped) == len(ICD10CM_CODES)
     assert UNKNOWN not in mapped
     assert len(DIAGNOSIS_ROWS) == len(DIAGNOSES) * len(ICD10CM_CODES)
+    positions = dict(zip(DIAGNOSES, ("first", "second", "third", "fourth", "fifth"), strict=True))
     for column in DIAGNOSES:
         held: list[int] = []
         for row in DIAGNOSIS_ROWS:
@@ -100,11 +99,59 @@ def test_each_diagnosis_columns_rows_partition_its_mapped_codes() -> None:
             assert isinstance(clause, Codes)
             if clause.field == column:
                 [number] = clause.codes
-                assert mapped[number] == row.concept, row
+                code = mapped[number]
+                assert (row.concept, row.label) == (code.concept, code.label), row
+                assert f"as the visit's {positions[column]} diagnosis;" in row.limits, row
                 held.append(number)
         assert len(held) == len(set(held)) == len(mapped), column
         assert set(held) == set(mapped), column
-    assert mapped[token_number("A46-")] == "MONDO:0001266"
+    assert mapped[token_number("A46-")].concept == "MONDO:0001266"
+
+
+@pytest.mark.parametrize(
+    ("token", "column", "label", "limits"),
+    [
+        (
+            "A46-",
+            "DIAG1",
+            "erysipelas",
+            (
+                "token A46-, ICD-10-CM A46, as the visit's first diagnosis; the release carries "
+                "ICD10CM:A46 on MONDO:0001266 as equivalent; a token cut to four characters stands "
+                "for every code below it"
+            ),
+        ),
+        (
+            "B070",
+            "DIAG2",
+            "plantar wart",
+            (
+                "token B070, ICD-10-CM B07.0, as the visit's second diagnosis; the release carries "
+                "ICD10CM:B07.0 on MONDO:0001795 as equivalent; a token cut to four characters "
+                "stands for every code below it"
+            ),
+        ),
+        (
+            "B081",
+            "DIAG3",
+            "molluscum contagiosum",
+            (
+                "token B081, ICD-10-CM B08.1, as the visit's third diagnosis; the release carries "
+                "ICD10CM:B08.1 on MONDO:0005855 as equivalent; a token cut to four characters "
+                "stands for every code below it"
+            ),
+        ),
+    ],
+)
+def test_a_diagnosis_row_holds_its_literal_label_and_limits(
+    token: str, column: str, label: str, limits: str
+) -> None:
+    [row] = [
+        row
+        for row in DIAGNOSIS_ROWS
+        if row.when == (Codes(column, frozenset({token_number(token)})),)
+    ]
+    assert (row.label, row.limits, row.source) == (label, limits, "mondo")
 
 
 def test_the_flag_rows_map_these_items_on_code_1() -> None:

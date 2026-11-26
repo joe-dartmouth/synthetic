@@ -27,11 +27,15 @@ from bko.datasets.nhamcs import (
 )
 from bko.datasets.nhamcs_frame import nhamcs_frame
 from bko.datasets.sources import Source
+from bko.ontology.icd10cm_codes import ICD10CM_CODES
 from bko.ontology.nhamcs_rows import DIAGNOSIS_ROWS, FLAG_ROWS, NHAMCS_FIELD_ROWS
 from bko.ontology.schema import Codes, shown
 from tests._datasets_fixtures import archive, pin, plant
 from tests._nhamcs_fixtures import (
     BLANK_CHRONIC,
+    LATE_TOKENS,
+    MIXED_DIGEST,
+    REAL_ADMITTED,
     REAL_LINE,
     chronic,
     line,
@@ -39,10 +43,6 @@ from tests._nhamcs_fixtures import (
     nhamcs_archive,
     text,
 )
-
-
-MIXED_DIGEST = "f878ed8d0354a333cbd904c7f6d5497a79745e65a4708fa5f19922ebd76014ce"
-"""The sha256 of `mixed()`'s records as `bko.datasets.frames.digest` renders them."""
 
 
 def _records(*lines: str) -> pd.DataFrame:
@@ -105,6 +105,37 @@ def test_a_record_parses_to_its_literal_fields() -> None:
         "DIAG5": 0,
         **dict.fromkeys(FLAGS, 0),
         "target": 0,
+    }
+
+
+def test_an_admitted_record_with_chronic_items_parses_to_its_literal_fields() -> None:
+    raw = parse_nhamcs(text(REAL_ADMITTED))
+    assert raw.index.tolist() == [34012]
+    [record] = raw.to_dict("records")
+    assert {name: record[name] for name in ("AGE", "SEX", *DIAGNOSES, "NOCHRON", "ADMITHOS")} == {
+        "AGE": "065",
+        "SEX": "1",
+        "DIAG1": "K859",
+        "DIAG2": "R109",
+        "DIAG3": "-9  ",
+        "DIAG4": "-9  ",
+        "DIAG5": "-9  ",
+        "NOCHRON": "0",
+        "ADMITHOS": "1",
+    }
+    ticked = {"ETOHAB", "DEPRN", "DIABTYP1", "HYPLIPID", "OBESITY"}
+    assert {name for name in FLAGS if record[name] == "1"} == ticked
+    [coded] = _records(REAL_ADMITTED).to_dict("records")
+    assert coded == {
+        "age": 65,
+        "sex": 0,
+        "DIAG1": 21 * 37**3 + 9 * 37**2 + 6 * 37 + 10,
+        "DIAG2": 28 * 37**3 + 2 * 37**2 + 1 * 37 + 10,
+        "DIAG3": 0,
+        "DIAG4": 0,
+        "DIAG5": 0,
+        **{name: int(name in ticked) for name in FLAGS},
+        "target": 1,
     }
 
 
@@ -265,17 +296,11 @@ def test_load_refuses_records_it_cannot_score(tmp_path: Path, lines, match: str)
 def test_the_disposition_and_stay_fields_never_enter() -> None:
     read = {name for name, (first, last) in POSITIONS.items() if last >= 487}
     assert read == {"ADMITHOS", "HOSPCODE", "PATCODE"}
-    assert POSITIONS["ADMITHOS"] == (499, 499)
     records = _records(*mixed())
-    frame = nhamcs_frame(records)
-    assert set(frame.columns) & {"ADMITHOS", "ADMIT", "LOS", "BOARDED", "PATWT", "NOCHRON"} == set()
-    assert "HOSPCODE" not in frame.columns
-    assert "PATCODE" not in frame.columns
-
-
-def test_the_excluded_columns_never_enter_the_frame() -> None:
-    records = _records(*mixed())
-    excluded = {"NOCHRON", "TOTCHRON", "PATWT", "EDWT", "HOSPCODE", "PATCODE", "ADMITHOS"}
+    excluded = {
+        *("ADMITHOS", "ADMIT", "LOS", "BOARDED", "PATWT", "EDWT"),
+        *("NOCHRON", "TOTCHRON", "HOSPCODE", "PATCODE"),
+    }
     assert excluded.isdisjoint(records.columns)
     assert excluded.isdisjoint(nhamcs_frame(records).columns)
 
@@ -296,14 +321,24 @@ def test_the_frame_holds_exactly_the_named_fields() -> None:
     check_records(records, frame)
     assert {bound.field: (bound.low, bound.high) for bound in frame.ranges} == {"age": (5, 94)}
     assert dict(frame.codebook["HTN"]) == {0: "no", 1: "yes", 2: "not recorded"}
-    assert dict(frame.codebook["DIAG1"]) == {
+    book = {
         0: "-9 (none recorded)",
         token_number("A00-"): "A00-",
         token_number("A000"): "A000",
+        token_number("E119"): "E119",
         token_number("I509"): "I509",
         token_number("J45-"): "J45-",
+        token_number("N179"): "N179",
+        token_number("R079"): "R079",
         token_number("ZZZ0"): "ZZZ0",
     }
+    for column in DIAGNOSES:
+        assert dict(frame.codebook[column]) == book, column
+    for column, token in LATE_TOKENS.items():
+        assert {name for name in DIAGNOSES if (records[name] == token_number(token)).any()} == {
+            column
+        }
+        assert all(token_number(token) in frame.codebook[name] for name in DIAGNOSES), token
     assert frame.label_meanings == {
         0: "not admitted to this hospital",
         1: "admitted to this hospital",
@@ -322,7 +357,6 @@ def test_a_visit_with_the_chronic_item_blank_shows_no_flag_concept() -> None:
     )
     assert shown(blank, FLAG_ROWS) == shown(none, FLAG_ROWS) == set()
     assert shown(every, FLAG_ROWS) == {row.concept for row in FLAG_ROWS}
-    assert len(FLAG_ROWS) == 18
 
 
 def test_a_missing_value_shows_no_concept() -> None:
@@ -342,3 +376,14 @@ def test_a_missing_value_shows_no_concept() -> None:
     ]
     assert len(diagnosis_codes) == len(DIAGNOSIS_ROWS) > 0
     assert all(0 not in codes for codes in diagnosis_codes)
+
+
+def test_every_field_row_reads_a_frame_column_within_its_codebook() -> None:
+    lines = [line(n, DIAG1=row.token) for n, row in enumerate(ICD10CM_CODES, 1)]
+    frame = nhamcs_frame(_records(*lines))
+    clauses = [clause for row in NHAMCS_FIELD_ROWS for clause in row.when]
+    assert set(DIAGNOSES) <= {clause.field for clause in clauses if isinstance(clause, Codes)}
+    for clause in clauses:
+        assert isinstance(clause, Codes)
+        assert clause.field in frame.columns
+        assert clause.codes <= frame.codebook[clause.field].keys(), clause
