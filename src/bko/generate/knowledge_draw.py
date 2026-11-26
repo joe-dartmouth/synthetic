@@ -1,4 +1,4 @@
-"""Records drawn from K alone: `bko-kb`'s draw, which reads no training record.
+"""Records drawn from K alone: `bko-kb`'s draw, which reads no training record but the age range.
 
 K is the mapping table and the pinned releases its rows name. `kb_sample` draws each concept's
 presence as `Presence.LOGIC` does, uniformly over the assignments each component of

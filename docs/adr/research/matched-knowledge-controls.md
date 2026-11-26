@@ -35,7 +35,7 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
 
 * **Each control must differ from its neighbour in one input**, so a contrast reads that input.
 * **Must keep `bko-direct`'s draw and every existing run byte for byte**, since its runs of record
-  are re-read under identity checks and digests check its draw.
+  are re-read under identity checks.
 * **Must state, per arm, which inputs it reads**, so an arm's reading is not credited to an input
   it never reads.
 * **Must include a draw from K alone**, with no training value, so K's own floor is measured.
@@ -63,24 +63,31 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    n/(n+`GROUP_WEIGHT`), n the cell's records, else a uniform record of the whole label group.
    `Pool.RANDOM` draws its fields without replacement from the features less `age` and `sex`, by
    `np.random.default_rng([seed, POOL_RANDOM_STREAM])`, once per fill, and logs
-   `pool-random holdout=%d fill=%s fields=%s`. Under `RANDOM` and `ALL` the draw reads the mapping
-   only for the count of grouped fields. Every unit outside the pooled set is picked as
-   `bko-nomap` picks it, and a pooled field is attributed `donor`.
+   `pool-random holdout=%d fill=%s fields=%s`. Under `RANDOM` the draw reads the mapping only for
+   the count of grouped fields, and under `ALL` not at all (Decision 14). Every unit outside the
+   pooled set is picked as `bko-nomap` picks it, and a pooled field is attributed `donor`.
 4. **The pooled rule, methods.** As above with the label group restricted to the cell's band, so a
    whole row stays in its cell. One line per cell:
    `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d`, `method` the method's name and
    `key` naming the stratum as the direct arms' lines do.
-5. **Categorisation** (`eb-marginals`, `hb-marginals`). A categorical column's codes; a numeric
-   column's values when the label group holds at most 16 distinct, else 10 label-group decile
-   bins. An ordered column merges its upper tail into one category so each holds at least 5
-   label-group records; an unordered one folds codes under 5 into `other`.
+5. **Categorisation** (`eb-marginals`, `hb-marginals`; `bko.baselines.categories`). A coded
+   column's categories are its codes, each code with fewer than 5 label-group records folded into
+   `other`, which can itself hold fewer than 5. A measured column's are its values when the label
+   group holds at most 16 distinct, else the label group's 10 decile bins; walking those up from
+   the lowest, a category closes once it holds 5 label-group records, and an upper tail that never
+   does joins the last closed one, so each holds 5 unless the whole group holds fewer. A missing
+   value is refused, naming its column.
 6. **`eb-marginals`.** One `kappa` for all columns: the value of `KAPPA_GRID` (101 log-spaced
    values in [0.1, 10000]) that maximises the summed Dirichlet-multinomial log-likelihood of every
-   column over the label's cells, each cell's prior the banded label group less that cell; ties go
-   to the smaller. It logs `eb holdout=%d fill=%s kappa=%s`.
+   column over the cells of the quota's labels; ties go to the smaller. A cell enters when it
+   holds a record and the rest of its banded label group holds another; its prior is that rest's
+   count per category, each raised by `PRIOR_PSEUDOCOUNT` 0.5, so a category the rest lacks keeps
+   a positive prior mean and the likelihood stays finite. It logs
+   `eb holdout=%d fill=%s kappa=%s`.
 7. **`hb-marginals`.** Every feature but `age` and `sex`; `age` by the pooled rule, `sex` and the
-   label from the cell. Per column a baseline-category multinomial logit, its reference the
-   label-group modal category:
+   label from the cell. Per column and per label of the quota, a baseline-category multinomial
+   logit fitted over every training cell of the grid, on the categories that label's group gives
+   the column (Decision 5), its reference the label group's modal category:
    `eta_v(a,s,y) = mu_v + A_v[a] + S_v[s] + Y_v[y] + AS_v[a,s] + AY_v[a,y] + SY_v[s,y] + E_v[a,s,y]`.
    Priors: `mu`, `A`, `S` and `Y` normal at scale 10; the two-way terms at `tau2`; `E` at `tau3`,
    0 at an emptied cell. `TAU_GRID = (0, 1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 2)` for each of
@@ -92,12 +99,15 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    the analytic Hessian, each halved at most 30 times while it lowers neither the objective nor
    the largest gradient entry, until every gradient entry is below 1e-8: L-BFGS-B alone stops on
    its relative-reduction test with entries up to about 0.07 left, enough to move a rounded
-   evidence and the chosen pair. The pair with the largest Laplace log evidence, rounded to 6
-   decimals, wins, ties going to the smaller `tau2`, then the smaller `tau3`. A value is its
-   category for a coded column, and for a numeric one a uniform banded label-group record of that
-   category, else a label-group record. Non-convergence, a gradient still at or above 1e-8 after
-   the Newton steps, or a failed Cholesky raises `BaselineError`. One line per fit, each label's
-   modelled column:
+   evidence and the chosen pair, so its own stop is refused only at `maxiter` or a non-finite
+   point. The pair with the largest Laplace log evidence, rounded to 6 decimals, wins, ties going
+   to the smaller `tau2`, then the smaller `tau3`. A coded column's value is its drawn category's
+   code; a measured column's, or a coded column's `other`, is a uniform record of that category
+   from the cell's banded label group, else from its label group, else from the training split.
+   A fit of more than `MAX_PARAMETERS` (4096) free parameters, whose dense Hessian would pass
+   128 MiB, L-BFGS-B at `maxiter` or a non-finite point, a gradient still at or above 1e-8 after
+   the Newton steps, a Newton step that helps at no halving, or a failed Cholesky raises
+   `BaselineError`. One line per fit, each label's modelled column:
    `hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`. Its
    specification is fixed before any E19 holdout is scored, and a change to it is a new arm name.
 8. **Refusals.** Every pooled method and `hb-marginals` refuse a request by label
@@ -107,11 +117,13 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    `np.random.default_rng([seed, cell_ordinal, record, 0, component_ordinal])`; each group's coded
    fields are uniform over the codebook tuples showing the drawn pattern, from
    `np.random.default_rng([seed, cell_ordinal, record, 1, column_index])`, the prefix words 0 and 1
-   (`COMPONENT_WORD`, `COLUMN_WORD`) keeping the two families apart; `age` is uniform
-   over the band's integers inside `age_range`, the training split's observed range. A frame with
-   a free field or a numeric clause is refused before any arm fits. It is K's structure alone,
-   registered as a floor expected below `bko-logic`, and only on the supported-fields dataset,
-   since E6's frame has free fields.
+   (`COMPONENT_WORD`, `COLUMN_WORD`) keeping the two families apart; `age` is uniform over the
+   band's integers inside `age_range`, the training split's observed range, whose two ends are
+   the only training values it reads. A frame with a free field, or a row with an `AtLeast` clause
+   or a clause on a numeric field or on `sex`, is refused (`kb_check`) before any arm fits, since
+   K gives such a field no codebook tuple. It is K's structure alone, registered as a floor
+   expected below `bko-logic`, and only on the supported-fields dataset, since E6's frame has free
+   fields.
 10. **Supported fields.** `supported_frame(frame, rows)` keeps `age`, `sex`, the label and every
     field of a `Codes` clause of a non-label row: 15 of E6's 34 columns.
     `Dataset.DIABETES_SUPPORTED` (`diabetes-supported`) is `diabetes` projected onto it, a variant
@@ -221,10 +233,11 @@ data-only model of an emptied cell a reviewer would name: a multilevel model wit
 interaction reads the band-by-label and sex-by-label signal a main-effects model discards
 ([`gelman-2006`](../../literature.md#partial-pooling),
 [`bishop-1975`](../../literature.md#partial-pooling)). A posterior mode with a fixed start, an
-analytic gradient, Newton steps to a gradient tolerance, a fixed grid and evidence rounded to 6 decimals gives the same fit on every
-machine.
+analytic gradient, Newton steps to a gradient tolerance, a fixed grid and evidence rounded to 6
+decimals gives the same fit on one machine under the same lock.
 
-`bko-kb` reads no training record, so it measures what K's structure alone gives. Uniform presence
+`bko-kb` reads no training record beyond the training split's age range, its two ends, so it
+measures what K's structure alone gives. Uniform presence
 adds no rate the releases do not state (ADR
 [`research/logic-only-ablation`](logic-only-ablation.md), Rationale); a frame with a free field
 would need data for that field, so the arm runs on the supported-fields projection. Seeding per
@@ -253,7 +266,7 @@ pooled methods refuse a label-keyed request.
 | Duplicates of `label-bootstrap` and `prior-shift` | E19 registers both as they are | 2026-11-26 |
 | A probabilistic-programming dependency for `hb-marginals` | A posterior mode by L-BFGS-B needs only scipy, which the lock holds; see Rationale | 2026-11-26 |
 | A main-effects-only model for every column | Discards the label-by-subgroup signal an emptied cell is predicted from; the grid's 0 lets evidence drop the terms per column instead | 2026-11-26 |
-| A grid floored at 0.125 | On a real Diabetes 130 fill the floor bound most columns, and the extended grid's best pair beat it by up to 35 nats of evidence | 2026-11-26 |
+| A grid floored at 0.125 | The floor bound most columns of a real Diabetes 130 fill (Decision 7) | 2026-11-26 |
 | One-vs-rest fits | Not a likelihood model of a column's categories | 2026-11-26 |
 | One `kappa` per column | Eight label cells give noisy fits, and a one-category column picks the grid's smallest value | 2026-11-26 |
 | An `Experiment.features` field | Placeholder values in place of a dataset name; ADR `research/dataset-variants` holds the projection | 2026-11-26 |
@@ -280,7 +293,9 @@ pooled methods refuse a label-keyed request.
   grid and fit, the categorisation, the refusal by label); `tests/test_baselines_multilevel.py`
   (the multilevel fit, its grid, determinism, convergence and refusals, its log line and
   constants); `tests/test_generate_knowledge_draw.py` and `tests/test_evaluate_kb_arm.py`
-  (`bko-kb` reads no training frame, its codebook and age draws, its refusals);
+  (`bko-kb` reads no training frame, its codebook and age draws, its seed prefixes, its
+  refusals); `tests/test_evaluate_e19_supported.py` (a supported run scored, `bko-kb` traced,
+  attributed and re-drawn for privacy);
   `tests/test_arm_inputs.py` (each arm's fill changes only with a declared input, the
   declared-inputs table mirrors `tests/_arm_inputs.py`); `tests/test_evaluate_control_runs.py`
   (E19's runs are E12's but for arms and comparators, their stated arms, the empty run's

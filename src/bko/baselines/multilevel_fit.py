@@ -33,8 +33,8 @@ from bko.baselines.request import Stratum
 
 TAU_GRID: Final = (0.0, 1 / 64, 1 / 32, 1 / 16, 1 / 8, 1 / 4, 1 / 2, 1.0, 2.0)
 """The values of `tau2`, the two-way terms' prior scale, and of `tau3`, the cell effect's; at 0
-the model drops those terms. The floor below 1/8 and the 0 follow a real Diabetes 130 fill, where a
-floor of 1/8 bound most columns (ADR `research/matched-knowledge-controls`)."""
+the model drops those terms. ADR `research/matched-knowledge-controls`, Decision 7, says why the
+grid runs below 1/8 and to 0."""
 
 MAIN_SCALE: Final = 10.0
 """The prior scale of the intercept and of each main effect."""

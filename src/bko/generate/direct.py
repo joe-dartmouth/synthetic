@@ -149,7 +149,7 @@ def sample(
     mappings = tuple(rows) if spec.reads_concepts else ()
     holdout, fill = (-1, "none") if tag is None else tag
     try:
-        if not spec.donors:
+        if not spec.donors:  # bko-kb reads no training record beyond the age range's two ends.
             return kb_sample(
                 quota,
                 rows=rows,
