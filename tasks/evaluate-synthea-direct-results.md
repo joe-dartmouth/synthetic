@@ -34,6 +34,11 @@ development result on that frame is missing.
 
 - Paid calls.
 
+**Findings from planning.**
+
+- `runs/e3-7` holds `scores.csv`, `criteria.csv` and `criteria.log`, and no `scores.log` or `rows`
+  store, so this unit's first step confirms that `compare --beside runs/e3-7/scores.csv` reads it.
+
 ## Acceptance
 
 - The entry is `complete`, with each contrast's branch named.

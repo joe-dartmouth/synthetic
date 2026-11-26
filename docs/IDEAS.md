@@ -394,6 +394,49 @@ a re-read quotes what it lacks. What the search did not reach is unranked.
 **Sources.** [`fars-nd`][fars-nd] and [`gdelt-nd`][gdelt-nd], each read from its primary page on
 2026-11-22; none in the brief or the 2-pager.
 
+## A knowledge-only draw with an external prevalence table
+
+**What it is.** A variant of the knowledge-only arm `bko-kb` (unit `paper-controls`) that draws
+each concept's presence at a prevalence read from a cited external table, such as a published
+survey's, in place of uniform over the assignments K allows. The draw would then hold how common
+each concept is as well as which combinations K allows, and still copy no training value.
+
+**Why it is not in the plan.** An external prevalence table is a knowledge source beside the
+mapping table and its pinned releases, which are what the matched controls isolate as K, so
+`bko-kb` is registered uniform, as a floor. Adopting it means a cited table registered in
+[literature.md](literature.md), a new arm name and a change to [RESEARCH.md](RESEARCH.md).
+
+**Sources.** None in the brief or the 2-pager.
+
+## A sweep of `bko-direct`'s group weight
+
+**What it is.** `bko-direct` mixes a cell's own concept share with its label group's at the fixed
+weight `GROUP_WEIGHT`, 20 (`bko.gaps.shares`). A sweep runs the arm at several weights, or at a
+weight fitted by empirical Bayes as the planned `eb-marginals` control fits one. Weights fitted on
+holdout 0 of E6's frame sit mostly above 20, so the fixed weight may pool less than the data
+support.
+
+**Why it is not in the plan.** A change to `GROUP_WEIGHT` changes `bko-direct`'s draw, which
+`DRAW_DIGEST` (`tests/test_generate_direct.py`) pins, and moves the pooled control arms with it.
+Adopting it means a weight field on the draw spec under new arm names, and a change to
+[RESEARCH.md](RESEARCH.md).
+
+**Sources.** None in the brief or the 2-pager.
+
+## The matched controls on UCI Heart Disease
+
+**What it is.** E19's matched knowledge controls (unit `paper-controls`) run on UCI Heart Disease,
+whose mapping groups span several fields and whose numeric fields carry cutoffs. On E6's frame
+every mapping group is a single field with no nesting, so at a cell of no record `bko-direct` and
+`bko-nomap` draw one distribution (ADR
+[`research/no-mapping-ablation`](adr/research/no-mapping-ablation.md), Consequences); on UCI Heart
+Disease K's grouping and cutoffs could separate them there.
+
+**Why it is not in the plan.** E19 registers the controls on E6's frame, the direct-method study's
+development frame. Adopting it means new runs on `uci` and a change to [RESEARCH.md](RESEARCH.md).
+
+**Sources.** None in the brief or the 2-pager.
+
 [borisov-2023]: https://arxiv.org/abs/2210.06280
 [claimverification-2026]: https://arxiv.org/abs/2606.12854
 [construct-2025]: https://arxiv.org/abs/2503.10694

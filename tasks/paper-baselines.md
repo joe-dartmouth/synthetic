@@ -22,6 +22,15 @@ Predictive utility can survive imperfect joint fidelity. A strong predictor on s
 
 Reuse TabDDPM. Pin TabSyn and ReTabSyn implementations and weights. Add TabPFN trained or conditioned on the same retained real examples without augmentation. Document limits, tuning budget, training time and compute. Keep test outcomes out of reward design, model selection and preprocessing.
 
+**Findings from planning.**
+
+- A comparator that cannot join the lock, as TabSyn and ReTabSyn may not, follows the benchmark
+  environments of [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#benchmark-environments) and
+  needs an ADR, under ADR
+  [`tooling/benchmark-tools-outside-the-lock`](../docs/adr/tooling/benchmark-tools-outside-the-lock.md).
+- It retires the TabSyn entry of [`docs/IDEAS.md`](../docs/IDEAS.md#diffusion-generators-tabsyn)
+  or links it to this unit.
+
 ## Acceptance
 
 A small common-split fixture exercises each comparator. Register named development runs and specify separate prediction and correlation-fidelity readings, and document unsupported frames and short fills.

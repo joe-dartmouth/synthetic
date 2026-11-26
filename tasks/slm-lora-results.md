@@ -7,7 +7,7 @@ blocks: --
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: research/slm-comparison-design, tooling/slm-extra
+adrs: --
 ---
 
 # Run the LoRA comparison of the arms on E6's frame
@@ -24,12 +24,13 @@ Whether the differences between generators survive in a fine-tuned language mode
 
 - The run on E6's frame
   ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)), under the design
-  of ADR [`research/slm-comparison-design`](../docs/adr/research/slm-comparison-design.md), with
-  these arms:
+  of ADR [`research/slm-comparison-design`](../docs/adr/research/slm-comparison-design.md), in
+  the environment ADR [`tooling/slm-extra`](../docs/adr/tooling/slm-extra.md) sets, with these
+  arms:
   - the confirmatory candidate that unit
     [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) names;
   - `bko-direct`, `label-bootstrap`, `ctgan`, `tabddpm` and `smote`;
-  - the controls.
+  - the controls E12 registers.
 - Each arm's fills drawn on E6's frame by this unit, including `label-bootstrap`'s (ADR
   [`research/baseline-augmentation-design`](../docs/adr/research/baseline-augmentation-design.md))
   and `tabddpm`'s (ADR [`research/diffusion-baseline`](../docs/adr/research/diffusion-baseline.md)).

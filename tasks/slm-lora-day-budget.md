@@ -7,7 +7,7 @@ blocks: slm-lora-results
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: research/slm-comparison-design, tooling/slm-extra
+adrs: --
 ---
 
 # Fit the LoRA comparison of the arms into one day of machine time
@@ -36,6 +36,12 @@ holdout. The comparison must run in under one day.
 **Out.**
 
 - The run: unit [`slm-lora-results`](slm-lora-results.md).
+
+**Findings from planning.**
+
+- It times each lever on short probes, not on full fine-tunes.
+- It is ordered after this batch because its dependant, unit
+  [`slm-lora-results`](slm-lora-results.md), also waits on `evaluate-composite-dev-results`.
 
 ## Acceptance
 

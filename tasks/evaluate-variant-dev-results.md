@@ -3,7 +3,7 @@ id: evaluate-variant-dev-results
 title: Run the direct variants on the development frames and apply the inclusion rule
 status: blocked
 depends_on: privacy-value-microaggregation
-blocks: evaluate-composite-arm
+blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false
@@ -46,6 +46,13 @@ says which enter `bko-direct-2`.
 **Out.**
 
 - Choosing parameters not registered.
+
+**Findings from planning.**
+
+- E20's primary contrast is `bko-micro` minus `bko-capped`.
+- `bko-micro`'s count fields carry about one third of their donors' variance, as ADR
+  [`research/sampler-donor-limits`](../docs/adr/research/sampler-donor-limits.md), once unit
+  `privacy-value-microaggregation` revises it, states; its fidelity reading is read with that.
 
 ## Acceptance
 

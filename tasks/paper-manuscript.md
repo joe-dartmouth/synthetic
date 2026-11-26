@@ -20,8 +20,20 @@ The contribution type and abstract depend on the measured result.
 
 ## Scope
 
-Draft the eight-page main paper, impact statement, references and appendix. Tie each claim and plotted point to an evidence entry and a reproduction command. Review limitations, privacy, negative results and cross-domain scope with coauthors. Consider General for a supported methodological advance and Negative Results or Evaluations and Benchmarks if the evidence fits.
+Draft the eight-page main paper, impact statement, references and appendix. Tie each claim and
+plotted point to an evidence entry and a reproduction command. Review limitations, privacy,
+negative results and cross-domain scope with coauthors. Consider the General contribution type
+for a supported methodological advance, and Negative Results or Datasets, Evaluations and
+Benchmarks if the evidence fits.
+
+**Findings from planning.**
+
+- The official call's contribution types, page limit, AI disclosure and reciprocal-reviewer rule
+  are on the board's [Paper readiness](direct-index.md#paper-readiness) section.
 
 ## Acceptance
 
-Coauthors review the blinded file, reproductions, contribution type, substantive generative AI disclosure, submission quotas and reciprocal reviewer eligibility against the official call. Freeze supported abstract claims before the abstract deadline. Record readiness and outstanding limitations. Submission belongs to the authors.
+Coauthors review the blinded file, reproductions, contribution type, substantive generative AI
+disclosure, submission quotas and reciprocal reviewer eligibility against the official call.
+Freeze supported abstract claims before the abstract deadline. Record readiness and outstanding
+limitations. Submission belongs to the authors.

@@ -55,6 +55,31 @@ links to where its blocker is tracked.
 
   **Trigger:** the first dataset unit that pins a `Source` with an `Agreement`.
 
+## evaluate
+
+- **`cleanup:evaluate/shortfall-line-two-formats`: two log lines share the prefix `shortfall `
+  with different keys.** `partial_fill` (`src/bko/evaluate/shortfall.py:63`) writes
+
+  ```
+  "shortfall holdout=%d arm=%s attempt=%d cell=%s short=%d quota=%d",
+  ```
+
+  and `give_up` (`src/bko/evaluate/waves.py:150`) writes
+
+  ```
+  "shortfall arm=%s seed=%d cell=%s short=%d quota=%d asked=%d limit=%d",
+  ```
+
+  so a reader that parses `shortfall` lines by prefix meets two key sets. Deferred because no
+  reader under `src/bko/` parses a `shortfall` line today; `panel` reads a shortfall from the
+  `arm` line's params. The `shortfall`-line tests of unit `evaluate-p1-partial-replicas` assert
+  one format, the `partial_fill` key set, and do not discharge this entry.
+
+  **What discharges it:** one of the two lines takes its own prefix, or a reader states which
+  format it reads, with a test that a line of the other format is not misread.
+
+  **Trigger:** the first reader that parses a `shortfall` line.
+
 ## slm
 
 - **`cleanup:slm/share-run-keeps-dropped-rows`: `bko.slm` trains on a synthetic-share run's

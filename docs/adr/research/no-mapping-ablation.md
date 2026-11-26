@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-26
 ---
 # The no-mapping ablation draws bko-direct's records with an empty mapping table
 
@@ -32,8 +32,8 @@ the table carries.
 1. **The draw spec.** `DrawSpec` is a frozen dataclass in `bko.generate.draw_spec` with
    `presence: Presence = Presence.SHARES` and `mapped: bool = True`; it refuses a presence other
    than shares at `mapped=False`, since presence has no meaning without the table. `sample`,
-   `DirectArm` and `redraw` take a `spec`. `bko-direct` and `bko-direct-pram` draw at the default spec,
-   `bko-logic` at `presence=logic`, and `bko-nomap` at `mapped=False`.
+   `DirectArm` and `redraw` take a `spec`. `bko-direct` and `bko-direct-pram` draw at the default
+   spec, `bko-logic` at `presence=logic`, and `bko-nomap` at `mapped=False`.
 2. **No table.** At `mapped=False` the sampler reads an empty mapping table: no concept, share,
    prior or field group. Every column but `age`, `sex` and the label is a free field, picked
    uniformly from the cell's records, else from the label group's.
@@ -69,7 +69,13 @@ the mapping table adds to pooling; a spec type a later sampler option joins with
 parameter on every caller.
 **Accepted**: free fields drawn one by one break the within-record combinations a field group
 keeps, which is the point of the ablation; the arm's concepts are empty, so its trace explains a
-record by its source ids alone.
+record by its source ids alone. At a cell of no record, on a frame whose mapping groups are
+single fields with no nesting, `bko-direct` and `bko-nomap` draw one distribution: every share is
+the label group's (`src/bko/gaps/shares.py`, `SharePart.share`); `age` falls back to the label
+group's records in the cell's age band and every other unit to the whole label group
+(`src/bko/generate/donors.py`, with the pools of `src/bko/generate/direct.py`, `_Sources.banded`
+and `draw`), and both arms run that one code. A
+contrast between the two at full removal so reads no mapping effect. E6's frame is such a frame.
 
 ## Ruled Out
 

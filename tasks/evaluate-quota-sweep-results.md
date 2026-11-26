@@ -2,8 +2,8 @@
 id: evaluate-quota-sweep-results
 title: Run the quota sweep and read representativeness and recall per count
 status: blocked
-depends_on: gaps-share-based-quota
-blocks: evaluate-composite-arm
+depends_on: evaluate-diabetes-control-results, gaps-share-based-quota
+blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false
@@ -32,6 +32,12 @@ sweep; this unit runs it.
 **Out.**
 
 - Counts not registered.
+
+**Findings from planning.**
+
+- The unit's first step recomputes E6's counts with `bko.gaps.quota`, which unit
+  [`gaps-share-based-quota`](gaps-share-based-quota.md) adds; how far each count sits from the
+  fixed fill is that unit's ADR's to state.
 
 ## Acceptance
 
