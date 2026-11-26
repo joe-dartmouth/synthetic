@@ -227,9 +227,8 @@ and the controls that run on `diabetes-supported`."""
 
 E19_THIN: Final = _controls(E6_THIN, E19_THIN_ARMS)
 E19_EMPTY: Final = _controls(E6_EMPTY, E19_EMPTY_ARMS)
-E19_SUPPORTED_THIN, E19_SUPPORTED_EMPTY = (
-    _controls(e6, E19_SUPPORTED_ARMS) for e6 in (E6_THIN, E6_EMPTY)
-)
+E19_SUPPORTED_THIN: Final = _controls(E6_THIN, E19_SUPPORTED_ARMS)
+E19_SUPPORTED_EMPTY: Final = _controls(E6_EMPTY, E19_SUPPORTED_ARMS)
 """E19's runs: E12's runs with each family's arms, `bko-direct` the candidate against every arm but
 `real`, and no replica. `bko.evaluate.named_runs.RUNS` scores the supported runs on
 `diabetes-supported`. No arm calls the API, so the ceiling is inert."""

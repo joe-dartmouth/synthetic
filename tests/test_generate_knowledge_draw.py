@@ -218,6 +218,30 @@ def test_a_frame_with_a_free_field_is_refused():
         _kb(frame=free)
 
 
+def test_a_kb_refusal_names_the_holdout_and_the_fill():
+    free = dataclasses.replace(
+        FRAME,
+        name="kb-free",
+        features=(*FRAME.features, "d"),
+        categorical=(*FRAME.categorical, "d"),
+        codebook={**FRAME.codebook, "d": {0: "no", 1: "yes"}},
+        descriptions={**FRAME.descriptions, "d": "an unmapped flag"},
+    )
+    train = _train([25, *range(30, 80, 3), 80], shift=1).assign(d=0)
+    with pytest.raises(ValueError, match="toy frame=kb-free holdout=3 fill=gap cannot draw: "):
+        sample(
+            train,
+            QUOTA,
+            rows=ROWS,
+            ontologies=ONTOLOGIES,
+            name="toy",
+            seed=3,
+            frame=free,
+            spec=KB,
+            tag=(3, "gap"),
+        )
+
+
 def test_a_frame_with_a_numeric_clause_is_refused():
     numeric = dataclasses.replace(
         FRAME,

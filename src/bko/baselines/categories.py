@@ -16,6 +16,8 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
+from bko.baselines.errors import BaselineError
+
 
 MIN_RECORDS: Final = 5
 """The label-group records a kept code, or a measured column's category, holds at least, when
@@ -43,7 +45,14 @@ def categorise(values: pd.Series, group: pd.Series, *, ordered: bool) -> pd.Seri
     Returns:
         One category per value on `values`' index: an ordinal from 0 for an ordered column, a code
         or `OTHER` for an unordered one.
+
+    Raises:
+        BaselineError: Naming the column, `values`' name, if `values` or `group` holds a missing
+            value, which no category holds.
     """
+    if values.isna().any() or group.isna().any():
+        msg = f"column {values.name} holds a missing value, which no category holds"
+        raise BaselineError(msg)
     if not ordered:
         counts = group.value_counts()
         kept = set(counts.index[counts >= MIN_RECORDS])

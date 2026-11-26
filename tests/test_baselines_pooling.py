@@ -110,6 +110,15 @@ def test_every_stream_and_the_pseudocount_are_pinned():
     assert PRIOR_PSEUDOCOUNT == 0.5  # ruff: ignore[float-equality-comparison]
 
 
+def test_categorise_refuses_a_missing_value_by_column():
+    values = pd.Series([1.0, np.nan, 3.0], name="chol")
+    with pytest.raises(BaselineError, match="chol"):
+        categorise(values, values, ordered=True)
+    codes = pd.Series([1, None, 1], name="cp", dtype="Int64")
+    with pytest.raises(BaselineError, match="cp"):
+        categorise(codes, codes.dropna(), ordered=False)
+
+
 def test_the_pooled_weight_has_one_home():
     assert baseline_pooling.cell_weight is cell_weight
     assert donors.cell_weight is cell_weight

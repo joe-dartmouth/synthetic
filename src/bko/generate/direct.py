@@ -141,23 +141,24 @@ def sample(
         GapError: As `bko.gaps.observe.record_cells` and `observe_records`.
         ValueError: As `nested`, for nesting deeper or wider than one pair, as
             `bko.generate.logic.components`, for a component too large to enumerate, or as
-            `bko.generate.hierarchy.Hierarchy`, naming the dataset, the frame, the holdout and
-            the fill; at `donors=False`, as `bko.generate.knowledge_draw.kb_sample`.
+            `bko.generate.hierarchy.Hierarchy`, or at `donors=False` as
+            `bko.generate.knowledge_draw.kb_sample`, naming the dataset, the frame, the holdout
+            and the fill; at `donors=False`, `SamplingError` as `kb_sample`.
     """
-    if not spec.donors:
-        return kb_sample(
-            quota,
-            rows=rows,
-            ontologies=ontologies,
-            frame=frame,
-            seed=seed,
-            age_range=(int(train["age"].min()), int(train["age"].max())),
-            tag=tag,
-        )
     presence = spec.presence
     mappings = tuple(rows) if spec.reads_concepts else ()
     holdout, fill = (-1, "none") if tag is None else tag
     try:
+        if not spec.donors:
+            return kb_sample(
+                quota,
+                rows=rows,
+                ontologies=ontologies,
+                frame=frame,
+                seed=seed,
+                age_range=(int(train["age"].min()), int(train["age"].max())),
+                tag=tag,
+            )
         plan = _Plan(
             mappings,
             ontologies,

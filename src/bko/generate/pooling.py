@@ -43,6 +43,9 @@ def pooled_units(
     `Pool.MAPPED` gives each field group of `rows`, whole; `Pool.RANDOM` reads `rows` only for how
     many fields those groups hold, and draws that many from `features` at `seed`; `Pool.ALL` reads
     no row. A `RANDOM` or `ALL` unit is one field, in column order.
+
+    Raises:
+        ValueError: At `Pool.RANDOM`, if the groups hold more fields than `features` holds.
     """
     if pool is Pool.MAPPED:
         return tuple(group.fields for group in field_groups(rows, frame=frame))
@@ -50,6 +53,9 @@ def pooled_units(
     if pool is Pool.ALL:
         return tuple((field,) for field in candidates)
     held = sum(len(group.fields) for group in field_groups(rows, frame=frame))
+    if held > len(candidates):
+        msg = f"pool random draws {held} fields but frame {frame.name} has {len(candidates)} "
+        raise ValueError(msg + "features besides age and sex")
     rng = np.random.default_rng([seed, POOL_RANDOM_STREAM])
     chosen = {int(k) for k in rng.choice(len(candidates), size=held, replace=False)}
     return tuple((field,) for k, field in enumerate(candidates) if k in chosen)

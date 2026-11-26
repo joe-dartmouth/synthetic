@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 HB_MARGINALS_STREAM: Final = 20
 """The second word of `hb-marginals`' seed, `[request.seed, HB_MARGINALS_STREAM]`."""
 
-type Draw = Callable[[np.random.Generator], object]
+type ColumnDraw = Callable[[np.random.Generator], object]
 """One column's draw of one value from the fill's generator."""
 
 
@@ -128,7 +128,7 @@ def _drawers(
     request: Request,
     stratum: Stratum,
     models: dict[tuple[int, str], _Column],
-) -> dict[str, Draw]:
+) -> dict[str, ColumnDraw]:
     """Each drawn column's draw in `stratum`, in frame order, with one log line per model.
 
     `age` draws a donor by the pooled rule; every other column draws from its model for the
@@ -140,7 +140,7 @@ def _drawers(
     key = "/".join(map(str, stratum))
     label = int(stratum[2])
     own, group = banded_pools(cells, stratum, key)
-    drawers: dict[str, Draw] = {}
+    drawers: dict[str, ColumnDraw] = {}
     for name in drawn_columns(request):
         if name == "age":
             ages = train[name].to_numpy()

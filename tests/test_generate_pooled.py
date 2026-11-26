@@ -25,7 +25,7 @@ from bko.generate.fields import field_groups
 from bko.generate.pooling import POOL_RANDOM_STREAM, pooled_units
 from bko.generate.presence import Presence
 from bko.ontology.mapping import FIELD_MAPPINGS
-from bko.ontology.schema import FieldMapping
+from bko.ontology.schema import AtLeast, FieldMapping
 from tests.test_generate_direct import NAME, ONTOLOGIES, YOUNG_WOMEN_0, YOUNG_WOMEN_1, varied
 
 
@@ -196,6 +196,17 @@ def test_pool_random_draws_as_many_fields_as_the_groups_hold(seed):
     assert len(fields) == len(set(fields)) == held
     assert set(fields) <= set(FEATURES)
     assert fields == [c for c in UCI_FRAME.columns if c in fields]
+
+
+def test_pool_random_refuses_more_grouped_fields_than_features():
+    rows = tuple(
+        FieldMapping(
+            when=(AtLeast(field, 0),), concept=f"HP:90000{k:02d}", label="x", source="t", limits="t"
+        )
+        for k, field in enumerate(("age", *FEATURES))
+    )
+    with pytest.raises(ValueError, match=r"pool random draws \d+ fields but frame uci"):
+        pooled_units(rows, UCI_FRAME, Pool.RANDOM, seed=0)
 
 
 def test_pool_random_fields_follow_the_seed_and_are_logged(caplog):
