@@ -16,16 +16,17 @@ tool, heap, timeout, timings, classified files and per-release counts go to stde
 `codes` fetches the pinned MONDO release and Diabetes 130 archive if they are absent, maps every
 diagnosis code the `diabetes-codes` cohort holds with `bko.ontology.codes.generate`, writes the
 module text of `bko.ontology.icd9_codes` to stdout, and logs a `codes unmapped` line per reason and
-a closing `codes rows=` line; stdout stays empty until the text is complete. `codes --system
-icd10cm` does the same for every diagnosis token of the `nhamcs` records, from the NHAMCS archive,
-with `bko.ontology.icd10.generate_icd10`, writing `bko.ontology.icd10cm_codes`'s text and logging
-`codes unmapped system=icd10cm` lines and a closing `codes system=icd10cm rows=` line. `occupations
---part low` or `--part high` fetches the pinned OccO release and ACS archive if they are absent,
-maps each kept `OCCP` code through its `SOCP` code with `bko.ontology.occupations.generate`, writes
-the module text of that part, `bko.ontology.occupation_codes_low` or `_high`, to stdout, and logs an
+a closing `codes rows=` line; stdout stays empty until the text is complete. `occupations --part
+low` or `--part high` fetches the pinned OccO release and ACS archive if they are absent, maps each
+kept `OCCP` code through its `SOCP` code with `bko.ontology.occupations.generate`, writes the module
+text of that part, `bko.ontology.occupation_codes_low` or `_high`, to stdout, and logs an
 `occupations unmapped parts=all` line per reason, counted over both parts, and a closing
-`occupations part=` line with the codes read and the classes holding a SOC id, stdout likewise empty
-until then. `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
+`occupations part=` line with the codes read and the classes holding a SOC id, stdout likewise
+empty until then. `codes --system icd10cm` does what `codes` does for every diagnosis token of the
+`nhamcs` records, from the NHAMCS archive, with `bko.ontology.icd10.generate_icd10`, writing
+`bko.ontology.icd10cm_codes`'s text and logging `codes unmapped system=icd10cm` lines and a closing
+`codes system=icd10cm rows=` line. `docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the
+usage home.
 
 Exit codes: 0 every `check` row agrees, or `reproduce`, `elk`, `codes` or `occupations` wrote its
 report, whatever its statuses; 1 an unexpected error, with its traceback, including a fusion the

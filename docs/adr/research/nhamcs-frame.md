@@ -89,7 +89,9 @@ blank (`-9`) is 0, and any other token is its value as a four-digit base-37 numb
 digits `-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ`, so `-` is digit 0 and the encoding is reversible.
 `A00-` and `A000` are different numbers. A token that is not blank, not `ZZZ0` and `ZZZ2` to
 `ZZZ5`, and not a letter, a digit, then two characters of digits and letters with a dash allowed
-last, is refused. The codebook is built from the loaded records' tokens.
+last, is refused. `ZZZ1` is refused with them: the documentation lists it, on its page 19, under
+"This code was previously discontinued:", and its `DIAG1` entry, on page 41, says it "was actually
+discontinued in 2018". The codebook is built from the loaded records' tokens.
 
 **4. Matching a diagnosis.** A token reads as an ICD-10-CM id by restoring the implied decimal:
 `I509` is `ICD10CM:I50.9`, and a dash-filled `A00-` is the category `ICD10CM:A00`. Blank and the
@@ -140,7 +142,9 @@ the pinned releases' names:
 
 **7. What never enters.** The disposition block, columns 487 to 502, but `ADMITHOS`; `ADMIT`,
 columns 503-504, through `BOARDED`, columns 2379-2382, every item recorded once the patient is
-admitted or leaves; `PATWT` and every other weight. No item the frame does not name enters.
+admitted or leaves, but `HOSPCODE` and `PATCODE`, columns 544-549, which are read only to form
+`record_id` and enter no field; `PATWT` and every other weight. No item the frame does not name
+enters.
 
 **8. The order.** The rows are committed; then the training split (`split(records, seed=0,
 edges=frame.edges).train`) is counted, its record count, its admissions and their rate; then the
@@ -162,7 +166,10 @@ The diagnosis rule is the ICD-9 rule because its reasons hold unchanged: an exac
 is the only one with a direction that lets a record holding the code show the concept. The file's
 truncation only shortens the codes: the id a token reads as is a real ICD-10-CM category or
 subcategory, and MONDO's xrefs name such ids. Keying the base-37 number on the dash keeps a
-category and its first subcategory apart, so `A00-` never stands for `A00.0`.
+category and its first subcategory apart. The dash does not say the code stops at three
+characters: the `DIAG1` entry reads "for inapplicable or masked fourth digits, a dash is inserted",
+so a dashed token may hide a fourth digit. The row reads it as the category it names, which covers
+every code below it, as Decision 4 reads every truncated token.
 
 Coding a blank chronic item as its own state keeps "no" meaning the box was left unticked on a
 form whose item was answered. The flag rows take a term whose name or exact synonym is the item's
@@ -216,8 +223,12 @@ mellitus; end stage renal failure, 146 records, shows without chronic kidney dis
 csv sha256 is `150d189b8f8e6bf16fc88f76722928fb86a6677d6927c99e00e1347a23037b17` and its log
 sha256 `ce41e63922327a7e6c1889b817a9a69f72b4886d74504cf064d5f5b90a0e4984`. Both read the pinned
 archive, MONDO `releases/2026-10-06` and HPO `hp/releases/2026-09-01`, and each log's `versions`
-line reads `dirty=false`. These are commits of pull request #139, kept at `refs/pull/139/head`
-after its squash merge; [`EVIDENCE.md`](../../EVIDENCE.md) keeps the runs' rows.
+line reads `dirty=false`. Runs `d1-9` and `d2-9` read them again at `9584f87`, once the loader's
+`cohort` line counted blank first diagnoses and NCHS's `ZZZ` tokens: each csv is byte-identical to
+its earlier run's, and each log's `cohort` line reads `records=16025 admitted=2121
+chronic_blank=259 first_blank=227 not_icd=265`. These are commits of pull request #139, kept at
+`refs/pull/139/head` after its squash merge; [`EVIDENCE.md`](../../EVIDENCE.md) keeps the runs'
+rows.
 
 **Gained**: a health frame whose concepts come from coded diagnoses and a chronic-condition
 checklist, reaching MONDO through curator-stated equivalence. **Accepted**: diagnoses MONDO links

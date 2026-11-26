@@ -1,8 +1,8 @@
 """Check the table's rows against parsed releases: `python -m bko.ontology check`'s core.
 
 The rows are the concept rows, the generated ICD-9 and ICD-10-CM code rows and ACS occupation
-rows among them,
-the excluded Synthea codes and the excluded ICD-9 categories (`bko.ontology.mapping.CHECKED_ROWS`).
+rows among them, the excluded Synthea codes and the excluded ICD-9 categories
+(`bko.ontology.mapping.CHECKED_ROWS`).
 """
 
 from __future__ import annotations
