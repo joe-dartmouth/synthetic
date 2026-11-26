@@ -15,6 +15,8 @@ from bko.datasets.frames import check_records, digest
 from bko.datasets.nhanes import (
     COLUMNS,
     COMPONENTS,
+    READINGS,
+    check_readings,
     frame_records,
     load_nhanes,
     read_component,
@@ -109,6 +111,31 @@ def test_a_respondent_number_that_is_not_whole_names_its_row() -> None:
         read_component(xpt_bytes(data), "DEMO_L")
 
 
+def test_a_missing_respondent_number_names_its_row() -> None:
+    data = components([Respondent(1), Respondent(2)])["GHB_L"]
+    data.loc[1, "SEQN"] = None
+    with pytest.raises(ContractError, match=r"^GHB_L row 2: SEQN nan is not whole$"):
+        read_component(xpt_bytes(data), "GHB_L")
+
+
+@pytest.mark.parametrize("component", ["MCQ_L", "BPXO_L", "GHB_L"])
+def test_a_respondent_absent_from_the_demographics_is_refused(component: str) -> None:
+    data = components([Respondent(1), Respondent(2), Respondent(3)])
+    read = {name: read_component(xpt_bytes(frame, name), name) for name, frame in data.items()}
+    read["DEMO_L"] = read["DEMO_L"].loc[[1]]
+    match = rf"^{component}: 2 respondents are absent from DEMO_L, first 2$"
+    with pytest.raises(ContractError, match=match):
+        frame_records({**read, **{n: read[n].loc[[1]] for n in COMPONENTS if n != component}})
+
+
+def test_every_reading_is_a_column_of_its_component() -> None:
+    check_readings(READINGS, COLUMNS)
+    with pytest.raises(ValueError, match=r"^LBXGH: GHB_L holds no column LBXGHX$"):
+        check_readings({**READINGS, "LBXGH": ("GHB_L", "value", ("LBXGHX",))}, COLUMNS)
+    with pytest.raises(ValueError, match=r"^LBXGH: GHB_M is not a component file$"):
+        check_readings({**READINGS, "LBXGH": ("GHB_M", "value", ("LBXGH",))}, COLUMNS)
+
+
 def test_only_adults_of_20_and_over_enter() -> None:
     records = _records([Respondent(1, age=19.0), Respondent(2, age=20.0), Respondent(3, age=0.0)])
     assert records.index.tolist() == [2]
@@ -137,8 +164,9 @@ def test_a_record_with_no_yes_and_an_unknown_answer_is_left_out(unknown, caplog)
     assert records.index.tolist() == [2, 3]
     assert caplog.messages == [
         (
-            "cohort dataset=nhanes demographics=3 interviewed=3 adults=3 any_yes=0 all_no=2 "
-            "left_out=1 records=2 composite=0"
+            "cohort dataset=nhanes demographics=3 with_conditions=3 adults=3 any_yes=0 "
+            "all_no=2 left_out=1 records=2 composite=0 measured_BPXOSY=2 measured_BPXODI=2 "
+            "measured_LBXGH=2 measured_LBXTC=2 measured_LBDHDD=2 measured_BMXBMI=2"
         )
     ]
 
@@ -148,8 +176,9 @@ def test_the_cohort_line_accounts_for_every_filter(caplog) -> None:
         _records([*mixed(), Respondent(130390, interviewed=False)])
     assert caplog.messages == [
         (
-            "cohort dataset=nhanes demographics=13 interviewed=12 adults=11 any_yes=4 all_no=5 "
-            "left_out=2 records=9 composite=4"
+            "cohort dataset=nhanes demographics=13 with_conditions=12 adults=11 any_yes=4 "
+            "all_no=5 left_out=2 records=9 composite=4 measured_BPXOSY=7 measured_BPXODI=8 "
+            "measured_LBXGH=8 measured_LBXTC=7 measured_LBDHDD=8 measured_BMXBMI=7"
         )
     ]
 
@@ -248,10 +277,21 @@ def test_each_bmi_tertile_takes_the_upper_state_at_its_cutoff() -> None:
     [
         ("DEMO_L", "RIAGENDR", 3.0, "^respondent 1: RIAGENDR is 3.0, not 1 or 2$"),
         ("DEMO_L", "RIDAGEYR", 40.5, "^respondent 1: RIDAGEYR is 40.5, not a whole age 0 to 80$"),
+        ("DEMO_L", "RIDAGEYR", 81.0, "^respondent 1: RIDAGEYR is 81.0, not a whole age 0 to 80$"),
+        ("DEMO_L", "RIDAGEYR", -1.0, "^respondent 1: RIDAGEYR is -1.0, not a whole age 0 to 80$"),
+        ("DEMO_L", "RIAGENDR", None, "^respondent 1: RIAGENDR is nan, not 1 or 2$"),
         ("MCQ_L", "MCQ160E", 3.0, r"^respondent 1: MCQ160E is 3.0, not 1, 2, 7, 9 or \.$"),
         ("TCHOL_L", "LBXTC", -1.0, "^respondent 1: LBXTC is -1.0, negative$"),
+        ("BPXO_L", "BPXOSY2", -1.0, "^respondent 1: BPXOSY2 is -1.0, negative$"),
+        ("BPXO_L", "BPXODI3", -1.0, "^respondent 1: BPXODI3 is -1.0, negative$"),
+        ("BMX_L", "BMXBMI", -1.0, "^respondent 1: BMXBMI is -1.0, negative$"),
+        ("HDL_L", "LBDHDD", -1.0, "^respondent 1: LBDHDD is -1.0, negative$"),
+        ("GHB_L", "LBXGH", -1.0, "^respondent 1: LBXGH is -1.0, negative$"),
     ],
-    ids=["sex", "age", "answer", "negative"],
+    ids=[
+        *("sex", "age", "age-81", "age-negative", "sex-missing", "answer", "cholesterol"),
+        *("systolic", "diastolic", "bmi", "hdl", "hba1c"),
+    ],
 )
 def test_a_value_outside_its_codebook_names_its_respondent(
     component: str, column: str, value: float, match: str
@@ -259,6 +299,13 @@ def test_a_value_outside_its_codebook_names_its_respondent(
     person = Respondent(1, extra={component: {column: value}})
     with pytest.raises(ContractError, match=match):
         _records([person, Respondent(2)])
+
+
+def test_the_first_respondent_outside_the_codebook_is_named() -> None:
+    bad = {"DEMO_L": {"RIAGENDR": 3.0}}
+    people = [Respondent(1), Respondent(2, extra=bad), Respondent(3, extra=bad)]
+    with pytest.raises(ContractError, match=r"^respondent 2: RIAGENDR is 3\.0, not 1 or 2$"):
+        _records(people)
 
 
 def test_a_missing_value_shows_no_concept() -> None:
@@ -335,13 +382,34 @@ def test_load_reads_each_component_of_a_verified_snapshot(tmp_path: Path) -> Non
         load_nhanes(tmp_path, sources=sources[:1])
 
 
+def _observations(data: bytes) -> int:
+    """The offset of `data`'s first observation: the byte after its OBS header record."""
+    return data.index(b"HEADER RECORD*******OBS     HEADER RECORD") + 80
+
+
+WIDTH = 8 * len(COLUMNS["DEMO_L"])
+"""One DEMO_L observation's bytes: every column numeric, 8 bytes each."""
+
+
 @pytest.mark.parametrize(
     ("make", "match"),
     [
         (lambda data: b"not an xport file" * 10, "^DEMO_L: not a readable XPORT file: "),
-        (operator.itemgetter(slice(200)), "^DEMO_L: not a readable XPORT file: "),
+        (operator.itemgetter(slice(200)), "^DEMO_L: not a readable XPORT file: ValueError: "),
+        (
+            lambda data: data[: _observations(data)],
+            "^DEMO_L: not a readable XPORT file: StopIteration: ",
+        ),
+        (
+            lambda data: data[: _observations(data) + 1],
+            "^DEMO_L: not a readable XPORT file: UserWarning: xport file may be corrupted",
+        ),
+        (
+            lambda data: data[: _observations(data) + WIDTH],
+            "^DEMO_L: not a readable XPORT file: UserWarning: xport file may be corrupted",
+        ),
     ],
-    ids=["not-xport", "truncated"],
+    ids=["not-xport", "cut-in-headers", "cut-at-observations", "cut-in-a-row", "cut-after-a-row"],
 )
 def test_a_damaged_component_is_a_contract_error(tmp_path: Path, make, match: str) -> None:
     data = files(mixed())

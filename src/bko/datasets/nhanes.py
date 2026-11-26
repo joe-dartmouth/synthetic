@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import io
 import logging
+import struct
+import warnings
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import MappingProxyType
@@ -101,6 +103,29 @@ READINGS: Final[Mapping[str, tuple[str, str, tuple[str, ...]]]] = MappingProxyTy
 """Each coded field's component file, how it is read, and the columns it reads: a blood pressure
 is the mean of the readings present."""
 
+
+def check_readings(
+    readings: Mapping[str, tuple[str, str, tuple[str, ...]]],
+    columns: Mapping[str, tuple[str, ...]],
+) -> None:
+    """Refuse a reading whose component file or column the published files do not hold.
+
+    Raises:
+        ValueError: Naming the first field whose component is not in `columns`, or whose column
+            is not among its component's columns.
+    """
+    for field, (component, _, read) in readings.items():
+        if component not in columns:
+            msg = f"{field}: {component} is not a component file"
+            raise ValueError(msg)
+        absent = [name for name in read if name not in columns[component]]
+        if absent:
+            msg = f"{field}: {component} holds no column {absent[0]}"
+            raise ValueError(msg)
+
+
+check_readings(READINGS, COLUMNS)
+
 CITED: Final[Mapping[str, Cutoffs]] = MappingProxyType(
     {
         "BPXOSY": Cutoffs(at_or_above=(130.0,), source="muntner-2018"),
@@ -135,8 +160,21 @@ stores IBM floats, so a value such as 5.7 may read a hair below itself."""
 FEATURES: Final = ("age", "sex", *MEASURED)
 """The frame's features, in record order."""
 
-_READ_ERRORS: Final = (ValueError, TypeError, KeyError, IndexError, OSError, UnicodeDecodeError)
-"""What `pandas.read_sas` raises on bytes that are not a readable XPORT file."""
+_READ_ERRORS: Final = (
+    ValueError,
+    TypeError,
+    KeyError,
+    IndexError,
+    OSError,
+    StopIteration,
+    struct.error,
+    UserWarning,
+)
+"""What `pandas.read_sas` raises on bytes that are not a readable XPORT file, its warning that a
+file may be corrupted raised as an error."""
+
+_CORRUPTED: Final = "xport file may be corrupted"
+"""The start of the warning `pandas.read_sas` gives on a file cut inside its observations."""
 
 
 def read_component(data: bytes, component: str) -> pd.DataFrame:
@@ -146,11 +184,14 @@ def read_component(data: bytes, component: str) -> pd.DataFrame:
         Every column but `SEQN`, as read, indexed by `record_id`, the whole `SEQN`, ascending.
 
     Raises:
-        ContractError: If the bytes are not a readable XPORT file, its columns are not
-            `COLUMNS[component]` in order, or a `SEQN` is missing, not whole or repeated.
+        ContractError: If the bytes are not a readable XPORT file, `pandas.read_sas` warns that
+            they may be corrupted, its columns are not `COLUMNS[component]` in order, or a `SEQN`
+            is missing, not whole or repeated.
     """
     try:
-        frame = pd.read_sas(io.BytesIO(data), format="xport")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", message=_CORRUPTED)
+            frame = pd.read_sas(io.BytesIO(data), format="xport")
     except _READ_ERRORS as exc:
         msg = f"{component}: not a readable XPORT file: {type(exc).__name__}: {exc}"
         raise ContractError(msg) from exc
@@ -212,18 +253,34 @@ def _checked(joined: pd.DataFrame) -> None:
             raise ContractError(msg)
 
 
+def _within_demographics(components: Mapping[str, pd.DataFrame]) -> None:
+    """Refuse a component file listing a respondent the demographics file does not."""
+    demo = components["DEMO_L"].index
+    for name in COMPONENTS[1:]:
+        absent = components[name].index.difference(demo)
+        if len(absent):
+            msg = f"{name}: {len(absent)} respondents are absent from DEMO_L, first {absent[0]}"
+            raise ContractError(msg)
+
+
 def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
     """Return the frame records of the adults whose answers settle the label, in `SEQN` order.
 
     Args:
         components: Each component file's output of `read_component`, by `COMPONENTS` name.
 
+    Logs one `cohort` line: the demographics records, those with a medical-conditions record
+    (`with_conditions`), the adults among them, each label's count, the adults left out, and per
+    coded field the kept records it was measured on.
+
     Returns:
         `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
 
     Raises:
-        ContractError: If a joined value contradicts its codebook.
+        ContractError: If a component file lists a respondent the demographics file does not, or
+            a joined value contradicts its codebook.
     """
+    _within_demographics(components)
     demo = components["DEMO_L"]
     joined = demo[["RIAGENDR", "RIDAGEYR"]].join(components["MCQ_L"][list(QUESTIONS)], how="inner")
     for name in COMPONENTS[2:]:
@@ -247,8 +304,8 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
     records = pd.DataFrame(columns).astype("int64")
     records.index.name = "record_id"
     logger.info(
-        "cohort dataset=%s demographics=%d interviewed=%d adults=%d any_yes=%d all_no=%d "
-        "left_out=%d records=%d composite=%d",
+        "cohort dataset=%s demographics=%d with_conditions=%d adults=%d any_yes=%d all_no=%d "
+        "left_out=%d records=%d composite=%d %s",
         NHANES_NAME,
         len(demo),
         len(joined),
@@ -258,6 +315,7 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
         len(adults) - len(kept),
         len(records),
         int(records[LABEL].sum()),
+        " ".join(f"measured_{field}={int((records[field] != 0).sum())}" for field in MEASURED),
     )
     return records
 

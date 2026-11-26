@@ -103,8 +103,10 @@ def test_gaps_nhanes_logs_its_records_and_its_split_once(tmp_path: Path, caplog)
         (
             "bko.datasets.nhanes",
             (
-                "cohort dataset=nhanes demographics=41 interviewed=41 adults=41 any_yes=1 "
-                "all_no=40 left_out=0 records=41 composite=1"
+                "cohort dataset=nhanes demographics=41 with_conditions=41 adults=41 any_yes=1 "
+                "all_no=40 left_out=0 records=41 composite=1 measured_BPXOSY=41 "
+                "measured_BPXODI=41 measured_LBXGH=41 measured_LBXTC=41 measured_LBDHDD=41 "
+                "measured_BMXBMI=41"
             ),
         ),
         ("bko.gaps", "data dataset=nhanes frame=nhanes records=41"),

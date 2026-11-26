@@ -87,8 +87,9 @@ Each size equals the host's content-length, and each sha256 is measured from the
 The fasting-subsample files are left out.
 
 **2. The join.** Each file is read whole from its verified bytes by
-`pandas.read_sas(..., format="xport")`; its columns must be the published file's, in order, and
-its `SEQN` values whole and unique. DEMO_L and MCQ_L join inner on `SEQN`; BPXO_L, BMX_L,
+`pandas.read_sas(..., format="xport")`, a warning that the file may be corrupted refusing it;
+its columns must be the published file's, in order, its `SEQN` values whole and unique, and every
+other file's `SEQN` values among DEMO_L's. DEMO_L and MCQ_L join inner on `SEQN`; BPXO_L, BMX_L,
 TCHOL_L, HDL_L and GHB_L join left, so an adult with no exam or no blood sample stays a record.
 `record_id` is `SEQN`.
 
