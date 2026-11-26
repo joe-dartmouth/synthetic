@@ -20,8 +20,6 @@ spec with `hierarchy` or `closed`, each `is_a` pair's broad concept is drawn giv
 
 from __future__ import annotations
 
-import dataclasses
-import json
 import logging
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
@@ -46,6 +44,11 @@ from bko.generate.donors import (
     label_group,  # ruff: ignore[unused-import]  (re-exported)
 )
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
+from bko.generate.draws import (
+    Draw,
+    Record,  # ruff: ignore[unused-import]  (re-exported)
+    draw_line,  # ruff: ignore[unused-import]  (re-exported)
+)
 from bko.generate.fields import (
     FieldGroup,
     field_groups,
@@ -61,36 +64,6 @@ from bko.ontology.terms import Ontology, ancestors
 
 
 logger = logging.getLogger(__name__)
-
-type Record = Mapping[str, int | float]
-
-
-@dataclass(frozen=True, slots=True)
-class Draw:
-    """One record drawn for a cell.
-
-    Attributes:
-        cell: The cell's key.
-        record: The record's value per column, in column order.
-        concepts: The concepts drawn present, label-only ones included.
-        closed: `concepts` closed upward under `is_a` within each concept's release; recorded,
-            and read into a field only by `Presence.LOGIC`.
-        fallback: The fields read from the label group's records because the cell's showed no
-            record matching the draw.
-        sources: The training record id each copied field was read from; `sex` and the label
-            follow the cell and have none.
-    """
-
-    cell: Cell
-    record: Record
-    concepts: frozenset[str]
-    closed: frozenset[str]
-    fallback: frozenset[str]
-    sources: Mapping[str, int] = dataclasses.field(default_factory=lambda: MappingProxyType({}))
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "record", MappingProxyType(dict(self.record)))
-        object.__setattr__(self, "sources", MappingProxyType(dict(self.sources)))
 
 
 def sample(
@@ -243,20 +216,6 @@ def plan_hierarchy(
         ValueError: As `bko.generate.hierarchy.Hierarchy`.
     """
     return _Plan(tuple(rows) if spec.mapped else (), ontologies, frame, spec).hierarchy
-
-
-def draw_line(call: int, position: int, draw: Draw) -> str:
-    """The draw log's line for one record, ending in a newline, its keys sorted."""
-    line = {
-        "kind": "draw",
-        "call": call,
-        "cell": cell_key(draw.cell),
-        "position": position,
-        "concepts": sorted(draw.concepts),
-        "closed": sorted(draw.closed),
-        "fallback": sorted(draw.fallback),
-    }
-    return json.dumps(line, sort_keys=True) + "\n"
 
 
 @dataclass(frozen=True, slots=True, eq=False)
