@@ -53,7 +53,8 @@ type ColumnDraw = Callable[[np.random.Generator], object]
 def hb_marginals(train: pd.DataFrame, request: Request) -> Baseline:
     """Add each cell's quota with each column drawn from its multilevel model.
 
-    Each column is fitted once per label of the quota and logs one line per cell it fills.
+    Each column is fitted once per label of the quota and logs one line per fit; each cell logs
+    its `pool` line (`banded_pools`).
 
     Raises:
         BaselineError: If the request is by label, a cell's banded label group is empty, or a fit
@@ -129,7 +130,7 @@ def _drawers(
     stratum: Stratum,
     models: dict[tuple[int, str], _Column],
 ) -> dict[str, ColumnDraw]:
-    """Each drawn column's draw in `stratum`, in frame order, with one log line per model.
+    """Each drawn column's draw in `stratum`, in frame order, with one log line per new model.
 
     `age` draws a donor by the pooled rule; every other column draws from its model for the
     stratum's label, fitted on first use and kept in `models`.
@@ -139,7 +140,7 @@ def _drawers(
     """
     key = "/".join(map(str, stratum))
     label = int(stratum[2])
-    own, group = banded_pools(cells, stratum, key)
+    own, group = banded_pools(cells, stratum, key, "hb-marginals")
     drawers: dict[str, ColumnDraw] = {}
     for name in drawn_columns(request):
         if name == "age":
@@ -149,19 +150,20 @@ def _drawers(
             continue
         if (label, name) not in models:
             models[label, name] = _column(train, cells, request, name, label)
+            fit = models[label, name].fit
+            logger.info(
+                "hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f "
+                "iterations=%d",
+                *fill_names(),
+                label,
+                name,
+                fit.tau2,
+                fit.tau3,
+                fit.evidence,
+                fit.iterations,
+            )
         model = models[label, name]
-        fit = model.fit
-        logger.info(
-            "hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d",
-            *fill_names(),
-            key,
-            name,
-            fit.tau2,
-            fit.tau3,
-            fit.evidence,
-            fit.iterations,
-        )
-        cumulative = np.cumsum(fit.predict(stratum))
+        cumulative = np.cumsum(model.fit.predict(stratum))
         drawers[name] = partial(model.draw, cumulative=cumulative, banded=group)
     return drawers
 

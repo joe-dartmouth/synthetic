@@ -98,7 +98,10 @@ def row_resample(train: pd.DataFrame, request: Request) -> Baseline:
         BaselineError: If the request is by label, or a cell's banded label group is empty.
     """
     refuse_label(request, "row-resample")
-    return _fill(train, request, kappa=float(GROUP_WEIGHT), stream=ROW_RESAMPLE_STREAM, whole=True)
+    kappa = float(GROUP_WEIGHT)
+    return _fill(
+        train, request, "row-resample", kappa=kappa, stream=ROW_RESAMPLE_STREAM, whole=True
+    )
 
 
 def marginals(train: pd.DataFrame, request: Request) -> Baseline:
@@ -108,7 +111,8 @@ def marginals(train: pd.DataFrame, request: Request) -> Baseline:
         BaselineError: If the request is by label, or a cell's banded label group is empty.
     """
     refuse_label(request, "marginals")
-    return _fill(train, request, kappa=float(GROUP_WEIGHT), stream=MARGINALS_STREAM, whole=False)
+    kappa = float(GROUP_WEIGHT)
+    return _fill(train, request, "marginals", kappa=kappa, stream=MARGINALS_STREAM, whole=False)
 
 
 def eb_marginals(train: pd.DataFrame, request: Request) -> Baseline:
@@ -125,7 +129,9 @@ def eb_marginals(train: pd.DataFrame, request: Request) -> Baseline:
     refuse_label(request, "eb-marginals")
     kappa = fit_kappa(_evidence(train, request))
     logger.info("eb holdout=%d fill=%s kappa=%s", *fill_names(), kappa)
-    return _fill(train, request, kappa=kappa, stream=EB_MARGINALS_STREAM, whole=False)
+    return _fill(
+        train, request, "eb-marginals", kappa=kappa, stream=EB_MARGINALS_STREAM, whole=False
+    )
 
 
 def refuse_label(request: Request, method: str) -> None:
@@ -186,9 +192,12 @@ def _terms(
 
 
 def _fill(
-    train: pd.DataFrame, request: Request, *, kappa: float, stream: int, whole: bool
+    train: pd.DataFrame, request: Request, method: str, *, kappa: float, stream: int, whole: bool
 ) -> Baseline:
-    """Draw every cell's quota by the pooled rule at `kappa`, one donor per row or per column."""
+    """Draw every cell's quota by the pooled rule at `kappa`, one donor per row or per column.
+
+    `method` names the method in each cell's `pool` line.
+    """
     frame = request.frame
     cells = cell_keys(train, edges=frame.edges)
     drawn = drawn_columns(request)
@@ -198,7 +207,7 @@ def _fill(
     pools: dict[str, dict[str, int]] = {}
     for stratum, rows in request.quota.items():
         key = "/".join(map(str, stratum))
-        own, group = banded_pools(cells, stratum, key)
+        own, group = banded_pools(cells, stratum, key, method)
         pools[key] = {"own": len(own), "banded": len(group)}
         donors = np.array(
             [[pooled_donor(rng, own, group, kappa) for _ in range(slots)] for _ in range(rows)],
@@ -216,8 +225,12 @@ def _fill(
     return Baseline(added=added, weights=unit_weights(train), params=params)
 
 
-def banded_pools(cells: pd.DataFrame, stratum: Stratum, key: str) -> tuple[np.ndarray, np.ndarray]:
+def banded_pools(
+    cells: pd.DataFrame, stratum: Stratum, key: str, method: str
+) -> tuple[np.ndarray, np.ndarray]:
     """The training positions of the cell's own records and of its banded label group.
+
+    Logs `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d`, `method` the method drawing.
 
     Raises:
         BaselineError: If the banded label group is empty.
@@ -227,7 +240,12 @@ def banded_pools(cells: pd.DataFrame, stratum: Stratum, key: str) -> tuple[np.nd
     group = np.flatnonzero(banded.to_numpy())
     own = np.flatnonzero((banded & (cells["sex"] == sex)).to_numpy())
     logger.info(
-        "pool holdout=%d fill=%s key=%s own=%d banded=%d", *fill_names(), key, len(own), len(group)
+        "pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d",
+        *fill_names(),
+        method,
+        key,
+        len(own),
+        len(group),
     )
     if not len(group):
         msg = f"the pooled rule has no training record of label {label} in band {band}: {key}"

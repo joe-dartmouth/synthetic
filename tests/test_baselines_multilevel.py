@@ -294,15 +294,18 @@ def test_a_retry_seed_changes_the_fill():
     assert not fill(3).added.equals(fill(4).added)
 
 
-def test_each_cell_logs_one_line_per_fitted_column(caplog):
+def test_each_fit_logs_one_line_and_each_cell_one_pool_line(caplog):
     request = Request(quota=QUOTA, frame=FRAME)
-    with caplog.at_level(logging.INFO, logger="bko.baselines.multilevel"):
+    with caplog.at_level(logging.INFO, logger="bko.baselines"):
         hb_marginals(TRAIN, request)
     lines = [line for line in caplog.messages if line.startswith("hb ")]
     fitted = [name for name in FRAME.columns if name not in {"age", "sex", FRAME.label}]
-    assert len(lines) == len(QUOTA) * len(fitted)
-    assert lines[0].startswith(f"hb holdout=-1 fill=none key=<50/female/1 column={fitted[0]} tau2=")
+    assert len(lines) == len({stratum[2] for stratum in QUOTA}) * len(fitted)
+    assert lines[0].startswith(f"hb holdout=-1 fill=none label=1 column={fitted[0]} tau2=")
     assert all(" evidence=" in line and " iterations=" in line for line in lines)
+    pools = [line for line in caplog.messages if line.startswith("pool ")]
+    assert len(pools) == len(QUOTA)
+    assert pools[0].startswith("pool holdout=-1 fill=none method=hb-marginals key=<50/female/1 ")
 
 
 def test_every_constant_is_pinned():

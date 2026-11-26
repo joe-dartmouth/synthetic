@@ -68,8 +68,8 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    `bko-nomap` picks it, and a pooled field is attributed `donor`.
 4. **The pooled rule, methods.** As above with the label group restricted to the cell's band, so a
    whole row stays in its cell. One line per cell:
-   `pool holdout=%d fill=%s key=%s own=%d banded=%d`, `key` naming the stratum as the direct arms'
-   lines do.
+   `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d`, `method` the method's name and
+   `key` naming the stratum as the direct arms' lines do.
 5. **Categorisation** (`eb-marginals`, `hb-marginals`). A categorical column's codes; a numeric
    column's values when the label group holds at most 16 distinct, else 10 label-group decile
    bins. An ordered column merges its upper tail into one category so each holds at least 5
@@ -96,9 +96,9 @@ every field would differ from `bko-direct` in which fields pool as well as in K.
    decimals, wins, ties going to the smaller `tau2`, then the smaller `tau3`. A value is its
    category for a coded column, and for a numeric one a uniform banded label-group record of that
    category, else a label-group record. Non-convergence, a gradient still at or above 1e-8 after
-   the Newton steps, or a failed Cholesky raises `BaselineError`. One line per
-   column:
-   `hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`. Its
+   the Newton steps, or a failed Cholesky raises `BaselineError`. One line per fit, each label's
+   modelled column:
+   `hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d`. Its
    specification is fixed before any E19 holdout is scored, and a change to it is a new arm name.
 8. **Refusals.** Every pooled method and `hb-marginals` refuse a request by label
    (`Strata.LABEL`) with `BaselineError`.

@@ -271,10 +271,11 @@ command per method, inside `.venv`:
   Bayesian network, the Gaussian copula and sequential CART
   (`fit holdout=<h> fill=<kind> method=<name> seconds=<s>`, each method's own name, and
   `holdout=-1 fill=none` outside a harness fill), the pooled methods'
-  `pool holdout=%d fill=%s key=%s own=%d banded=%d` line per cell, `eb-marginals`'
-  `eb holdout=%d fill=%s kappa=%s` line and `hb-marginals`'
-  `hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d` line per
-  column, and the method's parameters (the label bootstrap's are each stratum's pool size).
+  `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d` line per cell, `hb-marginals`
+  among them, `eb-marginals`' `eb holdout=%d fill=%s kappa=%s` line and `hb-marginals`'
+  `hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d` line per
+  fit, one per label and modelled column, and the method's parameters (the label bootstrap's are
+  each stratum's pool size).
   `row-resample`, `marginals`, `eb-marginals` and `hb-marginals` refuse `--strata label` with
   exit 2. An experiment copies them into its configuration in
   [EVIDENCE.md](EVIDENCE.md#how-to-read-an-entry); the commit's `uv.lock` gives the library

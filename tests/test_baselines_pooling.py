@@ -68,8 +68,8 @@ def test_every_added_row_passes_check(runner):
     check(runner(TRAIN, request), TRAIN, request)
 
 
-@pytest.mark.parametrize("runner", RUNNERS, ids=IDS)
-def test_an_empty_cell_reads_the_banded_label_group_only(runner, caplog):
+@pytest.mark.parametrize(("runner", "method"), list(zip(RUNNERS, IDS, strict=True)), ids=IDS)
+def test_an_empty_cell_reads_the_banded_label_group_only(runner, method, caplog):
     cell = ("<50", "female", 1)
     emptied = TRAIN.loc[~((TRAIN["age"] < 50) & (TRAIN["sex"] == 0) & (TRAIN[LABEL] == 1))]
     request = Request(quota={cell: 12}, frame=FRAME)
@@ -80,7 +80,8 @@ def test_an_empty_cell_reads_the_banded_label_group_only(runner, caplog):
         if name != "sex":
             assert set(added[name]) <= set(group[name]), name
     assert (added["sex"] == 0).all()
-    assert "pool holdout=-1 fill=none key=<50/female/1 own=0 banded=7" in caplog.messages
+    line = f"pool holdout=-1 fill=none method={method} key=<50/female/1 own=0 banded=7"
+    assert line in caplog.messages
 
 
 def test_a_full_cell_weighs_its_own_rows_at_n_over_n_plus_20():

@@ -35,8 +35,10 @@ Relate findings to E9 and the existing
   `e19-supported-emptya` to `e19-supported-emptyj`. Their logs hold a
   `pool-random holdout=%d fill=%s fields=%s` line per `bko-pool-random` fill attempt, an
   `eb holdout=%d fill=%s kappa=%s` line per `eb-marginals` fill and an
-  `hb holdout=%d fill=%s key=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d` line per
-  `hb-marginals` cell and modelled column.
+  `hb holdout=%d fill=%s label=%s column=%s tau2=%s tau3=%s evidence=%.6f iterations=%d` line per
+  `hb-marginals` label and modelled column, and a
+  `pool holdout=%d fill=%s method=%s key=%s own=%d banded=%d` line per pooled method's or
+  `hb-marginals`' cell.
 - It reads the primary and secondary contrasts as RESEARCH section 11's
   [matched-control reading](../docs/RESEARCH.md#matched-control-reading) and E19's
   Configuration fix them, and no K contrast at full removal (ADR
