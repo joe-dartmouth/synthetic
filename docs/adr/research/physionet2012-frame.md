@@ -221,6 +221,24 @@ pinned files and HPO `hp/releases/2026-09-01`, and each log's `versions` line re
 `refs/pull/140/head` after its squash merge; [`EVIDENCE.md`](../../EVIDENCE.md) keeps the runs'
 rows.
 
+**The readings again, at `fbd6be9`**, after the loader checked each value as an ASCII decimal
+and its `cohort` line came to count each set's stays, the read values of -1 apart from the others
+below 0, and the records whose `map_min` reads `NIMAP`. The gap listing is run `d1-11` and the
+census run `d2-11`, the commands of `d1-10` and `d2-10` into their own folders, each exit 0 from
+a clean tree, each log's `versions` line reading `dirty=false`. Each csv is byte-identical to the
+earlier run's: `28756461746301bf969283d95d5a6e9cd24db5ccb110a64b961a19a38b4a4235` and
+`b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056`; the `data` line gives the same
+records digest, so the records did not change. The logs' sha256s are
+`782e98cf266cf6df88cd307b7f1d13da74ba4436ce5ad313e64d865b9fdf7371` and
+`bc43ee1a38f76890b21c0c621bcf6a0e29eb81f77c351b8deca9d06eee9f6603`, each differing from the
+earlier log in its `versions` and `cohort` lines only. The `cohort` line reads `stays=12000
+stays_a=4000 stays_b=4000 stays_c=4000 unknown_age=0 unknown_sex=12 left_out=12 records=11988
+died=1706 unnamed=2403 missing=0 below_zero=59`, then the `measured_` counts of `d1-10`, then
+`map_from_nimap=3406 mechvent=7576`: no value of a read variable is -1, set B holds 4,000 stays
+as A and C do, and 3,406 of the 11,988 records read `map_min` from `NIMAP`. At `fbd6be9`, `uv run
+--no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0 disagree`,
+and the pinned test passed with `--releases`.
+
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
 of, so a single spurious reading can show a finding; a recorded 0 is a valid value by the
