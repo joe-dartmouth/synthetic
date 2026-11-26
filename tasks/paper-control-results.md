@@ -38,9 +38,9 @@ Run the registered controls on development holdouts. Report paired differences a
 - Once E12 has run (unit
   [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md)), it checks that
   E19's `bko-direct`, `none` and `real` scores equal E12's per holdout.
-- It reads the removed-truth reading of unit
-  [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) beside the downstream
-  contrasts.
+- It reads E6's removed-truth reading, over the E6 `rows` stores unit
+  [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) reads, beside the
+  downstream contrasts.
 - The decision is recorded in E19's Read against in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md).
 
 ## Acceptance

@@ -45,11 +45,17 @@ call and its first reading is recorded in the unit's own PR.
 - `docs/DEVELOPMENT.md`: the Evaluation paragraph and the Runs table rows for `truth.csv` and
   `truth.log`; `AGENTS.md`: a Commands entry in the form of the `privacy` entry;
   `src/bko/evaluate/README.md`.
-- The first readings, free, of E6's `thin` and `empty` fractions over the `rows` stores that
-  exist, recorded as two Runs rows of E6 in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) with the
-  command, the `run/<id>` tag and each file's sha256.
-- `paper-control-results` drops this unit and becomes `ready`, and its unit file names the
-  reader's command.
+- The first readings, free, of E6's `thin` and `empty` fractions over the rerun's `rows` stores,
+  recorded as two Runs rows of E6 in [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) with the command,
+  the `run/<id>` tag and each file's sha256. The stores that exist, by
+  `for f in runs/e6-*-rows/rows.jsonl; do head -c 400 "$f" | rg -o '"run":"e6-(thin|empty)[a-j]"'; done`:
+  20 per fraction, two per slice, the superseded `runs/e6-2-rows` to `runs/e6-21-rows` and the
+  rerun's `runs/e6-25-rows` to `runs/e6-44-rows`
+  ([E7](../docs/EVIDENCE.md#e7-classifier-panel), Stage 1). The rerun's are `e6-thina` to
+  `e6-thinj` in `runs/e6-25-rows` to `runs/e6-34-rows` and `e6-emptya` to `e6-emptyj` in
+  `runs/e6-35-rows` to `runs/e6-44-rows`, ten per fraction.
+- `paper-control-results` drops this unit from its `depends_on` and becomes `ready` when none
+  remain, and its unit file names the reader's command.
 
 **Out.**
 
@@ -72,12 +78,15 @@ call and its first reading is recorded in the unit's own PR.
   `reader_commands.py`, and `wc -l src/bko/evaluate/__main__.py` reports below 400.
 - `tests/test_run_folders.py` passes with `truth.csv` and `truth.log` known to the run-folder
   check.
-- The command run over E6's `thin` stores writes a non-empty `runs/<id>/truth.csv` and a
-  `runs/<id>/truth.log`, and the same command with `empty` writes `runs/<id2>/truth.csv`, each
-  exiting 0 with ten `--rows` per fraction, or the slices that have a store named in the Runs
-  row.
+- The command run over the rerun's ten `thin` stores, `runs/e6-25-rows` to `runs/e6-34-rows`,
+  writes a non-empty `runs/<id>/truth.csv` and a `runs/<id>/truth.log`, and the same command over
+  the ten `empty` stores, `runs/e6-35-rows` to `runs/e6-44-rows`, writes `runs/<id2>/truth.csv`,
+  each exiting 0 with exactly those ten `--rows`. These files live under the gitignored `runs/`
+  and are evidence recorded in E6's Runs rows; `tests/test_evaluate_truth.py`, over `tmp_path`, is
+  the gate check.
 - `docs/EVIDENCE.md`'s E6 entry holds both Runs rows, each with its sha256s and one Result
   sentence per arm.
-- `tests/test_task_units.py` passes with `paper-control-results` `ready` and this unit's file, board row and
-  order-list entry gone.
+- `paper-control-results` no longer names this unit in its `depends_on`, and is `ready` when none
+  remain; `tests/test_task_units.py` passes with this unit's file and board row gone, and the
+  `tasks/direct-index.md` order list no longer names the unit.
 - `make check` passes.
