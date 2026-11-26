@@ -67,12 +67,13 @@ def _texts() -> dict[str, dict[str, str]]:
 @functools.cache
 def _lines() -> tuple[tuple[str, str, str, str], ...]:
     """Every observation line of every stay: its set, its member, its `Parameter` and `Value`."""
-    return tuple(
-        (label, name, *line.split(",")[1:])
-        for label, held in _texts().items()
-        for name, text in held.items()
-        for line in text.split("\n")[1:-1]
-    )
+    found = []
+    for label, held in _texts().items():
+        for name, text in held.items():
+            for line in text.split("\n")[1:-1]:
+                _, parameter, value = line.split(",")
+                found.append((label, name, parameter, value))
+    return tuple(found)
 
 
 @functools.cache
