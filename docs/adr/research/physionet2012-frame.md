@@ -194,6 +194,30 @@ none a highest `HR` or `RespRate` of 0. This command counted them:
 
     uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/\d+\.txt"), s)]; kept = [s for s in stays if -1.0 not in (s.age, s.gender)]; [print(v, h, sum(s.reduced(v, h) == 0 for s in kept)) for v, h in (("Temp", "min"), ("MAP", "min"), ("HR", "max"), ("RespRate", "max"), ("WBC", "min"), ("Bilirubin", "max"))]' </dev/null
 
+**The readings, at `258b3b6`, after the count.** `uv run --no-sync python -m bko.ontology check`
+exited 0, its log ending `checked 821 rows: 0 disagree`. The gap listing is run `d1-10`, `uv run
+--no-sync python -m bko.gaps physionet2012` into `runs/d1-10/gaps-physionet2012.csv` and
+`runs/d1-10/gaps-physionet2012.log`, exit 0, closing `gaps rows=42
+sha256=28756461746301bf969283d95d5a6e9cd24db5ccb110a64b961a19a38b4a4235`: per-subgroup none,
+population-level none, frequency-aware 42 rows in 7 cells, and no cell below the count threshold
+of 20. Its csv sha256 is `28756461746301bf969283d95d5a6e9cd24db5ccb110a64b961a19a38b4a4235` and
+its log sha256 `81bc5fd530b77d90a940c4de6e226a3265d2c0e838bdeee1f85eb626b77fe0c2`; its `data`
+line gives the 11,988 records' digest
+`5ca824f645d6a37af0aa99c29d37556f8994ba3cde2941cdac61b807b0678f48` and its `split` line the test
+fingerprint `0974dd102fc84ae567c22dda7061f5127ec5c0bb23a1ceb31db18734b402b4be`. The census is run
+`d2-10`, `uv run --no-sync python -m bko.evaluate contradictions --dataset physionet2012` into
+`runs/d2-10/contradictions.csv` and `runs/d2-10/contradictions.log`, exit 0, over 16 of 16 cells
+and 11 field rows, none of whose concepts descends from another by `is_a`: every `census kind=`
+count is 0 (`narrow-without-broad`, `child-share-above-parent`, `empty-cell`, `all-show`,
+`code-overlap`). Its csv sha256 is
+`b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone) and its
+log sha256 `4f411770387c691063dc3f3f1ac2734898b88b4f3fdfd2b9833c57a7fe7732c0`. Both read the six
+pinned files and HPO `hp/releases/2026-09-01`, and each log's `versions` line reads
+`dirty=false`. `uv run --no-sync pytest tests/test_datasets_physionet2012_pinned.py --releases -q
+-p no:cacheprovider --no-cov` passed. These are commits of pull request #140, kept at
+`refs/pull/140/head` after its squash merge; [`EVIDENCE.md`](../../EVIDENCE.md) keeps the runs'
+rows.
+
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
 of, so a single spurious reading can show a finding; a recorded 0 is a valid value by the
@@ -215,8 +239,19 @@ under sedation reads as Reduced consciousness, as SOFA reads it.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/catalog.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/ontology/physionet2012_rows.py`
+- Pinned by: `tests/test_datasets_physionet2012.py::test_each_variable_is_reduced_to_its_minimum_and_maximum`,
+  `tests/test_datasets_physionet2012.py::test_each_coded_field_is_at_its_cutoffs`,
+  `tests/test_datasets_physionet2012.py::test_minus_1_is_missing`,
+  `tests/test_datasets_physionet2012.py::test_map_falls_back_to_the_non_invasive_reading`,
+  `tests/test_datasets_physionet2012.py::test_mechvent_is_any_1`,
+  `tests/test_datasets_physionet2012.py::test_a_stay_with_unknown_age_or_gender_is_left_out_and_counted`,
+  `tests/test_datasets_physionet2012.py::test_the_severity_scores_never_enter_the_frame`,
+  `tests/test_datasets_physionet2012.py::test_the_frame_holds_exactly_the_named_fields`,
+  `tests/test_datasets_physionet2012.py::test_a_missing_value_shows_no_concept`,
+  `tests/test_evaluate_physionet2012.py::test_the_rows_map_these_states_to_these_concepts`,
+  `tests/test_datasets_archive_members.py` and `tests/test_datasets_physionet2012_pinned.py` (with
+  `--releases`)
 
 ## Reversal Conditions
 
