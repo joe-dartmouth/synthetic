@@ -1,5 +1,5 @@
-"""NHANES's pinned component files under `data/`: their sha256s, the adult frame, the composite,
-the training split and the tertiles.
+"""NHANES's pinned component files under `data/`: their sha256s, the fixture writer's layout, the
+adult frame, the composite, the training split and the tertiles.
 
 It is skipped unless `--releases` is passed, since the gate reads no `data/`; an absent snapshot
 fails it rather than skipping it. ADR `research/nhanes-frame` records the figures, and the bounds
@@ -23,7 +23,7 @@ from bko.datasets.sources import NHANES, NHANES_BMX_L
 from bko.datasets.split import split
 from bko.datasets.states import tertiles
 from bko.ontology.catalog import CATALOG
-from tests._nhanes_fixtures import REAL_COLUMNS, REAL_ROWS
+from tests._nhanes_fixtures import REAL_COLUMNS, REAL_ROWS, xpt_bytes
 
 
 pytestmark = [pytest.mark.releases, pytest.mark.integration]
@@ -64,18 +64,58 @@ def test_the_fixtures_real_columns_and_row_are_the_files(name: str, source) -> N
     assert first == REAL_ROWS[name]
 
 
+CARD = 80
+"""An XPORT header record's bytes."""
+
+NAMESTR = 140
+"""One XPORT NAMESTR record's bytes."""
+
+BLANKED = {1: slice(64, 80), 2: slice(0, 16), 5: slice(64, 80), 6: slice(0, 80)}
+"""The header cards holding a creation or modification stamp, and the bytes blanked: the stamp,
+and on the member's second card also the data set's label."""
+
+
+def _layout(data: bytes, columns: int) -> tuple[list[bytes], list[tuple[bytes, int]], bytes]:
+    """`data`'s eight header cards with their stamps blanked, each NAMESTR's type, length, number
+    and name with its row position, and the first observation's bytes."""
+    cards = []
+    for n in range(8):
+        card = bytearray(data[n * CARD : (n + 1) * CARD])
+        if n in BLANKED:
+            span = BLANKED[n]
+            card[span] = b" " * (span.stop - span.start)
+        cards.append(bytes(card))
+    names = [data[8 * CARD + n * NAMESTR :][:NAMESTR] for n in range(columns)]
+    fields = [(name[:16], int.from_bytes(name[84:88], "big")) for name in names]
+    width = sum(int.from_bytes(name[4:6], "big") for name in names)
+    observations = data.index(b"HEADER RECORD*******OBS     HEADER RECORD") + CARD
+    assert observations == 8 * CARD + -(-columns * NAMESTR // CARD) * CARD + CARD
+    return cards, fields, data[observations : observations + width]
+
+
+@pytest.mark.parametrize(("name", "source"), list(zip(COMPONENTS, NHANES, strict=True)))
+def test_the_fixture_writer_lays_out_each_file_as_nchs_does(name: str, source) -> None:
+    """The writer's header cards, NAMESTR records and first observation, respondent 130378, are
+    the published file's bytes, but for the stamps, the labels and the formats."""
+    real = read_verified(source, default_data_dir())
+    first = pd.DataFrame([REAL_ROWS[name]], columns=list(REAL_COLUMNS[name]))
+    columns = len(REAL_COLUMNS[name])
+    assert _layout(xpt_bytes(first, name), columns) == _layout(real, columns)
+
+
 def test_the_adult_frame_the_composite_and_the_training_split() -> None:
+    """ADR `research/nhanes-frame`'s counts: 7,769 adult records, 937 with the composite, inside
+    the selection ADR's 402 to 1,444; a training split of 6,215 records, at least 5,000, 750 with
+    the composite, a rate of 0.1207."""
     records, frame = _loaded()
-    composite = int(records["target"].sum())
-    assert 402 <= composite <= 1444
     train = split(records, seed=0, edges=frame.edges).train
-    assert len(train) >= 5000
-    assert (len(records), composite) == (7769, 937)
+    assert (len(records), int(records["target"].sum())) == (7769, 937)
     assert (len(train), int(train["target"].sum())) == (6215, 750)
     assert f"{train['target'].mean():.4f}" == "0.1207"
 
 
 def test_the_tertile_cutoffs_are_the_published_files() -> None:
+    """ADR `research/nhanes-frame` point 5's `BMXBMI` tertiles, 23.4 and 29.6, over BMX_L."""
     raw = read_component(read_verified(NHANES_BMX_L, default_data_dir()), "BMX_L")
     for name, cut in TERTILES.items():
         low, high = tertiles(measured(raw[name]))

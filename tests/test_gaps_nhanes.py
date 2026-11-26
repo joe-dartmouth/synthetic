@@ -87,6 +87,8 @@ def test_gaps_nhanes_lists_the_training_splits_gaps(tmp_path: Path, caplog) -> N
     assert (
         "frequency-aware,hpo,HP:9000003,Angina pectoris,HP:9000002,Chest pain,>=60,female,0,"
     ) in lines
+    # 16: the training split's share at seed 0 of the 20 males of 60 and over without the
+    # composite; the split puts 33 of the 41 records in training (`split seed=0 train=33 test=8`).
     assert "count,,,,,,>=60,male,0,16" in lines
     assert "observed dataset=nhanes records=33 " in caplog.text
     assert any(m.startswith(f"gaps rows={len(lines) - 1} sha256=") for m in caplog.messages)

@@ -238,6 +238,10 @@ def files(people: Sequence[Respondent]) -> dict[str, bytes]:
     return {name: xpt_bytes(frame, name) for name, frame in components(people).items()}
 
 
+MIXED_DIGEST: Final = "30723c2794bed7d62c105ebbefdf760484153f99973bf141ed24d2e8dc5488b0"
+"""The sha256 of `mixed()`'s frame records as `bko.datasets.frames.digest` renders them."""
+
+
 def mixed() -> list[Respondent]:
     """Twelve respondents across the age bands, both sexes, both labels and missing values.
 

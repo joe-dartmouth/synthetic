@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import re
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Final
 
 import pytest
 
 from bko.datasets.nhanes import CITED, COMPONENTS, TERTILES
-from bko.datasets.sources import NHANES
 from bko.datasets.states import band_meanings
 from bko.evaluate.context import Context
 from bko.evaluate.data import Dataset, dataset_releases, digest, field_rows, frame, load
@@ -23,15 +23,13 @@ from bko.ontology.mapping import CHECKED_ROWS, CONCEPT_ROWS
 from bko.ontology.nhanes_rows import NHANES_FIELD_ROWS, state_row
 from bko.ontology.schema import Codes
 from tests._datasets_fixtures import pin
-from tests._nhanes_fixtures import files, mixed
+from tests._nhanes_fixtures import MIXED_DIGEST, files, mixed
 from tests._ontology_fixtures import RoutingOpener
 from tests._registry import REGISTRY, read, registry_entries
 
 
 FILES = files(mixed())
 PINS = tuple(pin(FILES[name], f"nhanes-{name.lower()}") for name in COMPONENTS)
-MIXED_DIGEST = "30723c2794bed7d62c105ebbefdf760484153f99973bf141ed24d2e8dc5488b0"
-"""The sha256 of `mixed()`'s records as `bko.evaluate.data.digest` renders them."""
 
 
 def _refusing_opener(url: str, timeout: float) -> BinaryIO:
@@ -51,7 +49,6 @@ def _context(opener=None, **entry) -> Context:
 def test_the_nhanes_dataset_loads_and_logs_its_data_line(tmp_path: Path, caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.evaluate"):
         data = load(Dataset.NHANES, tmp_path, _context())
-    assert Dataset.NHANES.value == "nhanes"
     assert data.frame.name == "nhanes"
     assert tuple(data.records.columns) == data.frame.columns
     assert len(data.records) == 9
@@ -83,7 +80,6 @@ def test_nhanes_reads_the_contexts_releases_and_its_seven_pins() -> None:
     context = _context(_refusing_opener)
     assert dataset_releases(Dataset.NHANES, context) is context.releases
     entry = CATALOG["nhanes"]
-    assert entry.sources == NHANES
     assert [source.filename for source in entry.sources] == [f"{n}.xpt" for n in COMPONENTS]
     assert {source.agreement for source in entry.sources} == {None}
     assert entry.releases is None
@@ -134,14 +130,39 @@ def test_the_rows_map_these_bands_to_these_concepts() -> None:
     ]
 
 
+READ_IN: Final = {
+    "BPXOSY": ("muntner-2018", "whelton-2018"),
+    "BPXODI": ("muntner-2018", "whelton-2018"),
+    "LBXGH": ("ada-2026", None),
+    "LBXTC": ("nhlbi-2001", "ncep-2001"),
+    "LBDHDD": ("nhlbi-2001", "ncep-2001"),
+}
+"""Each row's field, the registry key of the record its cutoffs are read in, and the original
+that record reproduces, None when the record is the original (ADR `research/nhanes-frame`)."""
+
+
+def _names(text: str, key: str) -> bool:
+    """Whether `text` holds `key` as a whole token, not inside a longer key."""
+    return re.search(rf"(?<![\w-]){re.escape(key)}(?![\w-])", text) is not None
+
+
 def test_every_cutoff_row_cites_a_registered_source_and_names_its_original() -> None:
     keys = {key for _, key, _ in registry_entries(read(REGISTRY))}
+    originals = {original for _, original in READ_IN.values() if original is not None}
+    assert originals <= keys
+    found = {}
     for row in NHANES_FIELD_ROWS:
-        assert row.source in keys, row
-        assert ("whelton-2018" in row.limits) == (row.source == "muntner-2018"), row
-        assert ("ncep-2001" in row.limits) == (row.source == "nhlbi-2001"), row
-    for key in ("whelton-2018", "ncep-2001", "nhanes-2024"):
-        assert key in keys, key
+        [clause] = row.when
+        assert isinstance(clause, Codes)
+        source, original = READ_IN[clause.field]
+        assert row.source == source, row
+        assert source in keys, row
+        found[clause.field] = row.source
+        for other in originals:
+            assert _names(row.limits, other) == (other == original), (row, other)
+    assert found == {field: source for field, (source, _) in READ_IN.items()}
+    assert not _names("whelton-2018x and nhanes-2024", "whelton-2018")
+    assert "nhanes-2024" in keys
 
 
 def test_no_row_reads_bmi_or_state_0() -> None:

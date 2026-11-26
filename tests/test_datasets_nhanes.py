@@ -27,18 +27,17 @@ from bko.ontology.nhanes_rows import NHANES_FIELD_ROWS
 from bko.ontology.schema import shown
 from tests._datasets_fixtures import pin, plant
 from tests._nhanes_fixtures import (
+    MIXED_DIGEST,
     REAL_COLUMNS,
     REAL_ROWS,
     Respondent,
+    _ibm,
     components,
     files,
     mixed,
     xpt_bytes,
 )
 
-
-MIXED_DIGEST = "30723c2794bed7d62c105ebbefdf760484153f99973bf141ed24d2e8dc5488b0"
-"""The sha256 of `mixed()`'s records as `bko.datasets.frames.digest` renders them."""
 
 EXAM = ("BPXOSY", "BPXODI", "LBXGH", "LBXTC", "LBDHDD", "BMXBMI")
 """The coded exam and laboratory fields, in record order."""
@@ -74,6 +73,20 @@ def test_the_fixture_writer_round_trips_through_read_sas() -> None:
     )
     assert isinstance(real, pd.DataFrame)
     assert tuple(real.iloc[0]) == (130378.0, 56042.129409583235, 5.6)
+
+
+@pytest.mark.parametrize(
+    ("value", "encoded"),
+    [
+        (1.0, "41 10 00 00 00 00 00 00"),
+        (0.1, "40 19 99 99 99 99 99 9a"),
+        (-118.625, "c2 76 a0 00 00 00 00 00"),
+        (0.0, "00 00 00 00 00 00 00 00"),
+    ],
+    ids=["one", "tenth", "negative", "zero"],
+)
+def test_the_fixture_writer_encodes_ibm_doubles(value: float, encoded: str) -> None:
+    assert _ibm(value).hex(" ") == encoded
 
 
 def test_the_published_columns_are_the_fixtures_real_ones() -> None:
@@ -370,14 +383,22 @@ def test_frame_bytes_do_not_depend_on_file_order() -> None:
     people = mixed()
     shuffled = [*people[7::-1], *people[:7:-1]]
     assert shuffled != people
-    assert digest(_records(shuffled)) == MIXED_DIGEST
+    assert digest(_records(shuffled)) == digest(_records(people))
     assert digest(_records(people)) == MIXED_DIGEST
 
 
 def test_load_reads_each_component_of_a_verified_snapshot(tmp_path: Path) -> None:
     sources = _planted(tmp_path, files(mixed()))
     loaded = load_nhanes(tmp_path, sources=sources)
-    pd.testing.assert_frame_equal(loaded, _records(mixed()))
+    assert loaded.index.tolist() == [
+        *(130378, 130380, 130381, 130383, 130384, 130385, 130386, 130388, 130389),
+    ]
+    fields = ("age", "sex", *EXAM, "target")
+    assert _values(loaded, 130378, fields) == [43, 1, 2, 2, 1, 2, 2, 2, 0]
+    assert _values(loaded, 130381, fields) == [35, 0, 2, 2, 3, 2, 1, 2, 0]
+    assert _values(loaded, 130384, fields) == [61, 1, 0, 0, 0, 0, 0, 0, 1]
+    assert _values(loaded, 130385, fields) == [70, 0, 1, 2, 1, 2, 2, 0, 0]
+    assert digest(loaded) == MIXED_DIGEST
     with pytest.raises(ValueError, match="7 component files, not 1"):
         load_nhanes(tmp_path, sources=sources[:1])
 
