@@ -226,8 +226,8 @@ before a sepsis patient's onset. A per-stay outcome would be a reduction the cha
 define; the 2012 set's outcome is per stay.
 
 ACS PUMS leads the non-health candidates because its occupation code is a hierarchical field,
-which unit `datasets-acs-frame` maps to the Occupation Ontology. UCI Census-Income KDD also has
-"occupation code" under "major occupation code" and ranks second; unit
+which ADR [`research/acs-frame`](acs-frame.md) maps to the Occupation Ontology. UCI
+Census-Income KDD also has "occupation code" under "major occupation code" and ranks second; unit
 `datasets-non-health-selection` ranks the non-health candidates again under its own rule.
 
 The removed cell keeps G2's count filter because it reads counts alone and is already written.

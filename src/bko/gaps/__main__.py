@@ -1,6 +1,7 @@
-"""Command line for gap detection: `python -m bko.gaps uci`, `synthea`, `first-flag` and `support2`.
+"""Command line for gap detection: `python -m bko.gaps <command>`.
 
-The commands after `first-flag` are one per catalogued dataset (`bko.ontology.catalog`).
+The commands are `uci`, `synthea`, `first-flag`, and one per catalogued dataset
+(`bko.ontology.catalog`), named as its entry.
 
 `uci` fetches UCI Heart Disease and the releases its field mappings name into the data root if
 they are absent, splits the records, and lists the training split's gaps under each definition of
@@ -12,12 +13,12 @@ for. `first-flag` reads the same population and, for each of E2's whole ablation
 detector first flags each truth item as the cases go one at a time (`bko.gaps.scan`). A catalogued
 dataset's command fetches its sources and the releases its rows name, splits its records at
 `SPLIT_SEED` and lists the training split's gaps as `uci` does (`bko.gaps.listing`), after
-logging its records' `data` line and its `split` line. Each writes
-one CSV to stdout, the same bytes on every run over the same inputs, and nothing unless the whole
-report is built; each input's identity, each cell's records, each flagged concept,
-each list's length, each detector's recovery and the report's digest go to stderr through logging,
-and `synthea` and `uci` also log D1's sweep there (`bko.gaps.sweep`): a `sweep` line per setting
-and, for `synthea`, a `chosen` line naming the level its rule picks.
+logging its records' `data` line and its `split` line. Each writes one CSV to stdout, the same
+bytes on every run over the same inputs, and nothing unless the whole report is built; each
+input's identity, each cell's records, each flagged concept, each list's length, each detector's
+recovery and the report's digest go to stderr through logging, and `synthea` and `uci` also log
+D1's sweep there (`bko.gaps.sweep`): a `sweep` line per setting and, for `synthea`, a `chosen`
+line naming the level its rule picks.
 `docs/DEVELOPMENT.md` (Gap detection) is the usage home.
 
 Exit codes: 0 the report is written; 1 an unexpected error, with its traceback; 2 the command could

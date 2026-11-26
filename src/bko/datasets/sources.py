@@ -202,3 +202,34 @@ Size and sha256 were measured from the bytes the host serves; the size equals it
 The Vanderbilt permission line grants use to anyone and asks only for a citation, so it is open
 data (ADR `research/confirmatory-dataset-selection`, point 4).
 """
+
+OCCO: Final = Source(
+    name="occo",
+    url="https://raw.githubusercontent.com/Occupation-Ontology/OccO/v2025-10-06/occo.owl",
+    filename="occo.owl",
+    size=5_465_131,
+    sha256="97462cabc824526898e486c6d780d62ab13b81ec98d30d4f05df41178b2d9f37",
+    agreement=None,
+)
+"""The Occupation Ontology, OccO, release 2025-10-06 (CC BY 4.0, in its header), OWL only.
+
+The file is the release tag's `occo.owl`: OccO's GitHub releases carry no assets, so size and
+sha256 were measured from the bytes at the tag; the size equals the host's content-length. It
+names no `owl:imports`, and `bko.ontology.convert` converts it to OBO at fetch time.
+"""
+
+ACS_MA_2024: Final = Source(
+    name="acs-ma-2024",
+    url="https://www2.census.gov/programs-surveys/acs/data/pums/2024/1-Year/csv_pma.zip",
+    filename="csv_pma.zip",
+    size=13_274_236,
+    sha256="bb7d4009feaf8d190d687fc091fc7a56e2aa82b9972ae14a16d4ad70a8e0eef7",
+    agreement=None,
+)
+"""The ACS 2024 1-Year PUMS person file for Massachusetts as the Census Bureau serves it, one
+member `psam_p25.csv` beside the user guide's PDF, which `bko.datasets.acs` reads.
+
+Size and sha256 were measured from the bytes the host serves; the size equals its content-length.
+The Census Bureau's terms bar identification, linkage and identifying publication, not sending, so
+it is open data (ADR `research/confirmatory-dataset-selection`, point 4).
+"""

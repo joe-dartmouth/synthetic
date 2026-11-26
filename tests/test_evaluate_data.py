@@ -11,7 +11,7 @@ from typing import BinaryIO, cast
 import pytest
 
 from bko.datasets.fetch import ensure
-from bko.datasets.sources import Agreement
+from bko.datasets.sources import HPO, OCCO, Agreement
 from bko.datasets.uci import UCI_FRAME, load_uci
 from bko.evaluate.arguments import parser
 from bko.evaluate.context import Context
@@ -288,6 +288,9 @@ def test_a_canned_send_refuses_a_user_turn_it_cannot_read():
 
 
 @pytest.mark.parametrize("dataset", tuple(Dataset))
-def test_every_dataset_reads_the_contexts_releases(dataset):
+def test_every_dataset_reads_the_contexts_releases_or_its_own(dataset):
     context = _toy_context()
-    assert dataset_releases(dataset, context) is context.releases
+    if dataset is Dataset.ACS:
+        assert dict(dataset_releases(dataset, context)) == {"HP": HPO, "OCCO": OCCO}
+    else:
+        assert dataset_releases(dataset, context) is context.releases

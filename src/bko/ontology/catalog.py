@@ -17,11 +17,14 @@ from typing import Final, Protocol
 
 import pandas as pd
 
+from bko.datasets.acs import ACS_NAME, load_acs
+from bko.datasets.acs_frame import acs_frame
 from bko.datasets.fetch import UrlOpener, ensure
 from bko.datasets.frames import FrameSpec, check_records
-from bko.datasets.sources import SUPPORT2, Agreement, Source
+from bko.datasets.sources import ACS_MA_2024, HPO, OCCO, SUPPORT2, Agreement, Source
 from bko.datasets.support2 import SUPPORT2_NAME, load_support2
 from bko.datasets.support2_frame import support2_frame
+from bko.ontology.acs_rows import ACS_FIELD_ROWS
 from bko.ontology.schema import FieldMapping
 from bko.ontology.support2_rows import SUPPORT2_FIELD_ROWS
 
@@ -101,6 +104,14 @@ CATALOG: Final[Mapping[str, Catalogued]] = MappingProxyType(
             load=load_support2,
             frame=support2_frame,
             rows=SUPPORT2_FIELD_ROWS,
+        ),
+        ACS_NAME: Catalogued(
+            name=ACS_NAME,
+            sources=(ACS_MA_2024,),
+            load=load_acs,
+            frame=acs_frame,
+            rows=ACS_FIELD_ROWS,
+            releases=MappingProxyType({"HP": HPO, "OCCO": OCCO}),
         ),
     }
 )

@@ -17,6 +17,7 @@ import pytest
 import bko.ontology.__main__ as ontology_main
 from bko.datasets.sources import Source
 from bko.ontology.__main__ import Context, configure_logging, main
+from bko.ontology.acs_rows import OCCUPATION_CODES
 from bko.ontology.icd9_codes import ICD9_CODES
 from bko.ontology.mapping import CODE_MAPPINGS, UNMAPPED_CODES
 from bko.ontology.schema import CheckedRow, CodeMapping, Codes, FieldMapping, OutOfScope
@@ -102,7 +103,7 @@ def _excluded_rows(out: str) -> list[list[str]]:
 def test_the_default_rows_include_the_excluded_codes(tmp_path: Path) -> None:
     releases, bodies = _releases(MONDO_TEXT.encode(), HPO_TEXT.encode())
     out = io.StringIO()
-    generated = set(ICD9_CODES)
+    generated = {*ICD9_CODES, *OCCUPATION_CODES}
     rows = tuple(row for row in Context().rows if row not in generated)
     context = Context(open_url=RoutingOpener(bodies), releases=releases, rows=rows)
     code = main(["check", "--data-dir", str(tmp_path / "data")], context=context, out=out)
@@ -215,7 +216,7 @@ def test_the_module_entry_point_runs():
         timeout=300,
     )
     assert result.returncode == 0, result.stderr
-    assert "{check,reproduce,elk,codes}" in result.stdout
+    assert "{check,reproduce,elk,codes,occupations}" in result.stdout
 
 
 def _reproduce(

@@ -38,8 +38,9 @@ repository root, which `.gitignore` ignores, and only
 converting an OWL-only release writes beside its OWL ([Ontologies](#ontologies)): the OBO, written
 as a hidden partial file renamed into place, and ROBOT's stderr, kept only when the conversion
 fails. Each
-download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, the Synthea jar, the MONDO, HPO and DO
-releases, and the OWL files and ROBOT jar the `elk` command reads) is pinned by size and sha256 in
+download (UCI Heart Disease, UCI Diabetes 130-US Hospitals, SUPPORT2, the ACS Massachusetts file,
+the Synthea jar, the MONDO, HPO and DO releases, OccO's OWL file, and the OWL files and ROBOT jar
+the `elk` command reads) is pinned by size and sha256 in
 `bko.datasets.sources`. A download that differs from its pin is refused; the commands delete and
 fetch again a snapshot on disk that fails its pin, and the UCI and Diabetes loaders refuse one. A
 generated population is checked against its own `run.json`: the commands regenerate one whose
@@ -143,6 +144,25 @@ root or to see the module's own code, run it directly:
       uv run --no-sync pytest tests/test_datasets_support2_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
   It reads and never fetches, and an absent snapshot fails it; `gaps support2` fetches it.
+- **The ACS frame**: `bko.datasets.acs` reads `psam_p25.csv`, the ACS 2024 1-Year person file for
+  Massachusetts, from the verified `acs-ma-2024` snapshot without extracting it (ADR
+  [`research/acs-frame`](adr/research/acs-frame.md)). Every column is read as text, so `OCCP`
+  keeps its leading zeros; the header must be the published one and every row as wide. The
+  cohort is Folktables' ACSIncome filters in its order, `AGEP` above 16, `PINCP` above 100,
+  `WKHP` above 0 and `PWGTP` at least 1, counted in the `cohort` line; `record_id` is a kept row's
+  position among the kept rows; the label is unadjusted `PINCP` above 50,000. A blank in a used
+  column of a kept row is refused, as is an `OCCP` code whose rows carry two `SOCP` codes.
+  `bko.datasets.acs_frame` builds its frame from the records, band edges 30, 45 and 60, and
+  `bko.ontology.acs_rows` holds its field rows: four disability items on HPO and each `OCCP` code
+  on the Occupation Ontology. Its catalog entry holds its own release map, HP and OccO, so
+  `score`, `gaps acs` and `contradictions --dataset acs` read OccO, converted from OWL with ROBOT
+  (a JDK). `tests/test_datasets_acs_pinned.py` checks the archive's sha256, the cohort and the
+  training split's label rate; the gate skips it, and `--releases` runs it:
+
+      uv run --no-sync pytest tests/test_datasets_acs_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches or converts, and an absent snapshot fails it; `gaps acs` fetches
+  and converts.
 - **Agreements**: each `Source` in `bko.datasets.sources` also names the data use agreement its
   download is held under (`Agreement(name, sending)`, `sending` the clause or written permission
   that allows sending its records to a third-party API), None for open data; every pinned source's
@@ -1423,24 +1443,28 @@ inside `.venv`:
 
     uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
 
-- **What it does**: it fetches the two releases into the data root if absent, verifies each against
-  its pin, parses them with pronto (and each xref's qualifiers with fastobo), and checks every row:
+- **What it does**: it fetches the release of each prefix its rows name into the data root if
+  absent, from `bko.ontology.mapping.RELEASES` or, for a prefix those lack, a catalog entry's
+  release map, verifies each against its pin, converts an OWL-only one to OBO, which needs a JDK
+  until the converted file exists (OWL-only releases below), parses them with pronto (and each
+  xref's qualifiers with fastobo), and checks every row:
   a concept row's concept exists and is not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a `skos:exactMatch`
   of its concept and of no other live concept, an excluded Synthea code is a `skos:exactMatch` of no
   live MONDO concept (the check reads MONDO only for it), an ICD-9 row's concept carries its
   `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that xref are exactly the row's
   declared holders, a generated code row of `bko.ontology.icd9_codes` likewise but counting only
   xrefs qualified `source="MONDO:equivalentTo"`, an excluded ICD-9 category is an xref of no live
-  MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets
+  MONDO concept, an occupation row's concept carries exactly its SOC id as its `OCCO:00000008`
+  literal, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets
   a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`,
-  `icd9-code` or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`,
-  `A1Cresult in >7|>8`, `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or
-  category), `label` and `status` (`ok`, or how the release disagrees; for an `excluded-code` or
-  `excluded-icd9` row, `ok` means the code still has no live holder), one row per checked row, the
-  same bytes on every run over the same releases.
+  `icd9-code`, `excluded-icd9` or `occupation-code`), `subject` (the dataset side, such as
+  `cp in 1|2|3`, `A1Cresult in >7|>8`, `SCTID:<code>`, `ICD9:<code>` or `OCCP:<code>`),
+  `concept` (empty for an excluded code or category), `label` and `status` (`ok`, or how the
+  release disagrees; for an `excluded-code` or `excluded-icd9` row, `ok` means the code still has
+  no live holder), one row per checked row, the same bytes on every run over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
-  [Data](#data)), the `data-version` its header names, its term counts, and one warning per
-  disagreeing row.
+  [Data](#data)), the `data-version` its header names, its term counts, one warning per
+  disagreeing row, and a warning for each OWL-only release left unconverted for want of a JDK.
 - **Exit codes**: 0 every row agrees; 1 an unexpected error, with its traceback; 2 the command
   could not run; 3 a release contradicts its pin or is not OBO the loader reads (stdout is
   empty); 4 a row disagrees with its release (the report is written first).
@@ -1449,17 +1473,17 @@ inside `.venv`:
 - **The gate does not run it.** `make check` tests the loader on OBO text built in `tmp_path` and
   the table's invariants; a row naming a concept the release lacks passes `make check` and fails
   this command, so run it after editing the table or re-pinning a release.
-- **The release tests**: `tests/test_ontology_pinned_releases.py` loads MONDO, HPO and DO from the
-  data root and asserts that every row agrees and that the
+- **The release tests**: `tests/test_ontology_pinned_releases.py` loads MONDO, HPO, DO and the
+  converted OccO from the data root and asserts that every row agrees and that the
   [fusion reproduction](#fusion-reproduction) differs nowhere. The gate skips them, and no `-m`
   expression runs them; `--releases` does:
 
       uv run --no-sync pytest tests/test_ontology_pinned_releases.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
-  They read and never fetch, so run `check` and `reproduce` first: `check` fetches MONDO and HPO,
-  `reproduce` MONDO and DO. An absent release fails them. Run them after a re-pin, a change to
-  `bko.ontology.obo`, or a change to pronto or fastobo in `uv.lock`, from the checkout whose `data/` holds
-  the releases.
+  They read and never fetch or convert, so run `check` and `reproduce` first: `check` fetches
+  MONDO, HPO and OccO and converts OccO, `reproduce` fetches MONDO and DO. An absent release fails
+  them. Run them after a re-pin, a change to `bko.ontology.obo`, or a change to pronto or fastobo
+  in `uv.lock`, from the checkout whose `data/` holds the releases.
 - **OWL-only releases**: a release pinned as OWL, a `Source` whose `filename` ends `.owl`, is
   converted to OBO when a command first loads it: the pinned ROBOT jar's `convert`, run with no
   reasoning, writes a hidden partial file beside the OWL in its snapshot directory, renamed to
@@ -1469,8 +1493,11 @@ inside `.venv`:
   quotes the last lines. Conversion needs a JDK, found as
   [ELK comparison](#elk-comparison) finds it. Exit 2 means no JDK or a ROBOT failure; exit 3 an
   OWL file that names an import, refused before ROBOT runs, or a converted file the loader
-  refuses. Every current dataset reads the HP and MONDO OBO releases, so no command converts one
-  (ADR [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)).
+  refuses. `check` alone goes on without a JDK: it leaves the unconverted release out with a
+  warning, so its rows report `no release for prefix OCCO` and exit 4 while every other row still
+  checks. OccO, which ACS's occupation rows name, is the one OWL-only release; `check`, the
+  `occupations` command and every command that reads the `acs` dataset convert it (ADR
+  [`research/ontology-mapping-design`](adr/research/ontology-mapping-design.md)).
 - **The generated code rows**: `bko.ontology.icd9_codes` maps each exact diagnosis code of the
   `diabetes-codes` cohort to the one MONDO concept that carries its xref under
   `source="MONDO:equivalentTo"` (ADR
@@ -1486,6 +1513,27 @@ inside `.venv`:
   line. `tests/test_ontology_icd9_codes_pinned.py` regenerates the rows from the pinned release
   and cohort under `--releases` and compares them with the committed ones; run it with the
   release tests after a re-pin.
+- **The generated occupation rows**: `bko.ontology.occupation_codes_low` and
+  `bko.ontology.occupation_codes_high` map each `OCCP` code of the ACS cohort to the Occupation
+  Ontology class its `SOCP` code reaches by SOC level, split at SOC major group 31 so each module
+  stays under the size cap (ADR [`research/acs-frame`](adr/research/acs-frame.md)). They are
+  written, never edited, each through a scratch file as above:
+
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology occupations --part low > scratchpad/occupation_codes_low.py && mv scratchpad/occupation_codes_low.py src/bko/ontology/occupation_codes_low.py
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology occupations --part high > scratchpad/occupation_codes_high.py && mv scratchpad/occupation_codes_high.py src/bko/ontology/occupation_codes_high.py
+
+  The command fetches OccO's OWL file and the ACS archive into the data root if absent, converts
+  the OWL to OBO with ROBOT (see OWL-only releases above; it needs a JDK), writes nothing to
+  stdout until the module text is complete, and logs one `occupations unmapped parts=all
+  reason=... codes=N` line per reason, counted over every code whichever part runs, and a closing
+  `occupations part=... rows=N of=M codes=C holders=H sha256=...` line: `C` the `OCCP` codes read
+  and `H` the live classes carrying a SOC id.
+  `tests/test_ontology_occupation_codes_pinned.py` regenerates both parts from the pinned release
+  and archive under `--releases` and compares them with the committed ones:
+
+      uv run --no-sync pytest tests/test_ontology_occupation_codes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
+
+  It reads and never fetches or converts, so run the command first.
 
 ### ELK comparison
 
@@ -1583,6 +1631,7 @@ commands, inside `.venv`:
 
     uv run --no-sync python -m bko.gaps uci [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps support2 [--data-dir <dir>]
+    uv run --no-sync python -m bko.gaps acs [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps synthea [--data-dir <dir>]
     uv run --no-sync python -m bko.gaps first-flag [--data-dir <dir>]
 
@@ -1592,11 +1641,12 @@ commands, inside `.venv`:
   definition's row fills the statement's `source`, `antecedent`, `antecedent_label`, `consequent`
   and `consequent_label` and its cell's `age_band`, `sex` and `target`; a population-level gap
   holds in every cell, so it has a row per cell. A `count` row fills the cell and its `count`.
-- **What `support2` does**: each catalogued dataset (`bko.ontology.catalog`) has its own command,
-  `support2` among them: it fetches the dataset's archive and the releases its field rows name
-  into the data root if absent, splits the records at `SPLIT_SEED` under the frame's age bands,
-  and lists the training split's gaps in `uci`'s columns, logging as `uci` does (ADR
-  `research/support2-frame`). Before the listing's lines it logs the loader's `cohort` line, one
+- **What `support2` and `acs` do**: each catalogued dataset (`bko.ontology.catalog`) has its own
+  command, `support2` and `acs` among them: it fetches the dataset's archive and the releases its
+  field rows name into the data root if absent, splits the records at `SPLIT_SEED` under the
+  frame's age bands, and lists the training split's gaps in `uci`'s columns, logging as `uci` does
+  (ADR `research/support2-frame`; ACS's releases are HP and OccO, ADR `research/acs-frame`).
+  Before the listing's lines it logs the loader's `cohort` line, one
   `data dataset=<name> frame=<name> records=<n> digest=<sha256> agreement=<a>` line for the
   loaded records, the line `score` logs for them, and one `split seed=<s> train=<n> test=<n>
   fingerprint=<sha256>` line, the line `uci_split` logs.
@@ -1672,7 +1722,8 @@ commands, inside `.venv`:
   document (`DocumentFormatError`). Each refusal is logged, with no traceback.
 - **Reproducibility**: the same bytes on every run over the same archive, population and releases.
 - **The gate does not run it.** `make check` runs it over an archive, a population and releases
-  built in `tmp_path` (`tests/test_gaps_cli.py`, `tests/test_gaps_support2.py`).
+  built in `tmp_path` (`tests/test_gaps_cli.py`, `tests/test_gaps_support2.py`,
+  `tests/test_gaps_acs.py`).
 
 **`contradictions`** lists where a mapped frame's data contradicts its ontology, in the kinds ADR
 `research/data-contradiction-handling` defines (Decision 1): `narrow-without-broad`,
@@ -1683,13 +1734,13 @@ commands, inside `.venv`:
 
 - **Which frames**: UCI Heart Disease's, Synthea's and Diabetes 130's, in that order, with no
   `--dataset`. A repeatable `--dataset NAME` reads the named frames instead, in the order given:
-  `uci`, `synthea`, `diabetes` or a catalogued dataset such as `support2`; a name given twice is
+  `uci`, `synthea`, `diabetes` or a catalogued dataset, `support2` or `acs`; a name given twice is
   read once, at its first place. `--dataset` and `--rows` exclude each other, and `--dataset`
   takes no run.
 - **What it needs**: for the default frames, the pinned Synthea population in the data root,
   which `make synthea` generates and the command never does. It fetches UCI Heart Disease,
-  Diabetes 130, a named catalogued dataset's archive and the pinned MONDO and HPO releases into
-  the data root if absent.
+  Diabetes 130, a named catalogued dataset's archive and the pinned releases its rows name (MONDO
+  and HPO, and OccO for `acs`, converted with ROBOT) into the data root if absent.
 - **What it does**: it reads each frame's training split at holdout seed 0 with no removal and
   examines every cell. Each CSV row is one finding, so a cell appears only where it holds one, in
   the columns `kind,frame,cell,concept,parent,records,shown,with_parent,without_parent,`
@@ -2097,6 +2148,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `gaps-synthea.log` | its stderr |
 | `gaps-support2.csv` | `python -m bko.gaps support2`'s stdout |
 | `gaps-support2.log` | its stderr |
+| `gaps-acs.csv` | `python -m bko.gaps acs`'s stdout |
+| `gaps-acs.log` | its stderr |
 | `first-flag.csv` | `python -m bko.gaps first-flag`'s stdout |
 | `first-flag.log` | its stderr |
 | `contradictions.csv` | `python -m bko.evaluate contradictions`'s stdout |
@@ -2116,6 +2169,7 @@ The commands in [Evaluation](#evaluation), [Generation](#generation) and
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-uci.csv && test ! -e runs/<run-id>/gaps-uci.log && uv run --no-sync python -m bko.gaps uci > runs/<run-id>/gaps-uci.csv 2> runs/<run-id>/gaps-uci.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-synthea.csv && test ! -e runs/<run-id>/gaps-synthea.log && uv run --no-sync python -m bko.gaps synthea > runs/<run-id>/gaps-synthea.csv 2> runs/<run-id>/gaps-synthea.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-support2.csv && test ! -e runs/<run-id>/gaps-support2.log && uv run --no-sync python -m bko.gaps support2 > runs/<run-id>/gaps-support2.csv 2> runs/<run-id>/gaps-support2.log </dev/null
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/gaps-acs.csv && test ! -e runs/<run-id>/gaps-acs.log && uv run --no-sync python -m bko.gaps acs > runs/<run-id>/gaps-acs.csv 2> runs/<run-id>/gaps-acs.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/first-flag.csv && test ! -e runs/<run-id>/first-flag.log && uv run --no-sync python -m bko.gaps first-flag > runs/<run-id>/first-flag.csv 2> runs/<run-id>/first-flag.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions [--dataset NAME]... > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/contradictions.csv && test ! -e runs/<run-id>/contradictions.log && uv run --no-sync python -m bko.evaluate contradictions <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/contradictions.csv 2> runs/<run-id>/contradictions.log </dev/null

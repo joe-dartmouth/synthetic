@@ -66,8 +66,11 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   and sha256 `bko.datasets.sources` holds; `bko.ontology.releases.load_releases` calls
   `bko.datasets.fetch.ensure` for the commands that read them. Releases are held per dataset:
   the evaluate stage alone reads a dataset's releases through
-  `bko.evaluate.data.dataset_releases(dataset, context)`, and every current dataset reads
-  `context.releases`, so its map stays HP and MONDO. The app, `gaps`, `generate`, `fusion` and
+  `bko.evaluate.data.dataset_releases(dataset, context)`. A dataset may hold its own release map:
+  a catalog entry's `releases`, which ACS's uses to add the Occupation Ontology, OccO, beside HP
+  (ADR [`research/acs-frame`](acs-frame.md)); every other dataset reads `context.releases`, HP and
+  MONDO. The `ontology check` command loads each prefix its rows name, from its own `RELEASES`
+  or, for a prefix those lack, a catalog entry's map. The app, `gaps`, `generate`, `fusion` and
   `ontology` commands each serve one dataset per run and read their `Context.releases`. A
   command that reads several datasets loads one release per prefix, and the contradiction census
   refuses two datasets that pin one prefix to different releases. An OWL-only release is a
@@ -80,7 +83,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto or fastobo; it
   returns frozen standard-library `Ontology` and `Term` values with sorted tuples and a sorted term
   map. A term keeps each xref's qualifiers, read by a second fastobo pass over the same path since
-  pronto drops them.
+  pronto drops them, and the literal `property_value`s of `ANNOTATION_PREDICATES`: OccO's SOC id,
+  `OCCO:00000008`, which an occupation row is checked against.
 - **Table form**: typed `Final` constants in `bko.ontology.mapping`, with the row types in
   `bko.ontology.schema`. The range constraints belong to a frame, so they are defined in
   `bko.datasets` (`RangeConstraint` in `bko.datasets.frames`, UCI's `RANGES` in
@@ -254,6 +258,7 @@ term's `def:` whose xref is written `Pathbase: Curation`).
 | A Python OWL parser for an OWL-only release | A second OWL reader beside the OWL API ROBOT runs; ROBOT already converts OWL to OBO | 2026-11-24 |
 | Pinning a converted OBO by its own sha256 | ROBOT's serialisation is not known to be byte-stable across JDKs; the OWL and the jar are pinned, and each load logs the OBO's digest | 2026-11-24 |
 | A second, tolerant OBO reader for converted files | A third reader beside pronto and `read_hierarchy`; a converted file pronto refuses is refused as any release is | 2026-11-24 |
+| The check loading only its own HP and MONDO releases | ACS's occupation rows name OccO, which only ACS's catalog entry pins | 2026-11-25 |
 
 ## Enforcement
 
@@ -263,7 +268,9 @@ term's `def:` whose xref is written `Pathbase: Curation`).
   `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, `tests/test_ontology_elk.py` (the
   comparison and ROBOT's argv, with a fake runner), `tests/test_ontology_convert.py` (an OWL-only
   release's conversion through `src/bko/ontology/convert.py`, its jar-keyed name and its
-  failures, with a fake runner), `tests/test_evaluate_data.py` (each dataset's releases),
+  failures, with a fake runner), `tests/test_ontology_annotations.py` (the kept literal
+  annotations), `tests/test_ontology_occupations.py` (an occupation row's SOC id, and the check's
+  releases from a catalog entry's map), `tests/test_evaluate_data.py` (each dataset's releases),
   `tests/test_contradictions_census.py` (one release per prefix across the census's datasets),
   and
   `tests/test_ontology_pinned_releases.py` with `--releases`

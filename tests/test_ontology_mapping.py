@@ -12,6 +12,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.sources import Source
 from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE
 from bko.datasets.uci import CATEGORICAL, CODEBOOK, NUMERIC, RANGES
+from bko.ontology.catalog import CATALOG
 from bko.ontology.icd9 import ICD9_MAPPINGS, LAB_MAPPINGS, UNMAPPED_ICD9
 from bko.ontology.mapping import (
     CODE_MAPPINGS,
@@ -130,17 +131,21 @@ def test_excluded_codes_are_disjoint_from_mapped_codes() -> None:
         assert re.fullmatch(r"[0-9]+", code, re.ASCII), code
 
 
+_PINNED = {*RELEASES, *(prefix for entry in CATALOG.values() for prefix in entry.releases or {})}
+"""Each prefix a release is pinned for: the table's own, then each catalog entry's."""
+
+
 def _well_formed(curie: str) -> bool:
     return (
-        re.fullmatch(r"(MONDO|HP):[0-9]{7}", curie, re.ASCII) is not None
-        and curie.partition(":")[0] in RELEASES
+        re.fullmatch(r"(MONDO|HP):[0-9]{7}|OCCO:[0-9]{8}", curie, re.ASCII) is not None
+        and curie.partition(":")[0] in _PINNED
     )
 
 
 def test_concept_ids_are_well_formed() -> None:
     for row in CONCEPT_ROWS:
         assert _well_formed(row.concept), row.concept
-    for bad in ("MONDO:024644", "mondo:0024644", "MONDO:0024644\n", "DOID:0050000"):
+    for bad in ("MONDO:024644", "mondo:0024644", "MONDO:0024644\n", "DOID:0050000", "OCCO:1110000"):
         assert not _well_formed(bad), bad
 
 

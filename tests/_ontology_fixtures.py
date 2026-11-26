@@ -234,6 +234,10 @@ HPO_LABELS: Mapping[str, str] = {
     "HP:0003259": "Elevated circulating creatinine concentration",
     "HP:0002904": "Hyperbilirubinemia",
     "HP:0012418": "Hypoxemia",
+    "HP:0000365": "Hearing impairment",
+    "HP:0000505": "Visual impairment",
+    "HP:0100543": "Cognitive impairment",
+    "HP:0001288": "Gait disturbance",
 }
 """Every HP id the mapping table names, with its label in HPO release 2026-09-01."""
 

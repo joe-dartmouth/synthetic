@@ -118,5 +118,6 @@ def test_every_cutoff_row_cites_a_registered_source() -> None:
 
 
 def test_the_rows_join_the_checked_table() -> None:
-    assert CONCEPT_ROWS[-len(SUPPORT2_FIELD_ROWS) :] == SUPPORT2_FIELD_ROWS
+    start = CONCEPT_ROWS.index(SUPPORT2_FIELD_ROWS[0])
+    assert CONCEPT_ROWS[start : start + len(SUPPORT2_FIELD_ROWS)] == SUPPORT2_FIELD_ROWS
     assert set(SUPPORT2_FIELD_ROWS) <= set(CHECKED_ROWS)
