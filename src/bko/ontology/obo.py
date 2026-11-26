@@ -14,6 +14,7 @@ import logging
 import warnings
 from pathlib import Path
 from types import MappingProxyType
+from typing import Final
 
 import fastobo
 import pronto
@@ -22,13 +23,17 @@ from bko.datasets.errors import UnavailableError
 from bko.datasets.fetch import verified_path
 from bko.datasets.sources import Source
 from bko.ontology.errors import ReleaseFormatError
-from bko.ontology.terms import MATCH_PREDICATES, Ontology, Term
+from bko.ontology.terms import MATCH_PREDICATES, SOC_ID, Ontology, Term
 
 
 logger = logging.getLogger(__name__)
 
 _SHOWN = 5
 """How many distinct unread-value messages the log line quotes."""
+
+ANNOTATION_PREDICATES: Final = (SOC_ID,)
+"""The predicates whose literal `property_value`s a term keeps (`Term.annotations`); a release
+without them parses as before."""
 
 
 def load_ontology(source: Source, data_dir: Path) -> Ontology:
@@ -130,6 +135,7 @@ def _term(term: pronto.Term, qualified: dict[str, set[tuple[str, str]]]) -> Term
         xref_qualifiers=tuple(
             (xref, tuple(sorted(qualified[xref]))) for xref in xrefs if xref in qualified
         ),
+        annotations=_annotations(term),
     )
 
 
@@ -141,4 +147,14 @@ def _matches(term: pronto.Term) -> tuple[tuple[str, str], ...]:
         resource = getattr(pv, "resource", None)
         if isinstance(resource, str) and pv.property in MATCH_PREDICATES:
             found.append((pv.property, resource))
+    return tuple(sorted(found))
+
+
+def _annotations(term: pronto.Term) -> tuple[tuple[str, str], ...]:
+    # A literal annotation is told by its `literal` value, as `_matches` tells a resource one.
+    found: list[tuple[str, str]] = []
+    for pv in term.annotations:
+        literal = getattr(pv, "literal", None)
+        if isinstance(literal, str) and pv.property in ANNOTATION_PREDICATES:
+            found.append((pv.property, literal))
     return tuple(sorted(found))

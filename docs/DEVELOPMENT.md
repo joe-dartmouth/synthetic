@@ -1423,21 +1423,24 @@ inside `.venv`:
 
     uv run --no-sync python -m bko.ontology check [--data-dir <dir>]
 
-- **What it does**: it fetches the two releases into the data root if absent, verifies each against
-  its pin, parses them with pronto (and each xref's qualifiers with fastobo), and checks every row:
+- **What it does**: it fetches the release of each prefix its rows name into the data root if
+  absent, from `bko.ontology.mapping.RELEASES` or, for a prefix those lack, a catalog entry's
+  release map, verifies each against its pin, converts an OWL-only one to OBO, parses them with
+  pronto (and each xref's qualifiers with fastobo), and checks every row:
   a concept row's concept exists and is not obsolete, its label is the release's name, a Synthea row's SNOMED-CT code is a `skos:exactMatch`
   of its concept and of no other live concept, an excluded Synthea code is a `skos:exactMatch` of no
   live MONDO concept (the check reads MONDO only for it), an ICD-9 row's concept carries its
   `xref: ICD9:<code>` (any qualifier) and the live concepts carrying that xref are exactly the row's
   declared holders, a generated code row of `bko.ontology.icd9_codes` likewise but counting only
   xrefs qualified `source="MONDO:equivalentTo"`, an excluded ICD-9 category is an xref of no live
-  MONDO concept, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets
+  MONDO concept, an occupation row's concept carries exactly its SOC id as its `OCCO:00000008`
+  literal, and an out-of-scope concept is not an `is_a` ancestor of a mapped one. stdout gets
   a CSV with the columns `table` (`field`, `code`, `out-of-scope`, `excluded-code`, `icd9`,
-  `icd9-code` or `excluded-icd9`), `subject` (the dataset side, such as `cp in 1|2|3`,
-  `A1Cresult in >7|>8`, `SCTID:<code>` or `ICD9:<code>`), `concept` (empty for an excluded code or
-  category), `label` and `status` (`ok`, or how the release disagrees; for an `excluded-code` or
-  `excluded-icd9` row, `ok` means the code still has no live holder), one row per checked row, the
-  same bytes on every run over the same releases.
+  `icd9-code`, `excluded-icd9` or `occupation-code`), `subject` (the dataset side, such as
+  `cp in 1|2|3`, `A1Cresult in >7|>8`, `SCTID:<code>`, `ICD9:<code>` or `OCCP:<code>`),
+  `concept` (empty for an excluded code or category), `label` and `status` (`ok`, or how the
+  release disagrees; for an `excluded-code` or `excluded-icd9` row, `ok` means the code still has
+  no live holder), one row per checked row, the same bytes on every run over the same releases.
 - **What it logs**: stderr gets the parser's version, each release's snapshot identity (as in
   [Data](#data)), the `data-version` its header names, its term counts, and one warning per
   disagreeing row.

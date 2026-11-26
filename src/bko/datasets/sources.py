@@ -202,3 +202,18 @@ Size and sha256 were measured from the bytes the host serves; the size equals it
 The Vanderbilt permission line grants use to anyone and asks only for a citation, so it is open
 data (ADR `research/confirmatory-dataset-selection`, point 4).
 """
+
+OCCO: Final = Source(
+    name="occo",
+    url="https://raw.githubusercontent.com/Occupation-Ontology/OccO/v2025-10-06/occo.owl",
+    filename="occo.owl",
+    size=5_465_131,
+    sha256="97462cabc824526898e486c6d780d62ab13b81ec98d30d4f05df41178b2d9f37",
+    agreement=None,
+)
+"""The Occupation Ontology, OccO, release 2025-10-06 (CC BY 4.0, in its header), OWL only.
+
+The file is the release tag's `occo.owl`: OccO's GitHub releases carry no assets, so size and
+sha256 were measured from the bytes at the tag; the size equals the host's content-length. It
+names no `owl:imports`, and `bko.ontology.convert` converts it to OBO at fetch time.
+"""

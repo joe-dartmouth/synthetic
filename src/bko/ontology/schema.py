@@ -150,7 +150,26 @@ class UnmappedCode:
     source: str
 
 
-type ConceptRow = FieldMapping | CodeMapping | OutOfScope | Icd9Mapping | LabMapping | Icd9Code
+@dataclass(frozen=True, slots=True)
+class OccupationCode:
+    """An ACS `OCCP` code, as the file writes it, and the Occupation Ontology class it maps to.
+
+    Attributes:
+        code: The `OCCP` code, four characters with its leading zeros.
+        soc: The class's US SOC id, its `OCCO:00000008` literal, such as `11-1011.00`.
+        concept: The OccO curie.
+        label: The class's name in its pinned release, verbatim.
+    """
+
+    code: str
+    soc: str
+    concept: str
+    label: str
+
+
+type ConceptRow = (
+    FieldMapping | CodeMapping | OutOfScope | Icd9Mapping | LabMapping | Icd9Code | OccupationCode
+)
 
 type CheckedRow = ConceptRow | UnmappedCode | UnmappedIcd9
 

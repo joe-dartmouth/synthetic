@@ -1,20 +1,21 @@
 """The ontology stage's command line: `python -m bko.ontology check`, `reproduce`, `elk`, `codes`.
 
-`check` fetches the pinned MONDO and HPO releases into the data root if they are absent, verifies
-and parses them, and writes one CSV row per checked row of `bko.ontology.mapping` to stdout: `ok`,
-or how the release disagrees. `reproduce` does the same for the pinned MONDO and DO releases,
-rebuilds Santos et al.'s fusion example with `bko.ontology.santos`, and writes one CSV row per
-quantity of the example. `elk` fetches the pinned OWL releases and ROBOT, classifies each release
-with ELK (`bko.ontology.elk`), which needs a JDK, and writes one CSV row per ancestor pair,
-within the mapped concepts and their ancestors, that the classification or the loaded OBO release
-holds and the other lacks; it finds Java before it fetches anything. The parser's version, each
-release's identity, a warning per disagreeing row, and `elk`'s tool, heap, timeout, timings,
-classified files and per-release counts go to stderr through logging. `codes` fetches the pinned
-MONDO release and Diabetes 130 archive if they are absent, maps every diagnosis code the
-`diabetes-codes` cohort holds with `bko.ontology.codes.generate`, writes the module text of
-`bko.ontology.icd9_codes` to stdout, and logs a `codes unmapped` line per reason and a closing
-`codes rows=` line; stdout stays empty until the text is complete.
-`docs/DEVELOPMENT.md` (Ontologies, Fusion reproduction) is the usage home.
+`check` fetches the pinned release of each prefix its rows name into the data root if it is absent,
+from `RELEASES` or, for a prefix those lack, a catalog entry's release map (OccO for ACS), converts
+an OWL-only one to OBO, verifies and parses them, and writes one CSV row per checked row of
+`bko.ontology.mapping` to stdout: `ok`, or how the release disagrees. `reproduce` does the same for
+the pinned MONDO and DO releases, rebuilds Santos et al.'s fusion example with
+`bko.ontology.santos`, and writes one CSV row per quantity of the example. `elk` fetches the pinned
+OWL releases and ROBOT, classifies each release with ELK (`bko.ontology.elk`), which needs a JDK,
+and writes one CSV row per ancestor pair, within the mapped concepts and their ancestors, that the
+classification or the loaded OBO release holds and the other lacks; it finds Java before it fetches
+anything. The parser's version, each release's identity, a warning per disagreeing row, and `elk`'s
+tool, heap, timeout, timings, classified files and per-release counts go to stderr through logging.
+`codes` fetches the pinned MONDO release and Diabetes 130 archive if they are absent, maps every
+diagnosis code the `diabetes-codes` cohort holds with `bko.ontology.codes.generate`, writes the
+module text of `bko.ontology.icd9_codes` to stdout, and logs a `codes unmapped` line per reason and
+a closing `codes rows=` line; stdout stays empty until the text is complete. `docs/DEVELOPMENT.md`
+(Ontologies, Fusion reproduction) is the usage home.
 
 Exit codes: 0 every `check` row agrees, or `reproduce`, `elk` or `codes` wrote its report,
 whatever its statuses; 1 an unexpected error, with its traceback, including a fusion the
@@ -35,6 +36,7 @@ import logging
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from typing import Final, TextIO
 
@@ -46,8 +48,10 @@ from bko.datasets.fetch import UrlOpener, default_data_dir, ensure, open_https
 from bko.datasets.sources import DIABETES_130, ROBOT_JAR, Source
 from bko.datasets.synthea_run import default_java
 from bko.ontology import elk
-from bko.ontology.check import check
+from bko.ontology.catalog import CATALOG, Catalogued
+from bko.ontology.check import check, prefixes
 from bko.ontology.codes import generate, render
+from bko.ontology.convert import converted
 from bko.ontology.mapping import CHECKED_ROWS, MAPPED, RELEASES
 from bko.ontology.releases import load_releases
 from bko.ontology.santos import PAPER_RELEASES, reproduce
@@ -73,6 +77,8 @@ class Context:
         robot_runner: Runs ROBOT's argv for `elk`.
         concepts: The mapped concepts whose hierarchy `elk` compares.
         diabetes: The pinned Diabetes 130 archive whose diagnosis codes `codes` maps.
+        catalog: The catalogued datasets, whose release maps `check` reads for a prefix
+            `releases` lacks.
     """
 
     open_url: UrlOpener = open_https
@@ -85,6 +91,7 @@ class Context:
     robot_runner: elk.Runner = elk.run_robot
     concepts: frozenset[str] = MAPPED
     diabetes: Source = DIABETES_130
+    catalog: Mapping[str, Catalogued] = CATALOG
 
 
 def main(
@@ -143,10 +150,45 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def check_releases(context: Context) -> dict[str, Source]:
+    """The release of each prefix `context.rows` name, from its releases or else its catalog.
+
+    A prefix `context.releases` pins takes that release; any other takes the one every catalog
+    entry that pins it agrees on, and a prefix none pins is left out, so its rows report it.
+
+    Raises:
+        ValueError: If two catalog entries pin a prefix `context.releases` lacks to different
+            releases.
+    """
+    chosen: dict[str, Source] = {}
+    for prefix in sorted(prefixes(context.rows)):
+        if prefix in context.releases:
+            chosen[prefix] = context.releases[prefix]
+            continue
+        pinned = {
+            entry.releases[prefix]
+            for entry in context.catalog.values()
+            if entry.releases is not None and prefix in entry.releases
+        }
+        if len(pinned) > 1:
+            names = ", ".join(sorted(source.name for source in pinned))
+            msg = f"catalog entries pin prefix {prefix} to different releases: {names}"
+            raise ValueError(msg)
+        chosen.update((prefix, source) for source in pinned)
+    return chosen
+
+
 def _check(data_dir: Path, context: Context, out: TextIO) -> int:
-    verdicts = check(
-        context.rows, load_releases(context.releases, data_dir, open_url=context.open_url)
+    convert = partial(
+        converted,
+        resolve_java=context.resolve_java,
+        robot=context.robot,
+        runner=context.robot_runner,
     )
+    releases = load_releases(
+        check_releases(context), data_dir, open_url=context.open_url, convert=convert
+    )
+    verdicts = check(context.rows, releases)
     writer = csv.writer(out, lineterminator="\n")
     writer.writerow(("table", "subject", "concept", "label", "status"))
     writer.writerows((v.table, v.subject, v.concept, v.label, v.problem or "ok") for v in verdicts)

@@ -83,7 +83,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
 - **Loader output**: `bko.ontology.obo` is the only module that imports pronto or fastobo; it
   returns frozen standard-library `Ontology` and `Term` values with sorted tuples and a sorted term
   map. A term keeps each xref's qualifiers, read by a second fastobo pass over the same path since
-  pronto drops them.
+  pronto drops them, and the literal `property_value`s of `ANNOTATION_PREDICATES`: OccO's SOC id,
+  `OCCO:00000008`, which an occupation row is checked against.
 - **Table form**: typed `Final` constants in `bko.ontology.mapping`, with the row types in
   `bko.ontology.schema`. The range constraints belong to a frame, so they are defined in
   `bko.datasets` (`RangeConstraint` in `bko.datasets.frames`, UCI's `RANGES` in
@@ -267,7 +268,9 @@ term's `def:` whose xref is written `Pathbase: Curation`).
   `tests/test_ontology_icd9.py`, `tests/test_ontology_cli.py`, `tests/test_ontology_elk.py` (the
   comparison and ROBOT's argv, with a fake runner), `tests/test_ontology_convert.py` (an OWL-only
   release's conversion through `src/bko/ontology/convert.py`, its jar-keyed name and its
-  failures, with a fake runner), `tests/test_evaluate_data.py` (each dataset's releases),
+  failures, with a fake runner), `tests/test_ontology_annotations.py` (the kept literal
+  annotations), `tests/test_ontology_occupations.py` (an occupation row's SOC id, and the check's
+  releases from a catalog entry's map), `tests/test_evaluate_data.py` (each dataset's releases),
   `tests/test_contradictions_census.py` (one release per prefix across the census's datasets),
   and
   `tests/test_ontology_pinned_releases.py` with `--releases`

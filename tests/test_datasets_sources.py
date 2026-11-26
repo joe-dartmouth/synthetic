@@ -7,7 +7,7 @@ import re
 import pytest
 
 from bko.datasets import sources
-from bko.datasets.sources import DO, HPO, HPO_OWL, MONDO, MONDO_OWL, ROBOT_JAR, Source
+from bko.datasets.sources import DO, HPO, HPO_OWL, MONDO, MONDO_OWL, OCCO, ROBOT_JAR, Source
 
 
 PINS = tuple(value for value in vars(sources).values() if isinstance(value, Source))
@@ -25,6 +25,7 @@ def test_the_scan_finds_every_pin() -> None:
         "hpo-owl",
         "robot-jar",
         "support2",
+        "occo",
     }
 
 
@@ -54,6 +55,13 @@ def test_the_do_pin_names_a_tag() -> None:
     assert re.search(r"/v\d{4}-\d{2}-\d{2}/", DO.url)
     assert "/main/" not in DO.url
     assert "/master/" not in DO.url
+
+
+def test_the_occo_pin_names_a_tag() -> None:
+    assert re.search(r"/v\d{4}-\d{2}-\d{2}/occo\.owl$", OCCO.url)
+    assert "/main/" not in OCCO.url
+    assert "/master/" not in OCCO.url
+    assert OCCO.filename.endswith(".owl")
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 """Check the table's rows against parsed releases: `python -m bko.ontology check`'s core.
 
-The rows are the concept rows, the generated ICD-9 code rows among them, the excluded Synthea
-codes and the excluded ICD-9 categories (`bko.ontology.mapping.CHECKED_ROWS`).
+The rows are the concept rows, the generated ICD-9 code rows and ACS occupation rows among them,
+the excluded Synthea codes and the excluded ICD-9 categories (`bko.ontology.mapping.CHECKED_ROWS`).
 """
 
 from __future__ import annotations
@@ -20,14 +20,22 @@ from bko.ontology.schema import (
     Codes,
     ConceptRow,
     FieldMapping,
+    OccupationCode,
     OutOfScope,
     UnmappedCode,
 )
-from bko.ontology.terms import Ontology, ancestors
+from bko.ontology.terms import SOC_ID, Ontology, ancestors
 
 
 type Table = Literal[
-    "field", "code", "out-of-scope", "excluded-code", "icd9", "icd9-code", "excluded-icd9"
+    "field",
+    "code",
+    "out-of-scope",
+    "excluded-code",
+    "icd9",
+    "icd9-code",
+    "excluded-icd9",
+    "occupation-code",
 ]
 
 EXCLUDED_PREFIX: Final = "MONDO"
@@ -54,7 +62,8 @@ class Verdict:
         table: Which kind of row it is.
         subject: The dataset side: `cp in 1|2|3`, `chol >= 240`, `A1Cresult in >7|>8`,
             `SCTID:414545008` (a code row or an excluded code), `ICD9:428` (an ICD-9 row, a
-            generated code row or an excluded category), or empty.
+            generated code row or an excluded category), `OCCP:0010` (an occupation row), or
+            empty.
         concept: The row's concept; empty for an excluded code or category.
         label: The row's label; for an excluded code or category, its description.
         problem: None when the release agrees; otherwise how it disagrees.
@@ -79,7 +88,9 @@ def check(rows: Iterable[CheckedRow], ontologies: Mapping[str, Ontology]) -> tup
     ICD-9 category when one carries its xref. An ICD-9 row disagrees when its concept lacks its xref
     or the release's live holders of the xref differ from the row's declared ones; a generated code
     row likewise, counting only xrefs under the qualifier `EXACT`. A generated code row's concept
-    joins no out-of-scope check, since it is outside the table's scope. Each release's holders are
+    joins no out-of-scope check, since it is outside the table's scope. An occupation row
+    disagrees when its concept's `OCCO:00000008` literals are not exactly its SOC id, and joins no
+    out-of-scope check either. Each release's holders are
     collected in one pass per call, however many code rows, ICD-9 rows and excluded codes or
     categories name its prefix.
     """
@@ -123,6 +134,7 @@ def _verdict(
             | Icd9Mapping()
             | LabMapping()
             | Icd9Code()
+            | OccupationCode()
         ):
             table, subject = _describe(row)
             return Verdict(
@@ -150,6 +162,8 @@ def _describe(row: ConceptRow) -> tuple[Table, str]:
             return "icd9-code", row.xref
         case LabMapping(field=field, states=states):
             return "field", f"{field} in {'|'.join(sorted(states))}"
+        case OccupationCode(code=code):
+            return "occupation-code", f"OCCP:{code}"
         case _:
             assert_never(row)
 
@@ -200,10 +214,19 @@ def _kind_problem(
             return _xref_problem(row, ontology, where, holders[_prefix(row)])
         case OutOfScope():
             return _scope_problem(row, ontology, where, mapped)
+        case OccupationCode():
+            return _soc_problem(row, ontology, where)
         case FieldMapping() | LabMapping():
             return None
         case _:
             assert_never(row)
+
+
+def _soc_problem(row: OccupationCode, ontology: Ontology, where: str) -> str | None:
+    held = ontology.terms[row.concept].annotation(SOC_ID)
+    if held != (row.soc,):
+        return f"{where} gives {row.concept} {SOC_ID} {_listed(held)}; the row says {row.soc}"
+    return None
 
 
 def _scope_problem(
@@ -222,6 +245,17 @@ def _scope_problem(
 
 def _prefix(row: ConceptRow) -> str:
     return row.concept.partition(":")[0]
+
+
+def prefixes(rows: Iterable[CheckedRow]) -> frozenset[str]:
+    """The release prefixes `check` reads for `rows`.
+
+    Each concept row's concept prefix, and `EXCLUDED_PREFIX` for an excluded code or category.
+    """
+    return frozenset(
+        EXCLUDED_PREFIX if isinstance(row, UnmappedCode | UnmappedIcd9) else _prefix(row)
+        for row in rows
+    )
 
 
 def _target(row: CodedRow) -> str:

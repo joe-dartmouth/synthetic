@@ -21,6 +21,10 @@ MATCH_PREDICATES: Final = frozenset(
 )
 """The SKOS mapping properties a term's `property_value` lines may carry."""
 
+SOC_ID: Final = "OCCO:00000008"
+"""The Occupation Ontology's literal annotation that holds a class's US SOC id, such as
+`11-1011.00`."""
+
 
 @dataclass(frozen=True, slots=True)
 class Term:
@@ -38,6 +42,9 @@ class Term:
         xref_qualifiers: `(xref id, ((key, value), ...))` for each xref the stanza qualifies, such
             as `("ICD9:250", (("source", "MONDO:equivalentTo"),))`; an xref without qualifiers
             is absent.
+        annotations: `(predicate, literal)` for each literal `property_value` whose predicate the
+            loader keeps (`bko.ontology.obo.ANNOTATION_PREDICATES`), such as
+            `("OCCO:00000008", "11-1011.00")`.
     """
 
     curie: str
@@ -48,6 +55,7 @@ class Term:
     obsolete: bool
     replaced_by: tuple[str, ...]
     xref_qualifiers: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
+    annotations: tuple[tuple[str, str], ...] = ()
 
     def xref_sources(self, xref: str) -> tuple[str, ...]:
         """The `source` qualifier values the stanza gives `xref`, sorted; empty if none."""
@@ -55,6 +63,10 @@ class Term:
             if held == xref:
                 return tuple(value for key, value in qualifiers if key == "source")
         return ()
+
+    def annotation(self, predicate: str) -> tuple[str, ...]:
+        """The literals the stanza gives `predicate`, sorted; empty if none."""
+        return tuple(value for key, value in self.annotations if key == predicate)
 
 
 @dataclass(frozen=True, slots=True, eq=False)
