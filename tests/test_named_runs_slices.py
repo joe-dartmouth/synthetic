@@ -338,6 +338,50 @@ KEYS = [
     "e18-allh",
     "e18-alli",
     "e18-allj",
+    "e19-thin",
+    "e19-thina",
+    "e19-thinb",
+    "e19-thinc",
+    "e19-thind",
+    "e19-thine",
+    "e19-thinf",
+    "e19-thing",
+    "e19-thinh",
+    "e19-thini",
+    "e19-thinj",
+    "e19-empty",
+    "e19-emptya",
+    "e19-emptyb",
+    "e19-emptyc",
+    "e19-emptyd",
+    "e19-emptye",
+    "e19-emptyf",
+    "e19-emptyg",
+    "e19-emptyh",
+    "e19-emptyi",
+    "e19-emptyj",
+    "e19-supported-thin",
+    "e19-supported-thina",
+    "e19-supported-thinb",
+    "e19-supported-thinc",
+    "e19-supported-thind",
+    "e19-supported-thine",
+    "e19-supported-thinf",
+    "e19-supported-thing",
+    "e19-supported-thinh",
+    "e19-supported-thini",
+    "e19-supported-thinj",
+    "e19-supported-empty",
+    "e19-supported-emptya",
+    "e19-supported-emptyb",
+    "e19-supported-emptyc",
+    "e19-supported-emptyd",
+    "e19-supported-emptye",
+    "e19-supported-emptyf",
+    "e19-supported-emptyg",
+    "e19-supported-emptyh",
+    "e19-supported-emptyi",
+    "e19-supported-emptyj",
     "p1-id",
     "p1-ood",
     "p2",
@@ -345,14 +389,17 @@ KEYS = [
 """Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's,
 E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, the donor-limit runs E14, the
 tree-share runs E15, the conditional `is_a` runs E16, the coherent free-field runs E17, P3's
-removal fractions, the synthetic-share runs E18, P1's runs and P2's."""
+removal fractions, the synthetic-share runs E18, the matched knowledge controls E19, P1's runs
+and P2's."""
 
 
 def test_the_runs_keys_are_the_literal_list():
     assert list(RUNS) == KEYS
 
 
-@pytest.mark.parametrize("entry", ["e6", "e9", "e10-pram", "e12", "e14", "e15", "e16", "e17"])
+@pytest.mark.parametrize(
+    "entry", ["e6", "e9", "e10-pram", "e12", "e14", "e15", "e16", "e17", "e19", "e19-supported"]
+)
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
 @pytest.mark.parametrize("letter", list(LETTERS))
 def test_each_slice_maps_to_its_fractions_run(entry, fraction, letter):

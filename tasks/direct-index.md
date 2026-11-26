@@ -9,7 +9,6 @@ unit's `milestone` is `direct-method-research`, the
 ## Order of work
 
 1. Code units, in landing order:
-   [`paper-controls`](paper-controls.md) heads the paper chain;
    [`evaluate-removed-truth-reading`](evaluate-removed-truth-reading.md) is the mechanism reading
    `paper-control-results` needs;
    [`privacy-value-microaggregation`](privacy-value-microaggregation.md) unblocks the variant runs;
@@ -97,7 +96,7 @@ Landing-order constraints that are not dependencies:
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`ontology-auto-mapping`](ontology-auto-mapping.md) | blocked | paper-controls | direct-method-research |
+| [`ontology-auto-mapping`](ontology-auto-mapping.md) | ready | -- | direct-method-research |
 | [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
 | [`slm-lora-day-budget`](slm-lora-day-budget.md) | ready | -- | direct-method-research |
 | [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-day-budget | direct-method-research |
@@ -115,14 +114,13 @@ Benchmarks" among them; limits the main paper to 8 pages; gives a "Suggested Ope
 creation deadline: December 31, 2026 AOE"; states "All submissions must include an AI Disclosure
 Statement."; and has each submission designate one author as a reciprocal reviewer.
 
-The graph below holds the chain to `paper-manuscript`, from `paper-controls` and from the
+The graph below holds the chain to `paper-manuscript`, from `paper-control-results` and from the
 composite chain.
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`paper-novelty`](paper-novelty.md) | blocked | evaluate-diabetes-control-results, evaluate-quota-sweep-results, evaluate-tableshift-results, evaluate-variant-dev-results, ontology-auto-mapping-results, paper-control-results | direct-method-research |
-| [`paper-controls`](paper-controls.md) | ready | -- | direct-method-research |
-| [`paper-control-results`](paper-control-results.md) | blocked | evaluate-removed-truth-reading, paper-controls | direct-method-research |
+| [`paper-control-results`](paper-control-results.md) | blocked | evaluate-removed-truth-reading | direct-method-research |
 | [`paper-baselines`](paper-baselines.md) | blocked | paper-control-results | direct-method-research |
 | [`paper-scarcity`](paper-scarcity.md) | blocked | evaluate-confirmatory-registration, ontology-auto-mapping, paper-baselines | direct-method-research |
 | [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity, evaluate-confirmatory-results | direct-method-research |
@@ -130,7 +128,6 @@ composite chain.
 
 ```mermaid
 flowchart LR
-    p1[paper-controls] --> p2[paper-control-results]
     p2[paper-control-results] --> p3[paper-baselines]
     u30[evaluate-confirmatory-registration] --> p4[paper-scarcity]
     u31[evaluate-confirmatory-results] --> p5[paper-scarcity-results]
@@ -160,7 +157,6 @@ flowchart LR
     p2[paper-control-results] --> u30[evaluate-confirmatory-registration]
     p2[paper-control-results] --> p0[paper-novelty]
     u57[evaluate-removed-truth-reading] --> p2[paper-control-results]
-    p1[paper-controls] --> u32[ontology-auto-mapping]
     u32[ontology-auto-mapping] --> p4[paper-scarcity]
     u7[evaluate-diabetes-control-results] --> p0[paper-novelty]
     u19[evaluate-variant-dev-results] --> p0[paper-novelty]

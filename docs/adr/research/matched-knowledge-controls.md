@@ -261,9 +261,30 @@ pooled methods refuse a label-keyed request.
 
 ## Enforcement
 
-- Owner: `src/bko/evaluate/runs_direct.py`, with the draw spec in
-  `src/bko/generate/draw_spec.py` and the methods in `src/bko/baselines/methods.py`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/evaluate/runs_direct.py`, `src/bko/evaluate/named_runs.py`,
+  `src/bko/evaluate/reference.py`, `src/bko/evaluate/direct_arms.py`,
+  `src/bko/evaluate/direct.py`, `src/bko/evaluate/attribution.py`,
+  `src/bko/evaluate/trace_direct.py`, with the draws in `src/bko/generate/direct.py`,
+  `src/bko/generate/draw_spec.py`, `src/bko/generate/pooling.py`,
+  `src/bko/generate/knowledge_draw.py`, `src/bko/generate/donors.py`, and the methods in
+  `src/bko/baselines/pooling.py`, `src/bko/baselines/categories.py`,
+  `src/bko/baselines/multilevel.py`, `src/bko/baselines/multilevel_fit.py`,
+  `src/bko/baselines/methods.py`
+- Pinned by: `tests/test_generate_direct.py` (`DRAW_DIGEST`) and `tests/test_evaluate_direct.py`
+  (`ADDED_DIGEST`), `bko-direct`'s draw unchanged; `tests/test_generate_pooled.py` (the pooled
+  rule's weight and label group, a mapped group copied whole, `Pool.RANDOM`'s count, seed and
+  log line, `Pool.ALL`'s fields, the refusals); `tests/test_evaluate_pooled_arms.py` (the
+  pooled arms' specs, the `donor` attribution, a scored and traced fill);
+  `tests/test_baselines_pooling.py` (the banded pool, `row-resample`, `marginals`, the `kappa`
+  grid and fit, the categorisation, the refusal by label); `tests/test_baselines_multilevel.py`
+  (the multilevel fit, its grid, determinism, convergence and refusals, its log line and
+  constants); `tests/test_generate_knowledge_draw.py` and `tests/test_evaluate_kb_arm.py`
+  (`bko-kb` reads no training frame, its codebook and age draws, its refusals);
+  `tests/test_arm_inputs.py` (each arm's fill changes only with a declared input, the
+  declared-inputs table mirrors `tests/_arm_inputs.py`); `tests/test_evaluate_control_runs.py`
+  (E19's runs are E12's but for arms and comparators, their stated arms, the empty run's
+  omissions, the slices, no paid arm, the `real` reference); `tests/test_named_runs_slices.py`
+  (each family's ten slices)
 
 ## Reversal Conditions
 

@@ -396,7 +396,7 @@ a re-read quotes what it lacks. What the search did not reach is unranked.
 
 ## A knowledge-only draw with an external prevalence table
 
-**What it is.** A variant of the knowledge-only arm `bko-kb` (unit `paper-controls`) that draws
+**What it is.** A variant of the knowledge-only arm `bko-kb` (ADR `research/matched-knowledge-controls`) that draws
 each concept's presence at a prevalence read from a cited external table, such as a published
 survey's, in place of uniform over the assignments K allows. The draw would then hold how common
 each concept is as well as which combinations K allows, and still copy no training value.
@@ -425,7 +425,7 @@ Adopting it means a weight field on the draw spec under new arm names, and a cha
 
 ## The matched controls on UCI Heart Disease
 
-**What it is.** E19's matched knowledge controls (unit `paper-controls`) run on UCI Heart Disease,
+**What it is.** E19's matched knowledge controls (ADR `research/matched-knowledge-controls`) run on UCI Heart Disease,
 whose mapping groups span several fields and whose numeric fields carry cutoffs. On E6's frame
 every mapping group is a single field with no nesting, so at a cell of no record `bko-direct` and
 `bko-nomap` draw one distribution (ADR

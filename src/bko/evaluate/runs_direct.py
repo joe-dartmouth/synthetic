@@ -3,8 +3,9 @@
 `E12_THIN` and `E12_EMPTY` are E6's runs with `CONTROL_ARMS`, and `E13` is E3's with them and
 `bko-logic`; `E14_THIN` and `E14_EMPTY` hold `bko-capped`, `E15_THIN` and `E15_EMPTY` `bko-tree`,
 `E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, `E17_THIN` and `E17_EMPTY`
-`bko-coherent`, and `E18` the synthetic-share sweep. `bko.evaluate.named_runs.RUNS` names them
-(`docs/EVIDENCE.md`, E12 to E18).
+`bko-coherent`, `E18` the synthetic-share sweep, and `E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN`
+and `E19_SUPPORTED_EMPTY` the matched knowledge controls. `bko.evaluate.named_runs.RUNS` names them
+(`docs/EVIDENCE.md`, E12 to E19).
 """
 
 from __future__ import annotations
@@ -20,11 +21,15 @@ from bko.evaluate.direct_arms import (
     CAPPED_ARM,
     COHERENT_ARM,
     DIRECT_ARM,
+    DONOR_ARM,
     HIER_0_ARM,
     HIER_CLOSED_ARM,
     HIER_W_ARM,
+    KB_ARM,
     LOGIC_ARM,
     NOMAP_ARM,
+    POOL_ALL_ARM,
+    POOL_RANDOM_ARM,
     TREE_ARM,
 )
 from bko.evaluate.experiment import METHOD_ARMS, PRIOR_SHIFT_ARM, REAL_ARM, Experiment
@@ -174,3 +179,57 @@ E18: Final[Mapping[str, Experiment]] = MappingProxyType(
 arm but `real`, no replica and no removal, `share` of each cell's training rows replaced by each
 arm's fill and `E6_CELL` flagged by name, whose recall the margin reads (ADR
 `research/synthetic-share-ablation`). No arm calls the API, so the ceiling is inert."""
+
+
+E19_THIN_ARMS: Final[tuple[str, ...]] = (
+    str(Method.NONE),
+    REAL_ARM,
+    DIRECT_ARM,
+    NOMAP_ARM,
+    DONOR_ARM,
+    POOL_RANDOM_ARM,
+    POOL_ALL_ARM,
+    str(Method.ROW_RESAMPLE),
+    str(Method.MARGINALS),
+    str(Method.EB_MARGINALS),
+    str(Method.HB_MARGINALS),
+    str(Method.LABEL_BOOTSTRAP),
+    PRIOR_SHIFT_ARM,
+)
+"""`e19-thin`'s arms: `bko-direct`, its matched controls and the multilevel competitor (ADR
+`research/matched-knowledge-controls`, Decision 12)."""
+
+E19_EMPTY_ARMS: Final[tuple[str, ...]] = (
+    str(Method.NONE),
+    REAL_ARM,
+    DIRECT_ARM,
+    NOMAP_ARM,
+    str(Method.MARGINALS),
+    str(Method.HB_MARGINALS),
+    str(Method.LABEL_BOOTSTRAP),
+    PRIOR_SHIFT_ARM,
+)
+"""`e19-empty`'s arms: `E19_THIN_ARMS` less the five that draw another arm's distribution when the
+cell holds no record."""
+
+E19_SUPPORTED_ARMS: Final[tuple[str, ...]] = (
+    str(Method.NONE),
+    REAL_ARM,
+    DIRECT_ARM,
+    NOMAP_ARM,
+    LOGIC_ARM,
+    KB_ARM,
+    str(Method.HB_MARGINALS),
+    str(Method.LABEL_BOOTSTRAP),
+)
+"""The supported runs' arms: `bko-kb`, which refuses a frame with a free field, beside `bko-logic`
+and the controls that run on `diabetes-supported`."""
+
+E19_THIN: Final = _controls(E6_THIN, E19_THIN_ARMS)
+E19_EMPTY: Final = _controls(E6_EMPTY, E19_EMPTY_ARMS)
+E19_SUPPORTED_THIN, E19_SUPPORTED_EMPTY = (
+    _controls(e6, E19_SUPPORTED_ARMS) for e6 in (E6_THIN, E6_EMPTY)
+)
+"""E19's runs: E12's runs with each family's arms, `bko-direct` the candidate against every arm but
+`real`, and no replica. `bko.evaluate.named_runs.RUNS` scores the supported runs on
+`diabetes-supported`. No arm calls the API, so the ceiling is inert."""

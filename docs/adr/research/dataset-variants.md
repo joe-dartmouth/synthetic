@@ -68,7 +68,9 @@ from its base's whenever its records do, so its folders never merge with the bas
 ## Enforcement
 
 - Owner: `src/bko/evaluate/data.py`
-- Pinned by: nothing -- convention only
+- Pinned by: `tests/test_evaluate_variants.py` (the supported frame's fields and its one object,
+  the base's field rows, the base split, the `data` line naming the variant, the base's source
+  name and releases, no base line when a variant loads)
 
 ## Reversal Conditions
 

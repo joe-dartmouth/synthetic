@@ -433,8 +433,9 @@ The retained-data methods `row-resample`, `marginals` and `eb-marginals` fill a 
 rule inside the cell's band: a whole row from one donor, each column from its own donor, or each
 column at one empirical-Bayes weight `kappa`; `hb-marginals` draws each column from a multilevel
 multinomial logit fitted per column (ADR
-[`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). E19's runs
-hold them, and [Baselines](#baselines) lists their lines.
+[`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md)). `e19-thin`
+holds all four, `e19-empty` `marginals` and `hb-marginals`, and the supported runs `hb-marginals`;
+[Baselines](#baselines) lists their lines.
 
 A run with neither a BKO arm nor the direct arm, such as `b1-uci`, `b1-synthea`, `b2-uci` and
 `b2-synthea`, makes no call
@@ -1191,7 +1192,8 @@ start or the supervisor cannot run.
   [`research/synthetic-share-ablation`](adr/research/synthetic-share-ablation.md)). `RUNS` holds
   the matched knowledge controls, `e19-thin` and `e19-empty` on `diabetes` and
   `e19-supported-thin` and `e19-supported-empty` on `diabetes-supported`
-  (`bko.evaluate.runs_direct`: E12's runs with the arms ADR
+  (`bko.evaluate.runs_direct.E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN` and
+  `E19_SUPPORTED_EMPTY`: E12's runs with the arms ADR
   [`research/matched-knowledge-controls`](adr/research/matched-knowledge-controls.md) lists per
   family, the candidate `bko-direct`, no replica, the ceiling inert) and their slices
   `e19-thina` to `e19-supported-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E19, describes
