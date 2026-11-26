@@ -107,10 +107,10 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   run folders of `uci` are re-read under identity checks and its rows stay as they are.
 - **Concept matching**: a dataset item, a field, a state or a flag its documentation names, maps
   to the nearest live term whose name or `EXACT` synonym names the item's condition or
-  impairment. ADR
-  [`research/acs-frame`](acs-frame.md) Decision 5 maps four of ACS's six disability items this
-  way, and ADR [`research/nhamcs-frame`](nhamcs-frame.md) Decision 6 NHAMCS's chronic flags,
-  with its order of releases and its rule for an item naming several conditions. An item whose
+  impairment. ADR [`research/acs-frame`](acs-frame.md) Decision 5 maps four of ACS's six
+  disability items this way, and ADR [`research/nhamcs-frame`](nhamcs-frame.md) Decision 6
+  NHAMCS's chronic flags, with its order of releases and its rule for an item naming several
+  conditions. An item whose
   only naming term is obsolete maps through that term's `replaced_by` to the live term; no
   current row maps that way. A code row reads a code annotation instead, under the rules of ADRs
   [`research/diabetes-diagnosis-codes`](diabetes-diagnosis-codes.md) and
