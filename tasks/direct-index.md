@@ -41,7 +41,6 @@ unit's `milestone` is `direct-method-research`, the
 | [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
-| [`evaluate-syntheval-results`](evaluate-syntheval-results.md) | ready | -- | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | ready | -- | direct-method-research |
 
 ### Composite and confirmation
