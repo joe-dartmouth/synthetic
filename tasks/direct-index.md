@@ -12,11 +12,11 @@ unit's `milestone` is `direct-method-research`, the
    [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and
    [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) both gate the
    registration, [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) runs the
-   E14 to E17 and E20 families, which are in `RUNS`, and
+   E14 to E17 and E20 families,
    [`evaluate-tableshift-results`](evaluate-tableshift-results.md) runs `p1-id-partial` and
-   `p1-ood-partial`, and [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md)
-   runs E22's families, which are in `RUNS`, and
-   [`paper-control-results`](paper-control-results.md) runs E19's families, which are in `RUNS`.
+   `p1-ood-partial`, [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md)
+   runs E22's families, and [`paper-control-results`](paper-control-results.md) runs E19's;
+   every one of these families is in `RUNS`.
 2. After this batch: [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) lands
    alone; then [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md),
    [`slm-lora-day-budget`](slm-lora-day-budget.md),
