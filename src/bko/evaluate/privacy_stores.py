@@ -45,7 +45,7 @@ def read(
     experiment: Experiment,
     runs: Mapping[str, NamedRun],
     root: Path,
-    verb: Literal["privacy", "added", "truth"] = "privacy",
+    verb: Literal["privacy", "added", "truth", "representativeness"] = "privacy",
 ) -> dict[int, Store]:
     """Read and check each store; return the store that holds each of `run`'s holdouts.
 
@@ -54,7 +54,8 @@ def read(
     `log_sha256` and one fill line per `arm` line), and the stores' holdouts partition `run`'s.
     Each holdout's fills are the experiment's arms' and their replicas'. Each bound store logs
     `<verb> store=%s run=%s folder=%s log_sha256=%s holdouts=%s sha256=%s`, the sha256 of the
-    bytes it was parsed from, `verb` the reading's: `privacy`, `added` or `truth`. An error
+    bytes it was parsed from, `verb` the reading's: `privacy`, `added`, `truth` or
+    `representativeness`. An error
     echoes at most `SHOWN` characters of a header value.
 
     Raises:

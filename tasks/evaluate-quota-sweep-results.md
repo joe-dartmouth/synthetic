@@ -2,12 +2,12 @@
 id: evaluate-quota-sweep-results
 title: Run the quota sweep and read representativeness and recall per count
 status: blocked
-depends_on: evaluate-diabetes-control-results, gaps-share-based-quota
+depends_on: evaluate-diabetes-control-results
 blocks: evaluate-composite-arm, paper-novelty
 parallel_safe: true
 milestone: direct-method-research
 paid: false
-adrs: --
+adrs: research/share-based-quota
 ---
 
 # Run the quota sweep and read representativeness and recall per count
@@ -17,8 +17,9 @@ The set's graph is [`direct-index.md`](direct-index.md).
 ## Why this unit exists
 
 Whether the recommended count makes a cell representative, and what it costs or buys in recall,
-is an empirical question. Unit [`gaps-share-based-quota`](gaps-share-based-quota.md) registers the
-sweep; this unit runs it.
+is an empirical question. `RUNS` holds the sweep, E21
+([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal);
+ADR [`research/share-based-quota`](../docs/adr/research/share-based-quota.md)); this unit runs it.
 
 ## Scope
 
@@ -35,9 +36,14 @@ sweep; this unit runs it.
 
 **Findings from planning.**
 
-- The unit's first step recomputes E6's counts with `bko.gaps.quota`, which unit
-  [`gaps-share-based-quota`](gaps-share-based-quota.md) adds; how far each count sits from the
-  fixed fill is that unit's ADR's to state.
+- The runs, their slices, the fixed fill they read against and the privacy reference arm:
+  [`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal),
+  E21's Configuration. E12's runs are this unit's prerequisite, since `compare --beside` reads
+  the fixed fill from them.
+- The `quota-rule` line, the `representativeness` command and its columns:
+  [`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation). How far each count sits from the
+  fixed fill at holdout 0: ADR
+  [`research/share-based-quota`](../docs/adr/research/share-based-quota.md), Rationale.
 
 ## Acceptance
 

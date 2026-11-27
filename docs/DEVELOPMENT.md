@@ -854,7 +854,10 @@ start or the supervisor cannot run.
   data with that seed and gives every arm the split's training rows and the request that fills
   each cell under the threshold up to the fill target (`Experiment.threshold` and
   `Experiment.fill_to`, both 20 in `E1`), or only the cell `Experiment.flagged_cell` names when
-  it is set. Under `Experiment.synthetic_share` the request asks each cell for the training rows
+  it is set. Under an `Experiment.quota_rule` other than `fill-to`, each flagged cell is asked
+  its rule's count less its training records instead (`bko.gaps.quota`; ADR
+  [`research/share-based-quota`](adr/research/share-based-quota.md)), and a cell asked 0 leaves
+  the request. Under `Experiment.synthetic_share` the request asks each cell for the training rows
   the share drops there (`bko.datasets.split.dropped`), every arm fits on the whole training
   split, the real rows a classifier fits on leave the dropped rows out, `real` adds them back, and
   every distance reads the whole split (ADR
@@ -975,7 +978,10 @@ start or the supervisor cannot run.
   replica fill near that many rows in all: each cell asks its `kept_count` at the share
   `replica_rows` over the training rows, so the rounded cells may sum to a few rows off it;
   `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's
-  0.5, the probability at which utility calls a record positive; `spend_ceiling=` is the named
+  0.5, the probability at which utility calls a record positive; `quota_rule=<rule>` follows
+  `fill_to=` and `cutoff=` only when the run's `Experiment.quota_rule` is not `fill-to`, the rule
+  that asks each flagged cell for a count read from the cell (ADR
+  [`research/share-based-quota`](adr/research/share-based-quota.md)); `spend_ceiling=` is the named
   run's own, a resume under `--ceiling` included), and a
   `versions` line (the checkout's commit and whether its tree is dirty, `unknown` without git,
   then Python, the platform, the evaluation stack, the SDK and the ontology parser), with `--resume`
@@ -994,7 +1000,16 @@ start or the supervisor cannot run.
   before the removal, those it removed and those it kept), for a run with a synthetic share (the
   `e18-*` runs) a `share holdout=%d share=%s kept=%d dropped=%d dropped_sha256=%s` line (the
   share, the training rows kept and dropped, and the sha256 of the dropped record ids, sorted and
-  joined by commas), one `quota` line per stratum, a
+  joined by commas), for a run whose `Experiment.quota_rule` is not `fill-to` (the `e21-*` runs)
+  one
+  `quota-rule holdout=%d fill=gap key=%s rule=%s count=%d coverage=%d expected=%d asked=%d`
+  line per flagged cell (`key` the cell as `<band>/<sex>/<label>`, as the direct arms' lines
+  name it; the cell's training records, its coverage, its expected size and the rows its rule
+  asks, a cell asked 0 leaving the request; a holdout scored through
+  `bko.evaluate.run.score_holdout` writes them once, so `scores.log` and the logs of `shared`,
+  `rows` and `panel`, which rescore each holdout, hold them, while `trace`, `privacy`,
+  `contradictions <run>` and `shared`'s `--with` exclusion rebuild the request without them),
+  one `quota` line per stratum, a
   `flagged holdout=%d cells=%s` line naming the flagged cells as `<band>/<sex>/<label>`,
   comma-separated, one `arm` line per fill
   (a replica fill is named `<arm>-replica`) with the attempt, the seed, the added rows' sha256 and
@@ -1232,7 +1247,14 @@ start or the supervisor cannot run.
   `real`, `bko-direct`, `bko-capped` and the candidate `bko-micro`, comparators `bko-direct`,
   `bko-capped` and `none`, no replica, the ceiling inert, `REFERENCE` `bko-capped`) and their
   slices `e20-thina` to `e20-thinj` and `e20-emptya` to `e20-emptyj`, sliced as E6's are;
-  `docs/EVIDENCE.md`, E20, describes them. `RUNS` also holds P1's runs,
+  `docs/EVIDENCE.md`, E20, describes them. `RUNS` holds the quota sweep, `e21-<word>-thin` and
+  `e21-<word>-empty` for each word `coverage`, `coverage-two`, `coverage-four`,
+  `coverage-eight`, `expected-size` and `recommended`, naming the rules `coverage`,
+  `coverage-x2`, `coverage-x4`, `coverage-x8`, `expected-size` and `recommended`
+  (`bko.evaluate.runs_direct.E21` and `E21_NAMES`: `E12_THIN` and `E12_EMPTY` with `quota_rule`
+  set to the rule, the ceiling inert, `REFERENCE` `real`) and their slices `e21-<word>-thina`
+  to `e21-<word>-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E21,
+  describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
@@ -1386,6 +1408,37 @@ both sides logs at WARNING. The last line is `truth lines=%d sha256=%s seconds=%
 rows and sha256. `--runs-dir` and `--data-dir` read as `privacy`'s do. It exits 2 for a run that
 removes no cell, and 3 for a store that fails `privacy`'s store checks, a store of another run or
 whose `split` line the data does not reproduce included.
+
+**`representativeness`** reads each arm's gap fill of a run against the fused shares of the
+cells it fills (ADR [`research/share-based-quota`](adr/research/share-based-quota.md), E21's
+reading). It takes the run's `rows` stores as `privacy` does, one `--rows` per slice, binds them
+by the same checks, and makes no API call:
+
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/representativeness.csv && test ! -e runs/<run-id>/representativeness.log && uv run --no-sync python -m bko.evaluate representativeness <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/representativeness.csv 2> runs/<run-id>/representativeness.log </dev/null
+
+Per holdout it re-derives the training split and its flagged cells, reads each cell's fused
+concept shares as the direct sampler draws them (`bko.gaps.quota.fused_shares`), and keeps each
+arm's added rows in the cell. The `representativeness.csv` columns are
+`holdout,arm,cell,rows,gap,concept,cell_share,real_share,recall`, one row per holdout, arm and
+flagged cell: `rows` the arm's added rows in the cell; `gap` the largest absolute difference
+between the share of those rows showing a mapped concept and its fused share, and `concept` that
+concept, both empty for an arm with no row in the cell; `cell_share` the cell's share of the
+arm's training set, the training split plus the fill; `real_share` the same for `real`, whose
+fill is the removed records; and `recall` the arm's regression recall on the flagged subgroups of
+its augmented training set, read from the store's folder's `scores.csv`, which on E6's cell is
+removed-cell recall; it reads that file only once its sha256 is the one the folder's `scores`
+line logs, as `rows` does. Its `representativeness.log` opens with the `versions commit=` line,
+then the data's fetch, cohort and `data` lines, then `representativeness run=%s stores=%d
+holdouts=%d root=%s`, one `representativeness store=%s run=%s folder=%s log_sha256=%s
+holdouts=%s sha256=%s` line per store, and per holdout, the first time it reads a store,
+`representativeness scores folder=%s sha256=%s`, the sha256 of its folder's `scores.csv`, then
+one `representativeness holdout=%d arm=%s key=%s rows=%d gap=%.4f concept=%s cell_share=%.6f
+real_share=%.6f recall=%.4f` line per arm and flagged cell and `representativeness holdout=%d
+done=%d/%d seconds=%.1f elapsed=%.1f`. The last line is `representativeness lines=%d sha256=%s
+seconds=%.1f`, the CSV's rows and sha256. `--runs-dir` and `--data-dir` read as `privacy`'s do.
+It exits 2 for a run without `real` or a store whose folder holds no `scores.csv`, and 3 for a
+store that fails `privacy`'s store checks or whose folder's `scores.csv` is not the one its
+`scores` line logs.
 
 **SynthEval.** `syntheval` scores each replica fill of a run's `rows` store under the SynthEval
 metric set of Lautrup et al.'s code (`bko.evaluate.syntheval_inputs.METRICS`; ADR
@@ -1999,6 +2052,12 @@ stores, gap and replica fills alike. `<run>` is the named run whose slices' stor
   `tmp_path`, UCI- and Diabetes-shaped (`tests/test_contradictions_added.py`,
   `tests/test_contradictions_added_diabetes.py`).
 
+**Share-based quota counts.** `bko.gaps.quota` holds the counts a run under a share-based
+`Experiment.quota_rule` asks each flagged cell for, `coverage`, `expected_size` and
+`recommended`; ADR [`research/share-based-quota`](adr/research/share-based-quota.md), Decision,
+defines each. It has no command of its own: `score` reads it through the gap request, and every
+reader that rebuilds that request reads it the same way.
+
 ## Generation
 
 `bko.generate` ([README](../src/bko/generate/README.md)) asks the Anthropic Messages API for
@@ -2335,6 +2394,8 @@ home; this table mirrors it, and `tests/test_run_folders.py` holds the two equal
 | `privacy.log` | its stderr |
 | `truth.csv` | `python -m bko.evaluate truth`'s stdout |
 | `truth.log` | its stderr |
+| `representativeness.csv` | `python -m bko.evaluate representativeness`'s stdout |
+| `representativeness.log` | its stderr |
 | `syntheval.csv` | `python -m bko.evaluate syntheval`'s stdout |
 | `syntheval.log` | its stderr |
 | `trace.jsonl` | `python -m bko.evaluate trace`'s stdout |

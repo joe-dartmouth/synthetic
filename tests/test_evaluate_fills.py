@@ -40,6 +40,8 @@ def test_the_harness_sets_the_fill_around_each_runner_call():
         experiment,
         {"none": FAST_ARMS["none"], "smote": spy},
         frame=UCI_FRAME,
+        rows=(),
+        source_name="",
     )
     assert seen == [Fill(1, "gap"), Fill(1, "replica")]
     assert CURRENT_FILL.get() is None
@@ -63,6 +65,8 @@ def test_each_attempt_sees_the_fill_and_a_refusal_resets_it():
         PAIR,
         {"none": FAST_ARMS["none"], "smote": refuse_once},
         frame=UCI_FRAME,
+        rows=(),
+        source_name="",
     )
     assert seen == [Fill(0, "gap"), Fill(0, "gap")]
     assert CURRENT_FILL.get() is None
@@ -72,5 +76,7 @@ def test_each_attempt_sees_the_fill_and_a_refusal_resets_it():
             PAIR,
             {"none": FAST_ARMS["none"], "smote": always_refuse},
             frame=UCI_FRAME,
+            rows=(),
+            source_name="",
         )
     assert CURRENT_FILL.get() is None

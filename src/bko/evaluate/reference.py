@@ -16,7 +16,7 @@ from bko.evaluate.direct_arms import CAPPED_ARM
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_runs import NamedRun, wholes_of
-from bko.evaluate.runs_direct import E18_SHARES
+from bko.evaluate.runs_direct import E18_SHARES, E21
 
 
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
@@ -24,6 +24,7 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     | {"e12-thin": REAL_ARM, "e12-empty": REAL_ARM, "e13": REAL_ARM}
     | {"e14-thin": DIRECT_ARM, "e14-empty": DIRECT_ARM}
     | {"e20-thin": CAPPED_ARM, "e20-empty": CAPPED_ARM}
+    | {f"e21-{name}": REAL_ARM for name in E21}
     | {"e15-thin": DIRECT_ARM, "e15-empty": DIRECT_ARM}
     | {"e16-thin": DIRECT_ARM, "e16-empty": DIRECT_ARM}
     | {"e17-thin": DIRECT_ARM, "e17-empty": DIRECT_ARM}
@@ -38,7 +39,8 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
         for cell in ("thin", "empty")
     }
 )
-"""Each run family's reference arm, which every other arm's privacy is read against: `real`, or
+"""Each run family's reference arm, which every other arm's privacy is read against: `real`, as
+for the quota sweep, whose arms are E12's, or
 `bko-direct` for the perturbation runs and the coherent free-field runs, whose arms perturb its
 rows, for the donor-limit, tree-share and conditional `is_a` runs, whose arms change who donates
 them or what they draw, and for the synthetic-share runs, whose comparators each read against

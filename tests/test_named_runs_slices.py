@@ -404,6 +404,19 @@ KEYS = [
     "e20-emptyh",
     "e20-emptyi",
     "e20-emptyj",
+    *(
+        f"e21-{rule}-{fraction}{letter}"
+        for rule in (
+            "coverage",
+            "coverage-two",
+            "coverage-four",
+            "coverage-eight",
+            "expected-size",
+            "recommended",
+        )
+        for fraction in ("thin", "empty")
+        for letter in ("", *LETTERS)
+    ),
     "p1-id",
     "p1-ood",
     "p2",
@@ -412,7 +425,7 @@ KEYS = [
 E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, the donor-limit runs E14, the
 tree-share runs E15, the conditional `is_a` runs E16, the coherent free-field runs E17, P3's
 removal fractions, the synthetic-share runs E18, the matched knowledge controls E19, the
-microaggregation runs E20, P1's runs and P2's."""
+microaggregation runs E20, the quota sweep E21, P1's runs and P2's."""
 
 
 def test_the_runs_keys_are_the_literal_list():
@@ -421,7 +434,30 @@ def test_the_runs_keys_are_the_literal_list():
 
 @pytest.mark.parametrize(
     "entry",
-    ["e6", "e9", "e10-pram", "e12", "e14", "e15", "e16", "e17", "e19", "e19-supported", "e20"],
+    [
+        "e6",
+        "e9",
+        "e10-pram",
+        "e12",
+        "e14",
+        "e15",
+        "e16",
+        "e17",
+        "e19",
+        "e19-supported",
+        "e20",
+        *(
+            f"e21-{rule}"
+            for rule in (
+                "coverage",
+                "coverage-two",
+                "coverage-four",
+                "coverage-eight",
+                "expected-size",
+                "recommended",
+            )
+        ),
+    ],
 )
 @pytest.mark.parametrize("fraction", ["thin", "empty"])
 @pytest.mark.parametrize("letter", list(LETTERS))

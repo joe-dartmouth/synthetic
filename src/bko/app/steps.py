@@ -287,7 +287,14 @@ def _score(
     arms = {**context.arms, experiment.candidate: recorder}
     models = {Model.LR: context.factory}
     return score_holdout(
-        analysis.parts, experiment, arms, models=models, drains=drains, frame=analysis.data.frame
+        analysis.parts,
+        experiment,
+        arms,
+        models=models,
+        drains=drains,
+        frame=analysis.data.frame,
+        rows=analysis.data.field_rows,
+        source_name=analysis.data.name,
     )
 
 

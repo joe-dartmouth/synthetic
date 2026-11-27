@@ -316,6 +316,7 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
             frame=frame,
             held=held,
             rows=knowledge.field_rows,
+            source_name=knowledge.name,
         )
     finally:
         for arm in direct.values():

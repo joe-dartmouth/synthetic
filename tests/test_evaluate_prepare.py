@@ -49,7 +49,9 @@ def test_every_stage_reads_the_subsample(caplog):
     spy = Spy()
     arms = {name: spying(name) for name in HALF.arms}
     with caplog.at_level(logging.INFO):
-        score_holdout(PARTS, HALF, arms, models={Model.LR: spy}, frame=UCI_FRAME)
+        score_holdout(
+            PARTS, HALF, arms, models={Model.LR: spy}, frame=UCI_FRAME, rows=(), source_name=""
+        )
     assert len(SIZED) < len(PARTS.train)
     assert {size for _, size in seen} == {len(SIZED)}
     assert len(seen) == len(HALF.arms) + len(HALF.replica_arms)
@@ -64,7 +66,7 @@ def test_every_stage_reads_the_subsample(caplog):
 
 
 def test_held_out_ratio_reads_the_subsample():
-    scores = score_holdout(PARTS, HALF, FAST_ARMS, frame=UCI_FRAME)
+    scores = score_holdout(PARTS, HALF, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name="")
     (ratio,) = [
         s.value for s in scores if s.arm == HELD_OUT_ARM and s.measure is Measure.HELD_OUT_RATIO
     ]
@@ -109,7 +111,7 @@ def test_rehearsal_ranges_follow_the_subsample():
 
 def test_the_flagged_cells_and_gap_request_read_the_subsample(caplog):
     with caplog.at_level(logging.INFO):
-        scores = score_holdout(PARTS, HALF, FAST_ARMS, frame=UCI_FRAME)
+        scores = score_holdout(PARTS, HALF, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name="")
     sized = flagged(SIZED, HALF, edges=EDGES)
     assert sized != flagged(PARTS.train, HALF, edges=EDGES)
     names = ",".join("/".join(map(str, cell)) for cell in sized)
@@ -120,7 +122,7 @@ def test_the_flagged_cells_and_gap_request_read_the_subsample(caplog):
         if s.arm == HELD_OUT_ARM and s.measure is Measure.FLAGGED_FINGERPRINT
     ]
     assert found == fingerprint(sized)
-    quota = gap_request(SIZED, HALF, seed=0, frame=UCI_FRAME).quota
+    quota = gap_request(SIZED, HALF, seed=0, frame=UCI_FRAME, rows=(), source_name="").quota
     lines = [m for m in caplog.messages if m.startswith("quota ")]
     assert len(lines) == len(quota)
 

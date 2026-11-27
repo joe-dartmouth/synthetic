@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from fractions import Fraction
 from typing import TYPE_CHECKING
@@ -12,14 +13,20 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from bko.baselines.request import Request, Strata, Stratum
-from bko.datasets.cells import UNDERREPRESENTED_BELOW, cell_counts
+from bko.datasets.cells import UNDERREPRESENTED_BELOW, counts_by_cell
 from bko.datasets.frames import FrameSpec
 from bko.datasets.split import dropped_count, kept_count
 from bko.evaluate.errors import EvaluationError
+from bko.gaps.observe import cell_key
+from bko.gaps.quota import QuotaRule, asks
+from bko.ontology.schema import FieldMapping
 
 
 if TYPE_CHECKING:
     from bko.evaluate.experiment import Experiment
+
+
+logger = logging.getLogger("bko.evaluate")
 
 
 def flagged(
@@ -35,37 +42,98 @@ def flagged(
 
 
 def gap_request(
-    train: pd.DataFrame, experiment: Experiment, *, seed: int, frame: FrameSpec
+    train: pd.DataFrame,
+    experiment: Experiment,
+    *,
+    seed: int,
+    frame: FrameSpec,
+    rows: Sequence[FieldMapping],
+    source_name: str,
+    log: bool = True,
 ) -> Request:
-    """Ask for every flagged cell of `frame` to be filled up to `experiment.fill_to` records.
+    """The request every row-adding arm fills on `train`: rows for the cells `experiment` names.
 
-    A cell is flagged below `experiment.threshold`, so a target above it fills the same cells
-    further. With `experiment.flagged_cell` set, the request asks for that cell alone, up to
-    `fill_to`. With `experiment.synthetic_share` set, `train` is the whole training split and the
-    request asks each of its cells for the rows the share drops there (`dropped_count`), leaving
-    out each cell that drops none; no cell is restored to `fill_to`.
+    By default each cell flagged below `experiment.threshold` is filled up to
+    `experiment.fill_to` records, so a target above the threshold fills the same cells further.
+    With `experiment.flagged_cell` set, the request asks for that cell alone, up to `fill_to`.
+    With `experiment.synthetic_share` set, `train` is the whole training split and the request
+    asks each of its cells for the rows the share drops there (`dropped_count`), leaving out each
+    cell that drops none; no cell is restored to `fill_to`. Under an `experiment.quota_rule`
+    other than `QuotaRule.FILL_TO`, each flagged cell is asked its rule's count
+    (`bko.gaps.quota.asks`) over `rows`, the data's field rows, and `source_name`, its source
+    name; a cell asked 0 leaves the request. With `log` set, such a request logs one
+    `quota-rule holdout=%d fill=gap key=%s rule=%s count=%d coverage=%d expected=%d asked=%d`
+    line per flagged cell, `holdout` the request's `seed`: `bko.evaluate.run.score_holdout` sets
+    it, and every other reader that rebuilds the request clears it, so a log holds one set per
+    holdout scored.
 
     Raises:
-        EvaluationError: If no cell is flagged, so the row-adding arms have nothing to fill, or
+        EvaluationError: If no cell is flagged or asked a row, so the row-adding arms have
+            nothing to fill (the message names the holdout seed and ends "nothing to fill"), or
             the flagged cell is not a cell of `frame` or already holds `fill_to` records, or the
-            synthetic share drops no row of any cell.
+            synthetic share drops no row of any cell, or a quota rule other than
+            `QuotaRule.FILL_TO` comes with no field rows.
     """
     share = experiment.synthetic_share
-    if share is not None:
+    if experiment.quota_rule is not QuotaRule.FILL_TO:
+        quota = _ruled(
+            train, experiment, seed=seed, frame=frame, rows=rows, source_name=source_name, log=log
+        )
+    elif share is not None:
         cells = _cells(train, edges=frame.edges)
         quota = {cell: asked for cell, count, _ in cells if (asked := dropped_count(count, share))}
         if not quota:
-            msg = f"the synthetic share {share} drops no training row; nothing to fill"
+            msg = f"at holdout {seed}, the synthetic share {share} drops no training row;"
+            msg += " nothing to fill"
             raise EvaluationError(msg)
     elif experiment.flagged_cell is not None:
         quota = _restored(train, experiment, experiment.flagged_cell, frame=frame)
     else:
         quota = _short(train, experiment, edges=frame.edges)
         if not quota:
-            msg = f"no cell holds fewer than {experiment.threshold} training records;"
-            msg += " nothing to fill"
+            msg = f"at holdout {seed}, no cell holds fewer than {experiment.threshold} training"
+            msg += " records; nothing to fill"
             raise EvaluationError(msg)
     return Request(quota=quota, strata=Strata.CELL, seed=seed, frame=frame)
+
+
+def _ruled(
+    train: pd.DataFrame,
+    experiment: Experiment,
+    *,
+    seed: int,
+    frame: FrameSpec,
+    rows: Sequence[FieldMapping],
+    source_name: str,
+    log: bool,
+) -> dict[Stratum, int]:
+    """Each flagged cell's count under `experiment.quota_rule`; with `log`, one line per cell."""
+    rule = experiment.quota_rule
+    if not rows:
+        msg = f"quota rule {rule} reads the cells' fused shares, so it needs the data's field rows"
+        raise EvaluationError(msg)
+    counts = counts_by_cell(train, edges=frame.edges)
+    cells = tuple(cell for cell, count in counts.items() if count < experiment.threshold)
+    found = asks(train, cells, rule, name=source_name, rows=rows, frame=frame, counts=counts)
+    for cell in cells if log else ():
+        ask = found[cell]
+        logger.info(
+            "quota-rule holdout=%d fill=gap key=%s rule=%s count=%d coverage=%d expected=%d"
+            " asked=%d",
+            seed,
+            cell_key(cell),
+            rule,
+            ask.count,
+            ask.coverage,
+            ask.expected,
+            ask.asked,
+        )
+    quota = {cell: found[cell].asked for cell in cells if found[cell].asked}
+    if not quota:
+        msg = f"at holdout {seed}, no cell holds fewer than {experiment.threshold} training"
+        msg += f" records and fewer than its {rule} count; nothing to fill"
+        raise EvaluationError(msg)
+    return quota
 
 
 def replica_request(
@@ -118,8 +186,5 @@ def _cells(
     *,
     edges: Sequence[int],
 ) -> list[tuple[Stratum, int, bool]]:
-    counts = cell_counts(train, edges=edges, below=below)
-    return [
-        ((str(band), str(sex), int(label)), int(count), bool(short))
-        for band, sex, label, count, short in counts.itertuples(index=False)
-    ]
+    counts = counts_by_cell(train, edges=edges)
+    return [(cell, count, count < below) for cell, count in counts.items()]

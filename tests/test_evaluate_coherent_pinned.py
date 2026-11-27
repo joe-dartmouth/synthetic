@@ -67,7 +67,11 @@ def _request(name: str, seed: int) -> tuple[pd.DataFrame, Request, int]:
     edges = DIABETES_FRAME.edges
     parts = split(_loaded().copy(), seed=seed, edges=edges)
     train = prepared(parts, experiment, edges=edges).ablated.train
-    return train, gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME), experiment.budget
+    return (
+        train,
+        gap_request(train, experiment, seed=seed, frame=DIABETES_FRAME, rows=(), source_name=""),
+        experiment.budget,
+    )
 
 
 def _breaks(rows: pd.DataFrame) -> dict[str, int]:

@@ -46,8 +46,8 @@ cell machinery has to read them before any such frame loads.
 - It reverses the Ruled Out row "A `cell_columns` field on the frame" of ADR
   [`research/uci-evaluation-frame`](../docs/adr/research/uci-evaluation-frame.md), with a dated
   revision of that ADR.
-- `bko.gaps.quota.expected_size`, which unit `gaps-share-based-quota` adds, reads the second
-  cell axis by position, which this unit keeps.
+- `bko.gaps.quota.expected_size` reads the second cell axis by position, which this unit
+  keeps.
 
 ## Acceptance
 

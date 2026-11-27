@@ -113,14 +113,15 @@ def run(
     on_holdout: Callable[[], None] | None = None,
     frame: FrameSpec,
     held: frozenset[int] | None = None,
-    rows: Sequence[FieldMapping] = (),
+    rows: Sequence[FieldMapping],
+    source_name: str,
 ) -> list[Score]:
     """Score every arm of `experiment` on each of its holdouts of `records`, a dataset of `frame`.
 
     `on_holdout` is called after each holdout, so a caller can stop the run between holdouts.
     `held` names the test records every holdout holds out (`bko.evaluate.data.records_split`);
-    None splits each holdout by its seed. `rows` are the dataset's field rows, which
-    `score_holdout` reads.
+    None splits each holdout by its seed. `rows` are the dataset's field rows and `source_name` its
+    source name, which `score_holdout` reads.
     `models` must hold `Model.LR`, which the criteria and replica utility read. `REAL_ARM` needs
     no runner.
 
@@ -143,7 +144,14 @@ def run(
         started = time.perf_counter()
         parts = records_split(records, held=held, seed=seed, edges=frame.edges)
         scores += score_holdout(
-            parts, experiment, arms, models=models, drains=drains, frame=frame, rows=rows
+            parts,
+            experiment,
+            arms,
+            models=models,
+            drains=drains,
+            frame=frame,
+            rows=rows,
+            source_name=source_name,
         )
         elapsed = time.perf_counter() - started
         logger.info("holdout=%d done=%d/%d seconds=%.1f", seed, done, total, elapsed)
@@ -167,7 +175,7 @@ def _tally_undefined(scores: Sequence[Score], total: int) -> None:
         logger.warning("undefined replicas arm=%s holdouts=%d of=%d", arm, count, total)
 
 
-def score_holdout(
+def score_holdout(  # ruff: ignore[too-many-arguments]  (the data's rows and name beside the run's)
     parts: Split,
     experiment: Experiment,
     arms: Mapping[str, Runner],
@@ -178,7 +186,8 @@ def score_holdout(
     exclude: Sequence[pd.DataFrame] | None = None,
     logged: Logged | None = None,
     calibration: bool = False,
-    rows: Sequence[FieldMapping] = (),
+    rows: Sequence[FieldMapping],
+    source_name: str,
 ) -> list[Score]:
     """Every score of one holdout of `frame`'s data: the held-out rows' own, then each arm's.
 
@@ -195,7 +204,8 @@ def score_holdout(
     replica utility never does. An experiment with a `flagged_cell` adds each model's AUGMENTED
     ROC AUC on each scope. When the experiment holds `TREE_ARM`, each arm writes
     `Measure.CODE_SHARE_ERROR` over the tree fields of `rows`, the dataset's field rows, against
-    the rows the removal took, NaN for a fill with no rows.
+    the rows the removal took, NaN for a fill with no rows. The gap request reads `rows` and
+    `source_name`, the dataset's source name, under a share-based quota rule (`gap_request`).
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, the experiment holds `TREE_ARM` and `rows`
@@ -211,7 +221,7 @@ def score_holdout(
     logged = Logged() if logged is None else logged
     logged.split, logged.fills = split_line(ablated), []
     logger.info("%s", logged.split)
-    gap = gap_request(train, experiment, seed=seed, frame=frame)
+    gap = gap_request(train, experiment, seed=seed, frame=frame, rows=rows, source_name=source_name)
     _log_quota(seed, gap)
     cells = flagged(train, experiment, edges=frame.edges)
     logger.info("flagged holdout=%d cells=%s", seed, ",".join("/".join(map(str, c)) for c in cells))

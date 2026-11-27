@@ -164,6 +164,8 @@ def _score(
             models=context.models,
             frame=data.frame,
             held=data.held,
+            rows=data.field_rows,
+            source_name=data.name,
         )
     text = render(scores)
     digest = hashlib.sha256(text.encode()).hexdigest()
@@ -356,6 +358,8 @@ def _guided(
             on_holdout=paid.watch.holdout_done,
             frame=frame,
             held=data.held,
+            rows=data.field_rows,
+            source_name=data.name,
         )
 
 

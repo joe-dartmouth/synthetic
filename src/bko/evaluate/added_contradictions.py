@@ -197,14 +197,25 @@ def _holdout(
         *((f"{arm}{REPLICA}", True) for arm in experiment.replica_arms),
     ]
     held = read_fills(seed, store, [arm for arm, _ in listed], frame)
-    requests = {False: gap_request, True: replica_request}
     asked: dict[bool, tuple[Stratum, ...]] = {}
     found = []
     for arm, replica in listed:
         added, cells = held[arm], None
         if replica or answers(arm):
             if replica not in asked:
-                request = requests[replica](train, experiment, seed=seed, frame=frame)
+                request = (
+                    replica_request(train, experiment, seed=seed, frame=frame)
+                    if replica
+                    else gap_request(
+                        train,
+                        experiment,
+                        seed=seed,
+                        frame=frame,
+                        rows=data.field_rows,
+                        source_name=data.name,
+                        log=False,
+                    )
+                )
                 asked[replica] = tuple(request.quota)
             cells = asked[replica]
             if not len(added):

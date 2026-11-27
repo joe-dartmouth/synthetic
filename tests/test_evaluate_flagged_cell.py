@@ -36,10 +36,19 @@ def test_a_flagged_cell_is_flagged_above_the_threshold():
 
 
 def test_the_flagged_cell_is_restored_to_fill_to():
-    by_count = gap_request(TOY_TRAIN, dataclasses.replace(TOY_RUN, fill_to=26), seed=0, frame=TOY)
+    by_count = gap_request(
+        TOY_TRAIN,
+        dataclasses.replace(TOY_RUN, fill_to=26),
+        seed=0,
+        frame=TOY,
+        rows=(),
+        source_name="",
+    )
     assert by_count.quota == {SHORT[0]: 21, SHORT[1]: 21}
     named = dataclasses.replace(TOY_RUN, fill_to=26, flagged_cell=FULL)
-    assert gap_request(TOY_TRAIN, named, seed=0, frame=TOY).quota == {FULL: 6}
+    assert gap_request(TOY_TRAIN, named, seed=0, frame=TOY, rows=(), source_name="").quota == {
+        FULL: 6
+    }
 
 
 def test_a_flagged_cell_other_than_the_removals_is_refused():
@@ -53,10 +62,10 @@ def test_a_flagged_cell_other_than_the_removals_is_refused():
 def test_a_cell_already_at_fill_to_is_refused():
     at = dataclasses.replace(TOY_RUN, fill_to=20, flagged_cell=FULL)
     with pytest.raises(EvaluationError, match=r"holds 20 training records, so fill_to 20 adds no"):
-        gap_request(TOY_TRAIN, at, seed=0, frame=TOY)
+        gap_request(TOY_TRAIN, at, seed=0, frame=TOY, rows=(), source_name="")
     absent = dataclasses.replace(TOY_RUN, fill_to=26, flagged_cell=("90+", "male", 1))
     with pytest.raises(EvaluationError, match=r"is not a cell of the frame toy"):
-        gap_request(TOY_TRAIN, absent, seed=0, frame=TOY)
+        gap_request(TOY_TRAIN, absent, seed=0, frame=TOY, rows=(), source_name="")
 
 
 def test_the_experiment_line_names_a_flagged_cell_only_when_set():
@@ -94,5 +103,5 @@ def test_a_flagged_cell_the_frame_lacks_is_refused_before_any_holdout():
         require_cells(absent, TOY)
     arms = {name: ARMS[name] for name in absent.arms}
     with pytest.raises(EvaluationError, match=message):
-        run(toy_records(), absent, arms, frame=TOY)
+        run(toy_records(), absent, arms, frame=TOY, rows=(), source_name="")
     require_cells(dataclasses.replace(absent, flagged_cell=FULL), TOY)

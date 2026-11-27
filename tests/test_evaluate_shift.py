@@ -363,11 +363,11 @@ def _others(text: str) -> list[str]:
 
 @pytest.fixture(scope="module")
 def with_shift() -> str:
-    return render(run(GRADED, WITH, ARMS, frame=UCI_FRAME))
+    return render(run(GRADED, WITH, ARMS, frame=UCI_FRAME, rows=(), source_name=""))
 
 
 def test_every_other_arms_rows_are_byte_equal_with_and_without_prior_shift(with_shift):
-    without = render(run(GRADED, WITHOUT, ARMS, frame=UCI_FRAME))
+    without = render(run(GRADED, WITHOUT, ARMS, frame=UCI_FRAME, rows=(), source_name=""))
     assert _others(with_shift) == without.splitlines()
     assert len(_others(with_shift)) < len(with_shift.splitlines())
 
@@ -387,7 +387,7 @@ def test_run_arms_maps_prior_shift_to_its_runner():
 
 def test_prior_shift_with_offsets_forced_to_zero_equals_nones_scores(monkeypatch):
     monkeypatch.setattr(shift_module, "offset", lambda predicted, target: 0.0)
-    text = render(run(GRADED, WITH, ARMS, frame=UCI_FRAME))
+    text = render(run(GRADED, WITH, ARMS, frame=UCI_FRAME, rows=(), source_name=""))
     lines = [line.split(",") for line in text.splitlines()[1:]]
     augmented = Source.AUGMENTED.value
     mine = [row[:1] + row[2:] for row in lines if row[1] == PRIOR_SHIFT_ARM and row[2] == augmented]
@@ -409,7 +409,9 @@ def _flagged_recalls(rows: list[str], arm: str) -> list[float]:
 def test_a_large_offset_flags_every_shifted_test_record(monkeypatch):
     monkeypatch.setattr(shift_module, "offset", lambda predicted, target: 30.0)
     parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
-    rows = render(score_holdout(parts, WITH, ARMS, frame=UCI_FRAME)).splitlines()
+    rows = render(
+        score_holdout(parts, WITH, ARMS, frame=UCI_FRAME, rows=(), source_name="")
+    ).splitlines()
     shifted_recalls = _flagged_recalls(rows, PRIOR_SHIFT_ARM)
     assert shifted_recalls == [1.0, 1.0]
     assert min(_flagged_recalls(rows, "none")) < 1.0
@@ -423,7 +425,14 @@ def test_prior_shift_scores_each_model(with_shift, caplog):
     }
     assert {"recall", "recall-hgb", "auc-pr", "auc-pr-hgb"} <= measures
     with caplog.at_level(logging.INFO):
-        score_holdout(split(GRADED, seed=0, edges=UCI_FRAME.edges), WITH, ARMS, frame=UCI_FRAME)
+        score_holdout(
+            split(GRADED, seed=0, edges=UCI_FRAME.edges),
+            WITH,
+            ARMS,
+            frame=UCI_FRAME,
+            rows=(),
+            source_name="",
+        )
     shifts = [m for m in caplog.messages if m.startswith("shift holdout=0 ")]
     assert {m.split(" model=")[1].split(" ")[0] for m in shifts} == {"lr", "hgb"}
     assert {m.split(" subgroup=")[1].split(" ")[0] for m in shifts} == {

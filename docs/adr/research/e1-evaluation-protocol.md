@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-15
-updated: 2026-11-10
+updated: 2026-11-26
 ---
 # E1's evaluation: repeated holdouts, one judged classifier, separation judged on paired intervals
 
@@ -101,7 +101,10 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
 - **The gap request.** Every arm is asked to fill each cell under the threshold up to the fill
   target, the same quota on every holdout; the threshold alone decides which cells are flagged, so
   a dose run that raises the target (E4) fills the same cells further and its flagged scopes pair
-  with `E1`'s; a control adds no rows. Three BKO arms fill the same request, one per gap
+  with `E1`'s; a control adds no rows. An experiment whose `quota_rule` is not `fill-to` asks
+  each flagged cell for its rule's count less its training records instead of the fill target,
+  a count read from each holdout's training split, so its quota varies by holdout (ADR
+  `research/share-based-quota`). Three BKO arms fill the same request, one per gap
   definition of ADR `research/bko-formal-gap-definition`: each runs its pipeline on each holdout's
   training rows and returns exactly the requested rows per cell, guided by its definition's gaps.
   `bko`, guided by per-subgroup gaps, is the candidate. `bko-population` and `bko-frequency` are

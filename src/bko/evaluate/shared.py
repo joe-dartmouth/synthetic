@@ -58,6 +58,7 @@ from bko.evaluate.provenance import experiment_line, log_experiment
 from bko.evaluate.run import score_holdout
 from bko.evaluate.run_folder import ARM, BKO, SCORES_LOG, SPLIT, Folder, Key, check_folders, fields
 from bko.evaluate.scores import Measure, Score, Source, render
+from bko.ontology.schema import FieldMapping
 from bko.validate.checks import validate
 
 
@@ -257,12 +258,30 @@ def _shown(line: str | None) -> str:
 
 
 def _exclude(
-    others: Sequence[Folder], parts: Split, experiment: Experiment, frame: FrameSpec
+    others: Sequence[Folder],
+    parts: Split,
+    experiment: Experiment,
+    frame: FrameSpec,
+    *,
+    rows: Sequence[FieldMapping],
+    source_name: str,
 ) -> list[pd.DataFrame]:
-    """`excluded` on the holdout `parts` splits, under the requests its harness makes."""
+    """`excluded` on the holdout `parts` splits, under the requests its harness makes.
+
+    `rows` and `source_name` are the data's field rows and source name, which the gap request
+    reads; it logs no `quota-rule` line, which `score_holdout` writes for the holdout.
+    """
     ablated = prepared(parts, experiment, edges=frame.edges).ablated
     train, seed = ablated.train, ablated.seed
-    gap = gap_request(train, experiment, seed=seed, frame=frame)
+    gap = gap_request(
+        train,
+        experiment,
+        seed=seed,
+        frame=frame,
+        rows=rows,
+        source_name=source_name,
+        log=False,
+    )
     return excluded(others, seed, gap, replica_request(train, experiment, seed=seed, frame=frame))
 
 
@@ -333,7 +352,18 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
     for done, seed in enumerate(experiment.holdout_seeds, start=1):
         started = time.perf_counter()
         parts = held_split(data, seed)
-        exclude = None if not others else _exclude(others, parts, experiment, frame)
+        exclude = (
+            None
+            if not others
+            else _exclude(
+                others,
+                parts,
+                experiment,
+                frame,
+                rows=data.field_rows,
+                source_name=data.name,
+            )
+        )
         logged = Logged()
         scored = score_holdout(
             parts,
@@ -346,6 +376,7 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
             logged=logged,
             calibration=calibration,
             rows=data.field_rows,
+            source_name=data.name,
         )
         _check_holdout(folder, seed, logged)
         if after is not None:

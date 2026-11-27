@@ -65,7 +65,9 @@ def test_the_harness_still_logs_its_arm_and_split_lines(caplog):
     parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
     logged = Logged()
     with caplog.at_level(logging.INFO, logger="bko.evaluate.run"):
-        score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, logged=logged)
+        score_holdout(
+            parts, PAIR, FAST_ARMS, frame=UCI_FRAME, logged=logged, rows=(), source_name=""
+        )
     messages = [r.getMessage() for r in caplog.records if r.name == "bko.evaluate.run"]
     assert [m for m in messages if m.startswith("split ")] == [SPLIT_LINE]
     assert tuple(m for m in messages if m.startswith("arm ")) == ARM_LINES
@@ -81,7 +83,9 @@ def test_a_reused_collector_holds_only_its_last_holdouts_fills():
     logged = Logged()
     for seed in (1, 0):
         parts = split(GRADED, seed=seed, edges=UCI_FRAME.edges)
-        score_holdout(parts, PAIR, FAST_ARMS, frame=UCI_FRAME, logged=logged)
+        score_holdout(
+            parts, PAIR, FAST_ARMS, frame=UCI_FRAME, logged=logged, rows=(), source_name=""
+        )
     assert logged.split == SPLIT_LINE
     assert tuple(fill.line for fill in logged.fills) == ARM_LINES
 

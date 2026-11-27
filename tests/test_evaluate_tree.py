@@ -276,7 +276,7 @@ def test_a_run_without_bko_tree_writes_no_code_share_error_row(tmp_path):
 def test_a_tree_run_whose_field_rows_hold_no_tree_field_is_refused():
     parts = split(GRADED, seed=0, edges=UCI_FRAME.edges)
     with pytest.raises(EvaluationError, match=f"{TREE_ARM} needs a tree field"):
-        score_holdout(parts, TREE_RUN, FAST_ARMS, frame=UCI_FRAME)
+        score_holdout(parts, TREE_RUN, FAST_ARMS, frame=UCI_FRAME, rows=(), source_name="")
 
 
 def test_a_tree_folder_rescores_to_its_own_bytes(scored, tmp_path, caplog):

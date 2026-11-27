@@ -9,7 +9,6 @@ unit's `milestone` is `direct-method-research`, the
 ## Order of work
 
 1. Code units, in landing order:
-   [`gaps-share-based-quota`](gaps-share-based-quota.md) unblocks the quota sweep;
    [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) gates the registration;
    [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) unblocks the TableShift runs;
    [`ontology-auto-mapping`](ontology-auto-mapping.md) unblocks its results unit.
@@ -30,9 +29,7 @@ Landing-order constraints that are not dependencies:
 
 - A unit that adds `RUNS` entries inserts them before `p1-id`, except
   `evaluate-p1-partial-replicas`, which inserts its two entries between `p1-ood` and `p2`.
-- `gaps-share-based-quota` lands before `evaluate-p1-partial-replicas`: both add an `Experiment`
-  field.
-- `gaps-share-based-quota`'s `expected_size` reads the second cell axis by position, which
+- `bko.gaps.quota.expected_size` reads the second cell axis by position, which
   `datasets-generalised-cell-axes` must keep.
 
 ## Graph and status
@@ -49,8 +46,7 @@ Landing-order constraints that are not dependencies:
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) | ready | -- | direct-method-research |
-| [`gaps-share-based-quota`](gaps-share-based-quota.md) | ready | -- | direct-method-research |
-| [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | evaluate-diabetes-control-results, gaps-share-based-quota | direct-method-research |
+| [`evaluate-quota-sweep-results`](evaluate-quota-sweep-results.md) | blocked | evaluate-diabetes-control-results | direct-method-research |
 
 ### Datasets
 
@@ -124,11 +120,10 @@ flowchart LR
     p4[paper-scarcity] --> p5[paper-scarcity-results]
     p0[paper-novelty] --> p6[paper-manuscript]
     p5[paper-scarcity-results] --> p6[paper-manuscript]
-    u20[gaps-share-based-quota] --> u21[evaluate-quota-sweep-results]
     u50[datasets-generalised-cell-axes] --> u52[datasets-nvd-frame]
     u50 --> u53[datasets-vcdb-frame]
     u19[evaluate-variant-dev-results] --> u28[evaluate-composite-arm]
-    u21 --> u28
+    u21[evaluate-quota-sweep-results] --> u28
     u28 --> u29[evaluate-composite-dev-results]
     u7[evaluate-diabetes-control-results] --> u30[evaluate-confirmatory-registration]
     u8[evaluate-synthea-direct-results] --> u30

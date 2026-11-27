@@ -102,7 +102,7 @@ def test_a_held_id_missing_from_the_records_is_refused():
 def test_bko_direct_draws_on_the_tableshift_fixture():
     data = _tableshift()
     train = held_split(data, 0).train
-    request: Request = gap_request(train, E1, seed=0, frame=data.frame)
+    request: Request = gap_request(train, E1, seed=0, frame=data.frame, rows=(), source_name="")
     arm = DirectArm(LAB_FIELD_ROWS, {}, name=DIRECT_ARM, budget=3, sink=None, dataset="toy")
     added = arm(train, request).added
     assert len(added) == sum(request.quota.values())
@@ -201,7 +201,9 @@ def fixed_run() -> tuple[frozenset[int], list[set[int]], list[Score]]:
         seen.append(set(train.index))
         return FAST_ARMS["smote"](train, request)
 
-    scores = run(GRADED, ONLY_SMOTE, {"smote": spying}, frame=UCI_FRAME, held=held)
+    scores = run(
+        GRADED, ONLY_SMOTE, {"smote": spying}, frame=UCI_FRAME, held=held, rows=(), source_name=""
+    )
     return held, seen, scores
 
 
