@@ -97,6 +97,22 @@ def test_merge_accepts_slices_where_only_some_hold_replica_short(tmp_path):
     assert len(parse(merged)) == len(parse(_scored((0, 1, 2, 3)))) + 1
 
 
+@pytest.mark.parametrize(
+    "row",
+    [
+        Score(3, "none", Source.REPLICA, Measure.REPLICA_SHORT, Scope.ALL, 4.0),
+        Score(3, "smote", Source.ADDED, Measure.REPLICA_SHORT, Scope.ALL, 4.0),
+        Score(3, "smote", Source.REPLICA, Measure.REPLICA_SHORT, Scope.FLAGGED, 4.0),
+    ],
+    ids=["not-a-replica-arm", "other-source", "other-scope"],
+)
+def test_merge_refuses_a_replica_short_key_no_partial_replica_writes(tmp_path, caplog, row):
+    high = render([*parse(HIGH), row])
+    assert _merged(tmp_path, [high, LOW]) == (2, "")
+    (error,) = errors(caplog)
+    assert "holds other scores than holdout" in error
+
+
 def test_compare_prints_each_partial_holdout_and_arm(tmp_path, caplog):
     short = [
         Score(0, "smote", Source.REPLICA, Measure.REPLICA_SHORT, Scope.ALL, 12.0),
