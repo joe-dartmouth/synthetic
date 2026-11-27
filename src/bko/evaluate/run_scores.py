@@ -241,6 +241,18 @@ def _replica_scores(
     ]
 
 
+def _replica_short(seed: int, name: str, replica: Baseline) -> list[Score]:
+    """A partial replica's `Measure.REPLICA_SHORT` row, the rows its params name under `short`.
+
+    A replica that completes holds no `short` params and writes no row.
+    """
+    short = replica.params.get("short")
+    if not isinstance(short, Mapping) or not short:
+        return []
+    missing = float(sum(int(rows) for rows in cast("Mapping[str, int]", short).values()))
+    return _rows(seed, name, Source.REPLICA, {Measure.REPLICA_SHORT: missing})
+
+
 def _require_regression(models: Mapping[Model, Factory]) -> None:
     """Refuse `models` without `Model.LR`, which the criteria and replica utility read.
 

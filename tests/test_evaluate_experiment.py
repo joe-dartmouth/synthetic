@@ -130,6 +130,7 @@ def test_e1_is_its_stated_configuration():
         "training_fraction": Fraction(1),
         "cutoff": 0.5,
         "replica_rows": None,
+        "partial_replica": False,
         "flagged_cell": None,
         "synthetic_share": None,
     }

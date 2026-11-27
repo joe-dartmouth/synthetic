@@ -146,6 +146,10 @@ class Measure(enum.StrEnum):
     rows copy: the first 12 hex digits of the sha256 of the sorted kept record ids' `repr`, read
     as an integer (`bko.evaluate.shared_split.marker`). `compare --beside` lets a copy pair a
     holdout when both files hold bitwise-equal rows there."""
+    REPLICA_SHORT = "replica-short"
+    """The rows a replica fill lacks when it filled partially on its last attempt
+    (`Experiment.partial_replica`): one `replica` row at scope `all` per such holdout and arm, the
+    sum of its `arm` line's `short` params; a replica that completes writes none."""
     GENERATED = "generated"
     PASSED = "passed"
     DROPPED_RANGE = "dropped-range"

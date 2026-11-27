@@ -886,7 +886,9 @@ start or the supervisor cannot run.
   classifier and are compared with the training split for fidelity. A replica fill short of its
   request on every attempt stops the run, unless the run's `Experiment.partial_replica` is set:
   then it fills partially on its last attempt as a gap fill does and is scored on the rows it
-  kept, while a direct arm's short replica still refuses (ADR
+  kept, and the arm's replica rows on that holdout end with a `replica-short` row (scope `all`,
+  its value the rows missing), which a run whose replicas complete never writes; a direct arm's
+  short replica still refuses (ADR
   [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). A replica holding rows of fewer
   than two labels, or none, scores its classifier measures undefined, a replica of no rows its
   fidelity too, and the run goes on. It writes one row per holdout, arm, source, measure
