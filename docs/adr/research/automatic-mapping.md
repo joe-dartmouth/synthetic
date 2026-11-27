@@ -101,6 +101,13 @@ from the hand table.
 `auto-lexical` trades recall for precision; a field description holds more words than a concept
 name, so a generic state rarely reaches the threshold; the local judge's verdicts depend on the
 pinned weights and the server's build, which its run logs name.
+**Refused**: `diabetes-auto-lexical` holds no row. Every Diabetes 130 indicator's state reads
+`present`, a generic meaning, so it is matched by its field's description, and no state's query
+reaches a term at 4/5. With no concept drawn there is no `is_a`
+pair, so `plan_hierarchy` refuses `bko-hier-w` on it, and `e22-auto-lexical-*` is registered
+without `bko-hier-w`; its `bko-direct` reads no concept, as `bko-nomap` reads none. Every other
+`diabetes` variant builds the hierarchy, and every `diabetes-codes` variant holds a tree field
+for `bko-tree`.
 
 ## Ruled Out
 
@@ -130,7 +137,10 @@ pinned weights and the server's build, which its run logs name.
   `diabetes-codes` `bf119a4d05428defc250c070b551d232f6a6d5f8a2421d84d01490fcd606b5c2`;
   `auto-local` `diabetes` `3b71bbe6e3f5cd8cf15965252a6b3afb60a5dc81022fb5855fa0e57369115e7a`;
   `auto-local` `diabetes-codes`
-  `45caeb10a710164738fb6f28eccbd811dbcd78e991c9fcb0ac8f5da3293a3a63`)
+  `45caeb10a710164738fb6f28eccbd811dbcd78e991c9fcb0ac8f5da3293a3a63`) and
+  `tests/test_evaluate_auto_draws_pinned.py` (which variants build `bko-hier-w`'s hierarchy and
+  `bko-tree`'s trees, the Consequences' refusal included); `tests/test_evaluate_direct.py`
+  (a hierarchy or a tree the rows cannot build, refused before any arm fits)
 
 ## Reversal Conditions
 

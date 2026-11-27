@@ -22,6 +22,7 @@ from bko.datasets.uci import MEMBER, UCI_FRAME, complete_records, parse_clevelan
 from bko.evaluate.__main__ import Context, main
 from bko.evaluate.data import digest
 from bko.evaluate.direct import DirectArm
+from bko.evaluate.direct_arms import HIER_W_ARM, TREE_ARM
 from bko.evaluate.experiment import ADDS_ROWS, CRITERION_NAMES, DIRECT_ARM, E1, METHOD_ARMS
 from bko.evaluate.holdout_candidates import KEPT, SCHEMA, read
 from bko.evaluate.named_runs import G2, RUNS, NamedRun
@@ -358,3 +359,26 @@ def test_the_direct_arms_added_rows_are_pinned():
 def test_the_direct_arms_params_are_pinned(seed):
     train, request, arm = varied_arm(seed)
     assert arm(train, request).params == {"generator": "direct", "seed": seed}
+
+
+def _refused_before_any_arm_fits(tmp_path: Path, caplog, arm: str) -> None:
+    """`score g2` with `arm` beside `bko-direct` on one angina row stops before any arm fits."""
+    caplog.set_level(logging.INFO)
+    ctx, _ = g2_context()
+    run = dataclasses.replace(SMALL_G2, arms=("none", DIRECT_ARM, arm), replica_arms=())
+    ctx = dataclasses.replace(ctx, runs={"g2": NamedRun(run)}, field_rows=(ANGINA,))
+    candidates = tmp_path / "holdout-candidates.jsonl"
+    argv = ["score", "g2", "--candidates", str(candidates), "--data-dir", str(tmp_path / "data")]
+    assert main(argv, context=ctx, out=io.StringIO()) == 2
+    assert f"{arm} cannot draw dataset uci-heart-disease on frame " in caplog.text
+    assert not any(m.startswith(("arm ", "direct ")) for m in caplog.messages)
+
+
+def test_a_hierarchy_the_rows_cannot_build_is_refused_before_any_arm_fits(tmp_path, caplog):
+    _refused_before_any_arm_fits(tmp_path, caplog, HIER_W_ARM)
+    assert "a conditional draw needs an is_a pair among the drawn concepts" in caplog.text
+
+
+def test_a_tree_the_rows_cannot_build_is_refused_before_any_arm_fits(tmp_path, caplog):
+    _refused_before_any_arm_fits(tmp_path, caplog, TREE_ARM)
+    assert "the field rows of uci hold no tree field" in caplog.text

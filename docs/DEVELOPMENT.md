@@ -104,6 +104,18 @@ root or to see the module's own code, run it directly:
   [`research/diabetes-diagnosis-codes`](adr/research/diabetes-diagnosis-codes.md)). The runs
   `e15-thin` and `e15-empty` and their slices read it (`docs/EVIDENCE.md`, E15); the
   `contradictions` census does not.
+- **The mapping variants**: `diabetes-auto-lexical`, `diabetes-auto-local` and
+  `diabetes-permuted` read `diabetes`' records, frame and split under another mapping table, and
+  `diabetes-codes-auto-lexical`, `diabetes-codes-auto-local` and `diabetes-codes-permuted` read
+  `diabetes-codes`' the same way: the `auto-lexical` and `auto-local` tables of
+  `bko.ontology.auto_tables` and the hand rows with their concepts permuted (ADRs
+  [`research/dataset-variants`](adr/research/dataset-variants.md) and
+  [`research/automatic-mapping`](adr/research/automatic-mapping.md)). Loading one logs its base's
+  `data` line under its own name, then
+  `mapping dataset=<variant> rows=<n> sha256=<digest>`, the digest
+  `bko.ontology.schema.rows_digest` of its rows. A run whose direct arm reads a hierarchy or a
+  tree its rows cannot build is refused before any arm fits: `diabetes-auto-lexical` maps no
+  state, so it builds no hierarchy for `bko-hier-w`.
 - **The TableShift frame**: `bko.datasets.tableshift` rebuilds TableShift's Hospital Readmission
   partition of the same archive in numpy (ADR
   [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It drops the rows
@@ -1292,7 +1304,7 @@ start or the supervisor cannot run.
   describes them. `RUNS` holds E22's runs, eight families each in a thin and an empty run sliced
   as E6's are: `e22-hand-*`, `e22-auto-lexical-*`, `e22-auto-local-*` and `e22-permuted-*` on
   `diabetes` and its three mapping variants with `none`, `real`, `bko-direct`, `bko-nomap` and
-  `bko-hier-w`, and `e22-codes-hand-*`, `e22-codes-auto-lexical-*`, `e22-codes-auto-local-*` and
+  `bko-hier-w`, `e22-auto-lexical-*` without `bko-hier-w`, and `e22-codes-hand-*`, `e22-codes-auto-lexical-*`, `e22-codes-auto-local-*` and
   `e22-codes-permuted-*` on `diabetes-codes` and its three with `bko-tree` in place of
   `bko-hier-w`, candidate `bko-direct`, `REFERENCE` `bko-direct`; `docs/EVIDENCE.md`, E22,
   describes them. `RUNS` also holds P1's runs,

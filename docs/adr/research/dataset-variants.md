@@ -79,8 +79,10 @@ from its base's whenever its records do, so its folders never merge with the bas
 - Owner: `src/bko/evaluate/data.py`
 - Pinned by: `tests/test_evaluate_variants.py` (the supported frame's fields and its one object,
   the base's field rows, the base split, the `data` line naming the variant, the base's source
-  name and releases, no base line when a variant loads, and a row swap's base frame and own rows
-  through a patched `VARIANTS` entry)
+  name and releases, no base line when a variant loads, a row swap's base frame and own rows
+  through a patched `VARIANTS` entry, each E22 row-swap variant's base records under its own rows,
+  its `mapping` line, the hand datasets' rows unchanged, and a permuted variant changing a
+  hierarchy-reading arm's fill)
 
 ## Reversal Conditions
 

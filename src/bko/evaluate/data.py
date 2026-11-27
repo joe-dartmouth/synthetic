@@ -38,6 +38,15 @@ from bko.datasets.synthea import ISCHEMIC_HEART_DISEASE, frame_records, load_pop
 from bko.datasets.synthea_run import SyntheaRun, check_population, population_dir
 from bko.datasets.tableshift import load_tableshift
 from bko.datasets.uci import UCI_FRAME, load_uci
+from bko.evaluate.supported import supported_frame
+from bko.ontology.auto_tables import (
+    AUTO_LEXICAL_CODES_ROWS,
+    AUTO_LEXICAL_DIABETES_ROWS,
+    AUTO_LOCAL_CODES_ROWS,
+    AUTO_LOCAL_DIABETES_ROWS,
+    PERMUTED_CODES_ROWS,
+    PERMUTED_DIABETES_ROWS,
+)
 from bko.ontology.catalog import Catalogued
 from bko.ontology.code_frames import (
     DIABETES_CODES_FIELD_ROWS,
@@ -56,7 +65,7 @@ from bko.ontology.frames import (
     SYNTHEA_INDICATORS,
     SYNTHEA_NAME,
 )
-from bko.ontology.schema import Codes, FieldMapping
+from bko.ontology.schema import FieldMapping, rows_digest
 
 
 logger = logging.getLogger("bko.evaluate")
@@ -77,6 +86,12 @@ class Dataset(StrEnum):
     NHAMCS = NHAMCS_NAME
     PHYSIONET2012 = PHYSIONET2012_NAME
     DIABETES_SUPPORTED = "diabetes-supported"
+    DIABETES_AUTO_LEXICAL = "diabetes-auto-lexical"
+    DIABETES_AUTO_LOCAL = "diabetes-auto-local"
+    DIABETES_PERMUTED = "diabetes-permuted"
+    DIABETES_CODES_AUTO_LEXICAL = "diabetes-codes-auto-lexical"
+    DIABETES_CODES_AUTO_LOCAL = "diabetes-codes-auto-local"
+    DIABETES_CODES_PERMUTED = "diabetes-codes-permuted"
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -126,41 +141,21 @@ class Variant:
     supported: bool = False
 
 
-def supported_frame(frame: FrameSpec, rows: Sequence[FieldMapping]) -> FrameSpec:
-    """`frame` on `age`, `sex`, the label and every field a `Codes` clause of `rows` reads.
-
-    Its name is `frame`'s with `-supported` after it; every other value is `frame`'s, kept for
-    the columns it keeps.
-    """
-    coded = {c.field for row in rows for c in row.when if isinstance(c, Codes)}
-    kept = {"age", "sex", frame.label} | coded
-
-    def keep(names: Sequence[str]) -> tuple[str, ...]:
-        return tuple(name for name in names if name in kept)
-
-    return FrameSpec(
-        name=f"{frame.name}-supported",
-        features=keep(frame.features),
-        numeric=keep(frame.numeric),
-        fractional=keep(frame.fractional),
-        fraction_digits=frame.fraction_digits,
-        categorical=keep(frame.categorical),
-        codebook={name: codes for name, codes in frame.codebook.items() if name in kept},
-        descriptions={name: text for name, text in frame.descriptions.items() if name in kept},
-        ranges=tuple(bound for bound in frame.ranges if bound.field in kept),
-        label_codes=frame.label_codes,
-        label_meanings=frame.label_meanings,
-        edges=frame.edges,
-        study=frame.study,
-        cohort=frame.cohort,
-        label=frame.label,
-    )
-
-
 VARIANTS: Final[Mapping[Dataset, Variant]] = MappingProxyType(
-    {Dataset.DIABETES_SUPPORTED: Variant(Dataset.DIABETES, supported=True)}
+    {
+        Dataset.DIABETES_SUPPORTED: Variant(Dataset.DIABETES, supported=True),
+        Dataset.DIABETES_AUTO_LEXICAL: Variant(Dataset.DIABETES, AUTO_LEXICAL_DIABETES_ROWS),
+        Dataset.DIABETES_AUTO_LOCAL: Variant(Dataset.DIABETES, AUTO_LOCAL_DIABETES_ROWS),
+        Dataset.DIABETES_PERMUTED: Variant(Dataset.DIABETES, PERMUTED_DIABETES_ROWS),
+        Dataset.DIABETES_CODES_AUTO_LEXICAL: Variant(
+            Dataset.DIABETES_CODES, AUTO_LEXICAL_CODES_ROWS
+        ),
+        Dataset.DIABETES_CODES_AUTO_LOCAL: Variant(Dataset.DIABETES_CODES, AUTO_LOCAL_CODES_ROWS),
+        Dataset.DIABETES_CODES_PERMUTED: Variant(Dataset.DIABETES_CODES, PERMUTED_CODES_ROWS),
+    }
 )
-"""Each variant over its base (ADR `research/dataset-variants`)."""
+"""Each variant over its base (ADR `research/dataset-variants`): the supported projection, then
+the row-swap variants of E22 (ADR `research/automatic-mapping`)."""
 
 _SUPPORTED_FRAMES: Final[Mapping[Dataset, FrameSpec]] = MappingProxyType(
     {Dataset.DIABETES_SUPPORTED: supported_frame(DIABETES_FRAME, DIABETES_FIELD_ROWS)}
@@ -264,7 +259,15 @@ def frame(dataset: Dataset) -> FrameSpec:
             return SYNTHEA_FRAME
         case Dataset.DIABETES:
             return DIABETES_FRAME
-        case Dataset.DIABETES_SUPPORTED:
+        case (
+            Dataset.DIABETES_SUPPORTED
+            | Dataset.DIABETES_AUTO_LEXICAL
+            | Dataset.DIABETES_AUTO_LOCAL
+            | Dataset.DIABETES_PERMUTED
+            | Dataset.DIABETES_CODES_AUTO_LEXICAL
+            | Dataset.DIABETES_CODES_AUTO_LOCAL
+            | Dataset.DIABETES_CODES_PERMUTED
+        ):
             variant = VARIANTS[dataset]
             return _SUPPORTED_FRAMES[dataset] if variant.supported else frame(variant.base)
         case (
@@ -306,7 +309,15 @@ def field_rows(dataset: Dataset, context: Reach) -> tuple[FieldMapping, ...]:
             Dataset.SUPPORT2 | Dataset.ACS | Dataset.NHANES | Dataset.NHAMCS | Dataset.PHYSIONET2012
         ):
             return context.catalog[dataset.value].rows
-        case Dataset.DIABETES_SUPPORTED:
+        case (
+            Dataset.DIABETES_SUPPORTED
+            | Dataset.DIABETES_AUTO_LEXICAL
+            | Dataset.DIABETES_AUTO_LOCAL
+            | Dataset.DIABETES_PERMUTED
+            | Dataset.DIABETES_CODES_AUTO_LEXICAL
+            | Dataset.DIABETES_CODES_AUTO_LOCAL
+            | Dataset.DIABETES_CODES_PERMUTED
+        ):
             variant = VARIANTS[dataset]
             return field_rows(variant.base, context) if variant.rows is None else variant.rows
         case _:
@@ -334,7 +345,15 @@ def dataset_releases(dataset: Dataset, context: Reach) -> Mapping[str, Source]:
             Dataset.SUPPORT2 | Dataset.ACS | Dataset.NHANES | Dataset.NHAMCS | Dataset.PHYSIONET2012
         ):
             return context.catalog[dataset.value].resolved_releases(context.releases)
-        case Dataset.DIABETES_SUPPORTED:
+        case (
+            Dataset.DIABETES_SUPPORTED
+            | Dataset.DIABETES_AUTO_LEXICAL
+            | Dataset.DIABETES_AUTO_LOCAL
+            | Dataset.DIABETES_PERMUTED
+            | Dataset.DIABETES_CODES_AUTO_LEXICAL
+            | Dataset.DIABETES_CODES_AUTO_LOCAL
+            | Dataset.DIABETES_CODES_PERMUTED
+        ):
             return dataset_releases(VARIANTS[dataset].base, context)
         case _:
             assert_never(dataset)
@@ -358,7 +377,9 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
     `field_rows(dataset, context)`, and a fetched source's data carries the source's agreement.
     Logs one `data` line naming the dataset, its frame, its record count, its digest (the
     records' sha256, with the held ids when there are some: `Data.digest`) and its agreement:
-    `none` for open data, else the agreement's name quoted; a variant logs its own line alone.
+    `none` for open data, else the agreement's name quoted; a variant logs its own line alone,
+    and a row-swap variant then one `mapping` line naming it, its row count and its rows' sha256
+    (`bko.ontology.schema.rows_digest`).
 
     Raises:
         DatasetError: As `bko.datasets.fetch.ensure`, `bko.datasets.uci.load_uci` and
@@ -377,6 +398,14 @@ def load(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
         records_digest=data.digest,
         agreement=data.agreement,
     )
+    variant = VARIANTS.get(dataset)
+    if variant is not None and variant.rows is not None:
+        logger.info(
+            "mapping dataset=%s rows=%d sha256=%s",
+            dataset,
+            len(data.field_rows),
+            rows_digest(data.field_rows),
+        )
     return data
 
 
@@ -433,7 +462,15 @@ def _read(dataset: Dataset, data_dir: Path, context: Reach) -> Data:
             entry = context.catalog[dataset.value]
             records, spec = entry.read(data_dir, open_url=context.open_url)
             data = Data(records, spec, rows, entry.name, entry.agreement)
-        case Dataset.DIABETES_SUPPORTED:
+        case (
+            Dataset.DIABETES_SUPPORTED
+            | Dataset.DIABETES_AUTO_LEXICAL
+            | Dataset.DIABETES_AUTO_LOCAL
+            | Dataset.DIABETES_PERMUTED
+            | Dataset.DIABETES_CODES_AUTO_LEXICAL
+            | Dataset.DIABETES_CODES_AUTO_LOCAL
+            | Dataset.DIABETES_CODES_PERMUTED
+        ):
             data = _read_variant(dataset, rows, data_dir, context)
         case _:
             assert_never(dataset)

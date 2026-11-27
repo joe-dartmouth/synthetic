@@ -45,11 +45,12 @@ from bko.evaluate.perturb import Change, Perturbing, unmapped
 from bko.evaluate.pram import THETA, PramArm
 from bko.evaluate.run import Drain, run
 from bko.evaluate.scores import Measure, Score, Source
-from bko.generate.direct import logic_components, sample
+from bko.generate.direct import logic_components, plan_hierarchy, sample
 from bko.generate.draw_spec import DEFAULT_SPEC, DrawSpec
 from bko.generate.errors import SamplingError
 from bko.generate.knowledge_draw import kb_check
 from bko.generate.presence import Presence
+from bko.generate.tree import column_trees
 from bko.ontology.schema import FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -282,7 +283,9 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
     Raises:
         EvaluationError: If a logic-only arm's components cannot be enumerated
             (`bko.generate.direct.logic_components`), a knowledge-only arm's frame holds a value
-            K cannot give (`bko.generate.knowledge_draw.kb_check`), or a perturbing arm's fields
+            K cannot give (`bko.generate.knowledge_draw.kb_check`), a conditional arm's rows build
+            no hierarchy (`bko.generate.direct.plan_hierarchy`), a tree arm's rows hold no tree
+            field (`bko.generate.tree.column_trees`), or a perturbing arm's fields
             are not the frame's pinned ones (`bko.evaluate.perturb.unmapped`); raised before any
             arm fits.
         As `bko.evaluate.run.run`.
@@ -290,10 +293,7 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
     for name in names:
         spec = DIRECT_ARMS[name]
         try:
-            if not spec.donors:
-                kb_check(knowledge.field_rows, frame)
-            if spec.presence is Presence.LOGIC:
-                logic_components(knowledge.field_rows, knowledge.ontologies, frame)
+            _check_draw(spec, knowledge, frame)
         except ValueError as exc:
             msg = f"{name} cannot draw dataset {knowledge.name} on frame {frame.name}: {exc}"
             raise EvaluationError(msg) from exc
@@ -321,6 +321,24 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
     finally:
         for arm in direct.values():
             arm.summary()
+
+
+def _check_draw(spec: DrawSpec, knowledge: Knowledge, frame: FrameSpec) -> None:
+    """Build what a draw at `spec` reads before any arm fits.
+
+    Raises:
+        ValueError: As `run_direct` names its refusals.
+    """
+    if not spec.donors:
+        kb_check(knowledge.field_rows, frame)
+    if spec.presence is Presence.LOGIC:
+        logic_components(knowledge.field_rows, knowledge.ontologies, frame)
+    rows = knowledge.field_rows if spec.mapped else ()
+    if spec.conditional:
+        plan_hierarchy(rows, knowledge.ontologies, frame, spec)
+    if spec.tree and not column_trees(rows, frame, knowledge.ontologies):
+        msg = f"the field rows of {frame.name} hold no tree field"
+        raise ValueError(msg)
 
 
 def direct_arm(
