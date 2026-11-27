@@ -321,6 +321,21 @@ def test_each_loader_logs_a_zero_count_per_listed_field_over_every_stay(caplog) 
     assert caplog.messages[-1].startswith("cohort dataset=physionet2012 ")
 
 
+def test_a_listed_zero_is_neither_missing_nor_below_zero(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
+        records((stay(1, *((f"0{n}:00", v, "0") for n, v in enumerate(IMPLAUSIBLE_ZERO, 1))), 0))
+    assert " missing=0 below_zero=0 " in caplog.messages[-1]
+
+
+def test_equal_arterial_and_cuff_minima_are_not_counted_as_the_cuff_lower(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
+        records(
+            (stay(1, ("01:00", "MAP", "65"), ("02:00", "NIMAP", "65")), 0),
+            (stay(2, ("01:00", "MAP", "70"), ("02:00", "NIMAP", "65")), 0),
+        )
+    assert " map_min_nimap=0 map_min_nimap_lower=1 map_unmeasured=0 " in caplog.messages[-1]
+
+
 def test_the_cohort_line_counts_each_sets_stays(tmp_path: Path, caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
         load_physionet2012(tmp_path, sources=planted(tmp_path, real_sets()))

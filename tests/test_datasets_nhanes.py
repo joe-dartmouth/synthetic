@@ -314,6 +314,13 @@ def test_each_loader_logs_each_tertile_fields_cuts_and_base(caplog) -> None:
     assert caplog.messages[-1].startswith("cohort dataset=nhanes ")
 
 
+def test_a_tertile_field_no_kept_record_measures_logs_none(caplog) -> None:
+    people = [Respondent(1, bmi=None), Respondent(2, bmi=None), Respondent(3, age=10.0, bmi=20.0)]
+    with caplog.at_level(logging.INFO, logger="bko.datasets.nhanes"):
+        _records(people)
+    assert caplog.messages[:-1] == ["tertile dataset=nhanes field=BMXBMI low=none high=none base=0"]
+
+
 @pytest.mark.parametrize(
     ("component", "column", "value", "match"),
     [

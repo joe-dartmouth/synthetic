@@ -180,10 +180,20 @@ def test_a_missing_scoma_drops_its_record_and_is_counted(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.support2"):
         records = _records(row(1), row(2, scoma=""), row(3, hospdead="1"))
     assert records.index.tolist() == [1, 3]
-    assert caplog.messages[-1] == (
-        "cohort dataset=support2 rows=3 missing_scoma=1 records=2 hospital_deaths=1"
-    )
-    assert len(caplog.messages) == len(IMPLAUSIBLE_ZERO) + len(TERTILES) + 1
+    assert caplog.messages == [
+        *(
+            f"zeros dataset=support2 field={field} readings=0 records=0"
+            for field in IMPLAUSIBLE_ZERO
+        ),
+        "tertile dataset=support2 field=edu low=11.0 high=11.0 base=2",
+        "tertile dataset=support2 field=sod low=141.0 high=141.0 base=2",
+        "tertile dataset=support2 field=alb low=1.8 high=1.8 base=2",
+        "tertile dataset=support2 field=ph low=7.46 high=7.46 base=2",
+        "tertile dataset=support2 field=glucose low=none high=none base=0",
+        "tertile dataset=support2 field=bun low=none high=none base=0",
+        "tertile dataset=support2 field=urine low=none high=none base=0",
+        "cohort dataset=support2 rows=3 missing_scoma=1 records=2 hospital_deaths=1",
+    ]
 
 
 def test_the_zero_list_is_the_cited_and_tertile_fields_whose_0_is_implausible() -> None:
@@ -194,19 +204,20 @@ def test_the_zero_list_is_the_cited_and_tertile_fields_whose_0_is_implausible() 
 
 
 @pytest.mark.parametrize("field", IMPLAUSIBLE_ZERO)
-def test_a_zero_in_each_listed_field_codes_not_measured(field: str) -> None:
-    records = _records(row(1, **{field: "0"}), row(2, **{field: " 0.000000"}), row(3))
-    assert records.loc[[1, 2], field].tolist() == [0, 0]
-    assert records.loc[3, field] == _records(row(3)).loc[3, field]
+def test_a_value_that_reads_0_in_each_listed_field_codes_not_measured(field: str) -> None:
+    values = ("0", " 0.000000", "0.004", "0.01")
+    records = _records(*(row(n, **{field: value}) for n, value in enumerate(values, 1)))
+    assert records[field].tolist() == [0, 0, 0, 1]
 
 
-@pytest.mark.parametrize(("field", "state"), [("urine", 1), ("resp", 1), ("edu", 1)])
-def test_a_zero_in_an_unlisted_field_still_codes_as_measured(field: str, state: int) -> None:
+@pytest.mark.parametrize("field", ["urine", "resp", "edu"])
+def test_a_zero_in_an_unlisted_field_still_codes_as_measured(field: str) -> None:
     assert field not in IMPLAUSIBLE_ZERO
     records = _records(row(1, **{field: "0"}), row(2, **{field: "5000"}))
-    assert records.loc[1, field] == state
-    raw = parse_support2(text(row(1, urine="0"), row(2, urine="100"), row(3, urine="200")))
-    assert tertile_base(raw)["urine"].tolist() == [0.0, 100.0, 200.0]
+    assert records.loc[1, field] == 1
+    if field in TERTILES:
+        raw = parse_support2(text(row(1, **{field: "0"}), row(2, **{field: "5000"})))
+        assert tertile_base(raw)[field].to_dict() == {1: 0.0, 2: 5000.0}
 
 
 def test_tertile_base_drops_listed_zeros_and_unkept_records() -> None:
@@ -218,6 +229,11 @@ def test_tertile_base_drops_listed_zeros_and_unkept_records() -> None:
     assert list(base) == list(TERTILES)
     assert base["sod"].tolist() == [135.0, 138.0, 140.0, 144.0]
     assert tertiles(base["sod"]) == (138.0, 140.0)
+
+
+def test_an_unmasked_zero_would_move_the_tertiles() -> None:
+    """Why the zeros are masked before the cut: the same kept values with the 0 left in cut at
+    136.0 and 139.33, not the masked base's 138.0 and 140.0."""
     raw_kept = tertiles(pd.Series([0.0, 135.0, 138.0, 140.0, 144.0]))
     assert tuple(round(cut, DECIMALS) for cut in raw_kept) == (136.0, 139.33)
 
