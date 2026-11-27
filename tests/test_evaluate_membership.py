@@ -11,6 +11,7 @@ import math
 import operator
 import re
 import warnings
+from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -21,6 +22,7 @@ import pytest
 from scipy import stats
 
 import bko.evaluate.reference as reference_module
+from bko.baselines.methods import Runner
 from bko.datasets.cells import cell_keys
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate import membership
@@ -464,10 +466,11 @@ def _context(
     experiment: Experiment = PRIVATE,
     runs: dict | None = None,
     runs_dir: Path | None = None,
+    arms: Mapping[str, Runner] = BASELINE_ARMS,
 ) -> Context:
-    """A context over `DISTINCT` with `experiment`, whose any call fails, its runs root
-    `runs_dir` or else `tmp_path`."""
-    ctx = rescorer(experiment=experiment, arms=BASELINE_ARMS)
+    """A context over `DISTINCT` with `experiment` and `arms`, whose any call fails, its runs
+    root `runs_dir` or else `tmp_path`."""
+    ctx = rescorer(experiment=experiment, arms=arms)
     _, served = ladder_releases()
     opener = RoutingOpener({**served, DISTINCT_PIN.url: DISTINCT})
     root = tmp_path if runs_dir is None else runs_dir
@@ -489,10 +492,11 @@ def _stored(
     name: str = "run",
     experiment: Experiment = PRIVATE,
     root: Path | None = None,
+    arms: Mapping[str, Runner] = BASELINE_ARMS,
 ) -> tuple[Path, Path]:
-    """`experiment`'s folder `name` under `root`, default `tmp_path`, scored on `DISTINCT`, and
-    its store, in `tmp_path`."""
-    ctx = _context(tmp_path, experiment=experiment)
+    """`experiment`'s folder `name` under `root`, default `tmp_path`, scored on `DISTINCT` by
+    `arms`, and its store, in `tmp_path`."""
+    ctx = _context(tmp_path, experiment=experiment, arms=arms)
     folder = (tmp_path if root is None else root) / name
     folder.mkdir(parents=True)
     out = io.StringIO()
@@ -517,12 +521,14 @@ def _privacy(
     runs: dict | None = None,
     runs_dir: Path | None = None,
     flags: tuple[str, ...] = (),
+    experiment: Experiment = PRIVATE,
 ) -> tuple[int, str]:
     argv = ["privacy", run, "--data-dir", str(tmp_path / "data"), *flags]
     for store in stores:
         argv += ["--rows", str(store)]
     out = io.StringIO()
-    code = main(argv, context=_context(tmp_path, runs=runs, runs_dir=runs_dir), out=out)
+    ctx = _context(tmp_path, experiment=experiment, runs=runs, runs_dir=runs_dir)
+    code = main(argv, context=ctx, out=out)
     return code, out.getvalue()
 
 

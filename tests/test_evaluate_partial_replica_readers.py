@@ -6,6 +6,7 @@ holds the fill itself.
 
 from __future__ import annotations
 
+import csv
 import dataclasses
 import io
 import json
@@ -17,26 +18,30 @@ from typing import Final
 import pandas as pd
 import pytest
 
+import bko.evaluate.reference as reference_module
 from bko.baselines.errors import ShortfallError
 from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline, number
 from bko.baselines.request import Request
-from bko.evaluate import reader_commands
+from bko.evaluate import reader_commands, syntheval_reading
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
+from bko.evaluate.experiment import REAL_ARM
 from bko.evaluate.rows_read import read_rows
 from bko.evaluate.run_folder import fields, read_folder
-from bko.evaluate.scores import Measure, Scope, Score, Source, parse, render
+from bko.evaluate.scores import HELD_OUT_ARM, Measure, Scope, Score, Source, parse, render
 from tests._baselines_fixtures import cell_list
 from tests._evaluate_bko_fixtures import NARROW, candidates_for, context, score_argv, scripted
 from tests._evaluate_fixtures import FAST_ARMS
 from tests._generate_fixtures import ScriptedSend
 from tests.test_evaluate_compare import UNJUDGED, compared, scores, write
+from tests.test_evaluate_membership import PRIVATE, _privacy, _stored
 from tests.test_evaluate_merge import HIGH, LOW, _merged, _scored
 from tests.test_evaluate_panel import FAST_PANEL, folder_and_store, paneled
 from tests.test_evaluate_partial_replica import shortfalls
-from tests.test_evaluate_rows import stored
-from tests.test_evaluate_shared import edit_log, run_folder, shared
+from tests.test_evaluate_rows import BASELINE_ARMS, stored
+from tests.test_evaluate_shared import edit_log, rescorer, run_folder, shared
+from tests.test_evaluate_syntheval import FakeRunner, _args
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -341,3 +346,78 @@ def test_replay_and_rehearse_log_the_shortfall_lines(tmp_path, caplog):
     rehearsal = tmp_path / "rehearsal.jsonl"
     argv = score_argv(rehearsal, tmp_path, "--rehearse")
     assert logged(argv, guided_context(ScriptedSend()), caplog) == live
+
+
+@pytest.fixture
+def reference(monkeypatch):
+    """`e1`, which the test context's experiment stands in for, read against `real`."""
+    monkeypatch.setattr(
+        reference_module, "REFERENCE", {**reference_module.REFERENCE, "e1": REAL_ARM}
+    )
+
+
+@pytest.fixture
+def bench(tmp_path, monkeypatch):
+    """A `bench/syntheval/` whose environment holds an interpreter, which no test runs."""
+    found = tmp_path / "bench"
+    python = found / ".venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(syntheval_reading, "bench_dir", lambda: found)
+    return found
+
+
+PRIVATE_PARTIAL: Final = dataclasses.replace(PRIVATE, replica_arms=("smote",), partial_replica=True)
+"""The privacy reading's run with a replica that fills partially on every holdout."""
+
+PRIVATE_ARMS: Final = {**BASELINE_ARMS, "smote": short_replica}
+
+
+@pytest.mark.usefixtures("reference")
+def test_privacy_reads_gap_fills_alone_so_a_partial_replica_leaves_it_unchanged(tmp_path, caplog):
+    folder, store = _stored(tmp_path, caplog, experiment=PRIVATE_PARTIAL, arms=PRIVATE_ARMS)
+    assert all(
+        '"short": {' in line
+        for (_, arm), line in read_folder(folder).arms.items()
+        if arm == REPLICA_ARM
+    )
+    caplog.set_level(logging.INFO)
+    code, text = _privacy(tmp_path, store, experiment=PRIVATE_PARTIAL)
+    assert code == 0
+    assert {s.arm for s in parse(text)} == {HELD_OUT_ARM, *PRIVATE_PARTIAL.arms}
+    assert not any(m.startswith("replica-short ") for m in caplog.messages)
+
+
+def test_syntheval_logs_each_partial_replica_and_scores_it(tmp_path, caplog, bench):
+    folder = partial_folder(tmp_path, caplog)
+    assert stored(tmp_path, folder, experiment=PARTIAL, arms=ARMS)[0] == 0
+    store = tmp_path / "rows.jsonl"
+    arms = read_folder(folder).arms
+    ctx = rescorer(experiment=PARTIAL, arms=ARMS)
+    caplog.set_level(logging.INFO)
+    caplog.clear()
+    text = syntheval_reading.run_syntheval(_args(tmp_path, folder, store), ctx, runner=FakeRunner())
+    expected = []
+    for seed in PARTIAL.holdout_seeds:
+        short = json.loads(fields(arms[seed, REPLICA_ARM])["params"])["short"]
+        expected.append(
+            f"replica-short holdout={seed} arm={REPLICA_ARM} rows={sum(short.values())}"
+        )
+    assert [m for m in caplog.messages if m.startswith("replica-short ")] == expected
+    scored = {(row[0], row[1]) for row in csv.reader(io.StringIO(text))}
+    assert scored == {("holdout", "arm"), *((str(s), REPLICA_ARM) for s in PARTIAL.holdout_seeds)}
+
+
+def test_syntheval_logs_no_shortfall_for_a_curated_replica_without_the_field(
+    tmp_path, caplog, bench
+):
+    arms = {"none": FAST_ARMS["none"], "smote": curated_short}
+    folder = run_folder(tmp_path, "curated", caplog, experiment=CURATED, arms=arms)
+    assert stored(tmp_path, folder, experiment=CURATED, arms=arms)[0] == 0
+    ctx = rescorer(experiment=CURATED, arms=arms)
+    caplog.set_level(logging.INFO)
+    caplog.clear()
+    syntheval_reading.run_syntheval(
+        _args(tmp_path, folder, tmp_path / "rows.jsonl"), ctx, runner=FakeRunner()
+    )
+    assert not any(m.startswith("replica-short ") for m in caplog.messages)
