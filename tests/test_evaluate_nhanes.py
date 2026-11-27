@@ -176,7 +176,7 @@ def test_no_row_reads_bmi_or_state_0() -> None:
 @pytest.mark.parametrize(
     ("field", "band", "match"),
     [
-        ("BMXBMI", "below 23.4", "^BMXBMI's cutoffs cite no source, so no row maps its states$"),
+        ("BMXBMI", "below 25.9", "^BMXBMI's cutoffs cite no source, so no row maps its states$"),
         ("LBXTC", "at least 200", "^no band 'at least 200' among "),
     ],
     ids=["tertile-field", "missing-band"],

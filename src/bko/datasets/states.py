@@ -5,11 +5,13 @@ cited cutoff, as a coded field: `0` = not measured, then one state per band betw
 a field row on an abnormal state never matches a missing value. A cutoff read as "at or above"
 puts the value at it in the upper state; one read as "above" keeps it in the lower. `Cutoffs`
 holds one field's cutoffs and their source, `band_meanings` names each state's band, and
-`band_state` finds a state by its band's name, so a field row names the band it means.
+`band_state` finds a state by its band's name, so a field row names the band it means. A field
+with no cited cutoff is cut at its `tertiles`, and `log_tertile` logs those cuts and their base.
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from itertools import pairwise
@@ -108,3 +110,26 @@ def tertiles(values: pd.Series) -> tuple[float, float]:
         raise ValueError(msg)
     low, high = measured.quantile([1 / 3, 2 / 3]).tolist()
     return float(low), float(high)
+
+
+def log_tertile(
+    logger: logging.Logger, dataset: str, field: str, base: pd.Series, *, decimals: int
+) -> None:
+    """Log one `tertile` line: a field's tertiles over `base`, each rounded at `decimals`.
+
+    The line reads `tertile dataset=<dataset> field=<field> low=<cut> high=<cut> base=<count>`,
+    each cut `tertiles`' rounded, both `none` when `base` holds no value.
+
+    Args:
+        logger: The loader's logger.
+        dataset: The frame's name.
+        field: The tertile field.
+        base: The measured values the field's cutoffs are the tertiles of, none missing.
+        decimals: The decimals each cut is rounded at.
+    """
+    low, high = (
+        (str(round(cut, decimals)) for cut in tertiles(base)) if len(base) else ("none", "none")
+    )
+    logger.info(
+        "tertile dataset=%s field=%s low=%s high=%s base=%d", dataset, field, low, high, len(base)
+    )

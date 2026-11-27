@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 # SUPPORT2's frame: in-hospital death as the label, physiology coded at SIRS and SOFA cutoffs
 
@@ -85,30 +85,81 @@ Singer et al.'s reproduction:
 
 `wblc` is in thousands (the publisher's fill-in table gives "9 (thousands)"), so 12,000 and 4,000
 per cubic millimetre read 12 and 4. `edu`, `sod`, `alb`, `ph`, `glucose`, `bun` and `urine` are
-coded at the tertiles of their measured values over every record of the published file, each
-rounded to 2 decimals; they map nothing. Each tertile is an "at or above" cutoff:
+coded at the tertiles of their measured values over the records the frame keeps, once the zero
+rule below has made each listed field's zeros not measured, each rounded to 2 decimals; they map
+nothing. `bko.datasets.support2.tertile_base` returns each tertile field's kept, zero-masked
+values, and the loader logs one `tertile dataset=support2 field=<f> low=<c> high=<c> base=<n>`
+line per tertile field before its `cohort` line, `base` the kept records measured in it. Each
+tertile is an "at or above" cutoff:
 
-| Field | Lower tertile | Upper tertile |
-|---|---|---|
-| `edu` | 11 | 12 |
-| `sod` | 135 | 140 |
-| `alb` | 2.5 | 3.3 |
-| `ph` | 7.4 | 7.45 |
-| `glucose` | 111 | 166.33 |
-| `bun` | 17 | 33 |
-| `urine` | 1430 | 2595 |
+| Field | Lower tertile | Upper tertile | Base |
+|---|---|---|---|
+| `edu` | 11 | 12 | 7,470 |
+| `sod` | 135 | 140 | 9,103 |
+| `alb` | 2.5 | 3.3 | 5,733 |
+| `ph` | 7.4 | 7.45 | 6,821 |
+| `glucose` | 111 | 166 | 4,603 |
+| `bun` | 17 | 33 | 4,752 |
+| `urine` | 1428.33 | 2595 | 4,242 |
 
-This command derived them from the pinned archive in the data root, printing each field and its
-two tertiles:
+This command derived them from the pinned archive in the data root, printing each field, its base
+count and its two tertiles:
 
-    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.states import tertiles; from bko.datasets.support2 import DECIMALS, MEMBER, TERTILES, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, *(round(c, DECIMALS) for c in tertiles(measured(raw[name])))) for name in TERTILES]' </dev/null
+    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.states import tertiles; from bko.datasets.support2 import DECIMALS, MEMBER, parse_support2, tertile_base; base = tertile_base(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, len(values), *(round(c, DECIMALS) for c in tertiles(values))) for name, values in base.items()]' </dev/null
 
-A recorded 0 is a measured value, not a missing one: the published file holds 51 zeros in
-`meanbp`, 83 in `hrt`, 65 in `resp` and 10 in `wblc`, over its 9,105 rows. So a `meanbp` of 0
-shows Hypotension and a `wblc` of 0 shows Decreased total leukocyte count; an `hrt` or `resp` of
-0 shows nothing, being at most 90 or 20. This command counted them:
+At tag `run/d1-12` it printed:
 
-    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.support2 import MEMBER, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, int((measured(raw[name]) == 0).sum())) for name in ("meanbp", "hrt", "resp", "wblc")]' </dev/null
+    edu 7470 11.0 12.0
+    sod 9103 135.0 140.0
+    alb 5733 2.5 3.3
+    ph 6821 7.4 7.45
+    glucose 4603 111.0 166.0
+    bun 4752 17.0 33.0
+    urine 4242 1428.33 2595.0
+
+A physiologically implausible recorded 0 is not measured: a 0 in `hrt`, `temp`, `wblc`, `meanbp`,
+`crea`, `bili` or `pafi` of the cited fields, or in `sod`, `alb`, `ph`, `glucose` or `bun` of the
+tertile fields, any value that reads as 0 at 2 decimals, is masked to missing before the field is
+coded, so it codes `0` and shows no concept. These fields are
+`bko.datasets.support2.IMPLAUSIBLE_ZERO`. A 0 stays a measured value where it is plausible: `resp`,
+which a patient on a ventilator can record with no breath of their own; `urine`, an anuric day;
+`edu`, no schooling; and `scoma`, whose 0 is the score's normal. The loader logs one `zeros
+dataset=support2 field=<f> readings=<n> records=<n>` line per listed field before its `cohort` line,
+a field with no zero logging 0. The zeros, over the published file's 9,105 rows and the 9,104
+records the frame keeps:
+
+| Field | Zeros in the file | Zeros in the kept records | Coded |
+|---|---|---|---|
+| `hrt` | 83 | 83 | not measured |
+| `wblc` | 10 | 10 | not measured |
+| `meanbp` | 51 | 51 | not measured |
+| `glucose` | 1 | 1 | not measured |
+| `temp`, `crea`, `bili`, `pafi`, `sod`, `alb`, `ph`, `bun` | 0 | 0 | not measured |
+| `resp` | 65 | 65 | measured |
+| `urine` | 93 | 93 | measured |
+| `edu` | 43 | 43 | measured |
+
+This command counted them, printing each field and its zeros in the file and in the kept records:
+
+    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.support2 import IMPLAUSIBLE_ZERO, MEMBER, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); kept = raw.loc[raw["scoma"] != ""]; [print(name, int((measured(raw[name]) == 0).sum()), int((measured(kept[name]) == 0).sum())) for name in (*IMPLAUSIBLE_ZERO, "resp", "urine", "edu")]' </dev/null
+
+At tag `run/d1-12` it printed:
+
+    hrt 83 83
+    temp 0 0
+    wblc 10 10
+    meanbp 51 51
+    crea 0 0
+    bili 0 0
+    pafi 0 0
+    sod 0 0
+    alb 0 0
+    ph 0 0
+    glucose 1 1
+    bun 0 0
+    resp 65 65
+    urine 93 93
+    edu 43 43
 
 **4. The rows.** One `Codes` row per mapped state, labels the pinned releases' names:
 
@@ -141,6 +192,14 @@ missing measurement apart from both bands, so a record with no creatinine shows 
 creatinine nor its absence. The tertile coding keeps unmapped measurements in the frame without
 inventing a cutoff and without an imputed value. Reading at 2 decimals is needed because a cutoff
 written as "1.2–1.9" would otherwise put the file's `1.19995117`, a recorded 1.2, below it.
+
+No living patient has a heart rate, a mean arterial pressure, a temperature, a white cell count, a
+creatinine, a bilirubin, a PaO2/FiO2 ratio, a sodium, an albumin, a pH, a glucose or a urea of 0,
+so a 0 there is a placeholder for a value not recorded; read as measured, a `meanbp` of 0 would
+show Hypotension and a `wblc` of 0 Decreased total leukocyte count from no reading at all. Taking
+the tertiles over the records the frame keeps, with those zeros masked, cuts each field where the
+coded records' values fall, so each tertile state holds about a third of the records it codes,
+short of ties.
 
 Singer et al.'s reproduction is a consensus paper co-authored by SOFA's first author, and it
 quotes both tables as its sources give them; reading the cutoffs there is the closest readable
@@ -190,7 +249,35 @@ measured value is read at 2 decimals, and the tertile cutoffs are rounded to 2 d
 the file stores values truncated in binary (Decision 3). The frame builder lives in its own
 module beside the loader, which keeps the loader under the 500-line cap. The census reads
 SUPPORT2 through `--dataset support2`, which keeps the default census's three frames and its
-recorded bytes (Ruled Out).
+recorded bytes (Ruled Out). The zero rule and the kept-record tertiles change the frame under its
+own name, `support2`, because no `bko.evaluate.named_runs.RUNS` entry reads it, so no scored run
+folder is re-read under the frame's identity checks; the `d1-4` and `d2-4` readings above are of
+the frame before the change.
+
+**The readings at tag `run/d1-15`**, commit `8aafa26`, the frame under the zero rule and the
+kept-record tertiles. The 9,104 records' digest is
+`4a24967bdbd09cdae8950ed8762a947c2170f5b22cd6d2e2d2c6d53f2b4aaeae` (each run's `data` line), where
+the frame before the change gave `69c36f36f1b63e083d4506c02c25ab87f5340d4d8a051d695773821f47310bcc`;
+the training split's 7,282 records' digest is
+`f82a8bc67f036f1580fdd99ce8dbbccdd63bfc633cd1ab4f52876e19ee8e2b6b` (the census's `census data`
+line), where it was `a9231c19529069a9bd0cc94a02209bac5c1242baf8da610f4dc93eca868347e7`. The test
+fingerprint stays `c076b78222bd9fc1021a0f7a4af77732b2f5b3229b897ef026875d171d64cae6` and the
+`cohort` line stays `rows=9105 missing_scoma=1 records=9104 hospital_deaths=2359`. Each run ran
+from a detached worktree at the tag as `env PYTHONPATH=<worktree>/src .venv/bin/python -m
+<command> --data-dir data`, exit 0, each log's `versions` line reading `dirty=false`. The gap
+listing is run `d1-15`, `bko.gaps support2` into `runs/d1-15/gaps-support2.csv` and
+`runs/d1-15/gaps-support2.log`, closing `gaps rows=298
+sha256=6dbe1c132a94640225fd0d74666a390d0b9b3537707b80feac67143154003d20`, byte for byte `d1-4`'s
+csv; its log sha256 is `ab3a70b59e89b12b4843106f162143235ea82e64443ae219e30fadd015709041` and
+holds the `zeros` and `tertile` lines of Decision 3. The census is run `d2-15`, `bko.evaluate
+contradictions --dataset support2` into `runs/d2-15/contradictions.csv` and
+`runs/d2-15/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and the 19
+rows of `d2-4` (digest `3c818f27943faaf09b58a1ef9bf151f1b40e5f472a63e93af847795e76d5cecf`), the
+two `is_a` pairs shown by 733 and 411 records, none without cancer. Its csv sha256 is
+`b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone) and its log
+sha256 `8bec866ec18ce12c7605884ca4b56de79e9c9ab15c8a105b5e0b62c6dbdaa9f5`. At commit `8aafa26`, the tag's commit, `uv run --no-sync python -m bko.ontology check` exited 0,
+its log ending `checked 821 rows: 0 disagree`, and `tests/test_datasets_support2_pinned.py` passed with
+`--releases` in a run together with the other two frames' pinned tests.
 
 **Gained**: a second positive dataset whose diagnoses and physiology reach MONDO and HPO through
 fixed rows. **Accepted**: one record leaves the cohort for a missing `scoma`. The originals of the
@@ -209,6 +296,8 @@ row. Tertile bands can be uneven where values tie at a tertile (`edu`'s 11 and 1
 | A metastatic-cancer row on `ca` `metastatic` | `ca` `metastatic` shows cancer through the `ca` row, and the rows fixed before the count (Decision 5) hold no metastatic-cancer row | 2026-11-25 |
 | `urine` at SOFA's renal cutoff, below 500 mL/d | The file states no period for `urine`, so it stays at tertiles and maps nothing | 2026-11-25 |
 | SUPPORT2 in the default census | It would change the bytes of EVIDENCE D2's recorded run and make the bare command fetch another archive; the census takes `--dataset` | 2026-11-25 |
+| Reading a recorded 0 as a measured value | A 0 in a listed field is no physiological reading, and it would show Hypotension or Decreased total leukocyte count from no measurement (Rationale) | 2026-11-26 |
+| Tertiles over every record of the published file | They take in the record the frame drops and the implausible zeros, so the cuts are not those of the records they code (Rationale) | 2026-11-26 |
 
 ## Enforcement
 
@@ -217,6 +306,14 @@ row. Tertile bands can be uneven where values tie at a tertile (`edu`'s 11 and 1
   `tests/test_datasets_support2.py::test_the_excluded_columns_never_enter_the_frame`,
   `tests/test_datasets_support2.py::test_each_cited_field_is_coded_at_its_cutoffs`,
   `tests/test_datasets_support2.py::test_a_missing_value_shows_no_concept`,
+  `tests/test_datasets_support2.py::test_a_value_that_reads_0_in_each_listed_field_codes_not_measured`,
+  `tests/test_datasets_support2.py::test_a_zero_in_an_unlisted_field_still_codes_as_measured`,
+  `tests/test_datasets_support2.py::test_tertile_base_drops_listed_zeros_and_unkept_records`,
+  `tests/test_datasets_support2.py::test_an_unmasked_zero_would_move_the_tertiles`,
+  `tests/test_datasets_support2.py::test_a_missing_scoma_drops_its_record_and_is_counted`,
+  `tests/test_datasets_support2.py::test_each_loader_logs_a_zero_count_per_listed_field`,
+  `tests/test_datasets_support2.py::test_each_loader_logs_each_tertile_fields_cuts_and_base`,
+  `tests/test_datasets_states.py::test_log_tertile_logs_the_cuts_at_the_decimals_and_the_base`,
   `tests/test_ontology_support2_rows.py::test_the_rows_map_these_states_to_these_concepts`,
   `tests/test_ontology_support2_rows.py::test_every_cutoff_row_cites_a_registered_source`,
   `tests/test_datasets_support2_pinned.py` (with `--releases`)

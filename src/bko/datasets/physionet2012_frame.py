@@ -30,10 +30,7 @@ _DESCRIPTIONS: Final[Mapping[str, str]] = {
     "temp_min": f"lowest temperature {_WINDOW}, degrees Celsius",
     "wbc_max": f"highest white blood cell count {_WINDOW}, cells per nL",
     "wbc_min": f"lowest white blood cell count {_WINDOW}, cells per nL",
-    "map_min": (
-        f"lowest invasive mean arterial pressure {_WINDOW}, mm Hg, the non-invasive one where "
-        "the stay has no invasive reading"
-    ),
+    "map_min": f"lowest mean arterial pressure {_WINDOW}, invasive or non-invasive, mm Hg",
     "creatinine_max": f"highest serum creatinine {_WINDOW}, mg/dL",
     "bilirubin_max": f"highest bilirubin {_WINDOW}, mg/dL",
     "platelets_min": f"lowest platelet count {_WINDOW}, cells per nL",

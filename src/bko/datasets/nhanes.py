@@ -9,7 +9,8 @@ join inner on `SEQN`, the exam and laboratory files left, so an adult who was on
 stays a record with every measurement not measured. The cohort keeps adults of 20 and over, the
 universe the four items are asked of. `LABEL` is 1 when any of the four items is 1 (yes), 0 when
 all four are 2 (no), and the record is left out otherwise. A record holds `age` as published
-(top-coded at 80), `sex`, and each lab or vital as a coded state (`bko.datasets.states.coded`).
+(top-coded at 80), `sex`, and each lab or vital as a coded state (`bko.datasets.states.coded`),
+`BMXBMI` cut at its tertiles over the kept records (`tertile_base`).
 The four items and the survey weights never enter. ADR `research/nhanes-frame` records the frame.
 """
 
@@ -31,7 +32,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import Source
-from bko.datasets.states import Cutoffs, coded
+from bko.datasets.states import Cutoffs, coded, log_tertile
 
 
 logger = logging.getLogger(__name__)
@@ -141,11 +142,12 @@ diabetes ranges (`ada-2026`, Tables 2.1 and 2.2), and ATP III's high total and l
 (`ncep-2001`) in `nhlbi-2001`'s Table 2."""
 
 TERTILES: Final[Mapping[str, Cutoffs]] = MappingProxyType(
-    {"BMXBMI": Cutoffs(at_or_above=(23.4, 29.6))}
+    {"BMXBMI": Cutoffs(at_or_above=(25.9, 31.6))}
 )
 """The numeric fields with missing values and no cited cutoff, coded at the tertiles
-(`bko.datasets.states.tertiles`) of their measured values over every record of the published
-file, each value read and each tertile rounded at `DECIMALS`; their cutoffs cite no source."""
+(`bko.datasets.states.tertiles`) of their measured values over the records the frame keeps
+(`tertile_base`), each value read and each tertile rounded at `DECIMALS`; their cutoffs cite no
+source."""
 
 MEASURED: Final[Mapping[str, Cutoffs]] = MappingProxyType({**CITED, **TERTILES})
 """Every coded measured field, in record order, and its cutoffs."""
@@ -263,15 +265,63 @@ def _within_demographics(components: Mapping[str, pd.DataFrame]) -> None:
             raise ContractError(msg)
 
 
+def _joined(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
+    """The demographics and conditions joined inner, the exam and laboratory files left."""
+    _within_demographics(components)
+    demo = components["DEMO_L"]
+    joined = demo[["RIAGENDR", "RIDAGEYR"]].join(components["MCQ_L"][list(QUESTIONS)], how="inner")
+    for name in COMPONENTS[2:]:
+        read = [c for component, _, cs in READINGS.values() if component == name for c in cs]
+        joined = joined.join(components[name][read], how="left")
+    _checked(joined)
+    return joined
+
+
+def _adults(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """The joined adults, and on each whether any item is yes and whether all four are no."""
+    adults = joined.loc[measured(joined["RIDAGEYR"]) >= ADULT_AGE]
+    answers = adults[list(QUESTIONS)]
+    return adults, (answers == YES).any(axis=1), (answers == NO).all(axis=1)
+
+
+def _kept(joined: pd.DataFrame) -> pd.DataFrame:
+    """The joined adults the cohort keeps: those with any item yes or all four no."""
+    adults, any_yes, all_no = _adults(joined)
+    return adults.loc[any_yes | all_no]
+
+
+def _bases(kept: pd.DataFrame) -> Mapping[str, pd.Series]:
+    """Each `TERTILES` field's values on the kept records measured in it."""
+    return MappingProxyType({field: reading(kept, field).dropna() for field in TERTILES})
+
+
+def tertile_base(components: Mapping[str, pd.DataFrame]) -> Mapping[str, pd.Series]:
+    """Each `TERTILES` field's measured values over the records the frame keeps.
+
+    Args:
+        components: Each component file's output of `read_component`, by `COMPONENTS` name.
+
+    Returns:
+        Per tertile field its values at `DECIMALS` on the kept adults measured in it, indexed by
+        `record_id`: the values `TERTILES`' cutoffs are the tertiles of.
+
+    Raises:
+        ContractError: As `frame_records`.
+    """
+    return _bases(_kept(_joined(components)))
+
+
 def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
     """Return the frame records of the adults whose answers settle the label, in `SEQN` order.
 
     Args:
         components: Each component file's output of `read_component`, by `COMPONENTS` name.
 
-    Logs one `cohort` line: the demographics records, those with a medical-conditions record
-    (`with_conditions`), the adults among them, each label's count, the adults left out, and per
-    coded field the kept records it was measured on.
+    Logs a `tertile` line per tertile field, its cuts over the kept records and their count
+    (`tertile_base`, `bko.datasets.states.log_tertile`), then one `cohort` line: the demographics
+    records, those with a medical-conditions record (`with_conditions`), the adults among them,
+    each label's count, the adults left out, and per coded field the kept records it was measured
+    on.
 
     Returns:
         `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
@@ -280,18 +330,10 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
         ContractError: If a component file lists a respondent the demographics file does not, or
             a joined value contradicts its codebook.
     """
-    _within_demographics(components)
+    joined = _joined(components)
     demo = components["DEMO_L"]
-    joined = demo[["RIAGENDR", "RIDAGEYR"]].join(components["MCQ_L"][list(QUESTIONS)], how="inner")
-    for name in COMPONENTS[2:]:
-        read = [c for component, _, cs in READINGS.values() if component == name for c in cs]
-        joined = joined.join(components[name][read], how="left")
-    _checked(joined)
-    adults = joined.loc[measured(joined["RIDAGEYR"]) >= ADULT_AGE]
-    answers = adults[list(QUESTIONS)]
-    any_yes = (answers == YES).any(axis=1)
-    all_no = (answers == NO).all(axis=1)
-    kept = adults.loc[any_yes | all_no]
+    adults, any_yes, all_no = _adults(joined)
+    kept = _kept(joined)
     columns: dict[str, pd.Series] = {
         "age": measured(kept["RIDAGEYR"]),
         "sex": kept["RIAGENDR"].map(SEX_CODES),
@@ -303,6 +345,8 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
     }
     records = pd.DataFrame(columns).astype("int64")
     records.index.name = "record_id"
+    for field, base in _bases(kept).items():
+        log_tertile(logger, NHANES_NAME, field, base, decimals=DECIMALS)
     logger.info(
         "cohort dataset=%s demographics=%d with_conditions=%d adults=%d any_yes=%d all_no=%d "
         "left_out=%d records=%d composite=%d %s",

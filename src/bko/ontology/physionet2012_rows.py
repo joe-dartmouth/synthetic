@@ -31,7 +31,7 @@ def state_row(field: str, band: str, concept: str, label: str, criterion: str) -
     Raises:
         ValueError: If `field`'s cutoffs cite no source or have no such band.
     """
-    variable, how, cut = REDUCED[field]
+    variables, how, cut = REDUCED[field]
     if cut.source is None:
         msg = f"{field}'s cutoffs cite no source, so no row maps its states"
         raise ValueError(msg)
@@ -42,8 +42,8 @@ def state_row(field: str, band: str, concept: str, label: str, criterion: str) -
         label=label,
         source=cut.source,
         limits=(
-            f"{field} {band}, the stay's {extreme} {variable} over its first 48 hours, "
-            f"{criterion} ({_READ_IN}); one reading, not a diagnosis; a stay that never "
+            f"{field} {band}, the stay's {extreme} {' and '.join(variables)} over its first 48 "
+            f"hours, {criterion} ({_READ_IN}); one reading, not a diagnosis; a stay that never "
             "measured it is state 0 and shows nothing"
         ),
     )

@@ -1,4 +1,5 @@
-"""SUPPORT2's pinned archive under `data/`: its sha256, the cohort, the label rate and the tertiles.
+"""SUPPORT2's pinned archive under `data/`: its sha256, the cohort, the label rate, the zeros and
+the tertiles.
 
 It is skipped unless `--releases` is passed, since the gate reads no `data/`; an absent snapshot
 fails it rather than skipping it. ADR `research/support2-frame` records the figures.
@@ -9,6 +10,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import io
+import logging
 import zipfile
 
 import pandas as pd
@@ -19,7 +21,15 @@ from bko.datasets.frames import FrameSpec
 from bko.datasets.sources import SUPPORT2
 from bko.datasets.split import split
 from bko.datasets.states import tertiles
-from bko.datasets.support2 import DECIMALS, MEMBER, TERTILES, checked, measured, parse_support2
+from bko.datasets.support2 import (
+    DECIMALS,
+    IMPLAUSIBLE_ZERO,
+    MEMBER,
+    TERTILES,
+    frame_records,
+    parse_support2,
+    tertile_base,
+)
 from bko.ontology.catalog import CATALOG
 from tests._support2_fixtures import REAL_HEADER, REAL_ROW
 
@@ -60,9 +70,38 @@ def test_the_cohort_and_the_training_splits_death_rate() -> None:
     assert f"{train['target'].mean():.4f}" == "0.2591"
 
 
-def test_the_tertile_cutoffs_are_the_published_files() -> None:
+def _raw() -> pd.DataFrame:
     data = read_verified(SUPPORT2, default_data_dir())
-    raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(data)).read(MEMBER).decode("utf-8")))
+    return parse_support2(zipfile.ZipFile(io.BytesIO(data)).read(MEMBER).decode("utf-8"))
+
+
+def test_the_tertile_cutoffs_are_the_kept_records() -> None:
+    """Each tertile field's cuts over its kept, zero-masked values, and their count."""
+    base = tertile_base(_raw())
     for name, cut in TERTILES.items():
-        low, high = tertiles(measured(raw[name]))
+        low, high = tertiles(base[name])
         assert (round(low, DECIMALS), round(high, DECIMALS)) == cut.at_or_above, name
+    assert {name: len(values) for name, values in base.items()} == {
+        "edu": 7470,
+        "sod": 9103,
+        "alb": 5733,
+        "ph": 6821,
+        "glucose": 4603,
+        "bun": 4752,
+        "urine": 4242,
+    }
+    assert (TERTILES["glucose"].at_or_above, TERTILES["urine"].at_or_above) == (
+        (111.0, 166.0),
+        (1428.33, 2595.0),
+    )
+
+
+def test_the_zero_lines_count_the_adrs_zeros(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.support2"):
+        frame_records(_raw())
+    zeros = {"hrt": 83, "wblc": 10, "meanbp": 51, "glucose": 1}
+    assert [m for m in caplog.messages if m.startswith("zeros ")] == [
+        f"zeros dataset=support2 field={name} readings={zeros.get(name, 0)} "
+        f"records={zeros.get(name, 0)}"
+        for name in IMPLAUSIBLE_ZERO
+    ]

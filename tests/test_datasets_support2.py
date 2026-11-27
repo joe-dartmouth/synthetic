@@ -14,12 +14,13 @@ import pytest
 from bko.datasets.errors import ContractError
 from bko.datasets.frames import check_records, digest
 from bko.datasets.sources import Source
-from bko.datasets.states import Cutoffs, band_meanings
+from bko.datasets.states import Cutoffs, band_meanings, tertiles
 from bko.datasets.support2 import (
     AFTER_OUTCOME,
     COLUMNS,
     DECIMALS,
     FIELDS,
+    IMPLAUSIBLE_ZERO,
     LEFT_OUT,
     MEMBER,
     TERTILES,
@@ -27,6 +28,7 @@ from bko.datasets.support2 import (
     frame_records,
     load_support2,
     parse_support2,
+    tertile_base,
 )
 from bko.datasets.support2_frame import support2_frame
 from bko.ontology.schema import shown
@@ -179,8 +181,90 @@ def test_a_missing_scoma_drops_its_record_and_is_counted(caplog) -> None:
         records = _records(row(1), row(2, scoma=""), row(3, hospdead="1"))
     assert records.index.tolist() == [1, 3]
     assert caplog.messages == [
-        "cohort dataset=support2 rows=3 missing_scoma=1 records=2 hospital_deaths=1"
+        *(
+            f"zeros dataset=support2 field={field} readings=0 records=0"
+            for field in IMPLAUSIBLE_ZERO
+        ),
+        "tertile dataset=support2 field=edu low=11.0 high=11.0 base=2",
+        "tertile dataset=support2 field=sod low=141.0 high=141.0 base=2",
+        "tertile dataset=support2 field=alb low=1.8 high=1.8 base=2",
+        "tertile dataset=support2 field=ph low=7.46 high=7.46 base=2",
+        "tertile dataset=support2 field=glucose low=none high=none base=0",
+        "tertile dataset=support2 field=bun low=none high=none base=0",
+        "tertile dataset=support2 field=urine low=none high=none base=0",
+        "cohort dataset=support2 rows=3 missing_scoma=1 records=2 hospital_deaths=1",
     ]
+
+
+def test_the_zero_list_is_the_cited_and_tertile_fields_whose_0_is_implausible() -> None:
+    assert (
+        *("hrt", "temp", "wblc", "meanbp", "crea", "bili", "pafi"),
+        *("sod", "alb", "ph", "glucose", "bun"),
+    ) == IMPLAUSIBLE_ZERO
+
+
+@pytest.mark.parametrize("field", IMPLAUSIBLE_ZERO)
+def test_a_value_that_reads_0_in_each_listed_field_codes_not_measured(field: str) -> None:
+    values = ("0", " 0.000000", "0.004", "0.01")
+    records = _records(*(row(n, **{field: value}) for n, value in enumerate(values, 1)))
+    assert records[field].tolist() == [0, 0, 0, 1]
+
+
+@pytest.mark.parametrize("field", ["urine", "resp", "edu"])
+def test_a_zero_in_an_unlisted_field_still_codes_as_measured(field: str) -> None:
+    assert field not in IMPLAUSIBLE_ZERO
+    records = _records(row(1, **{field: "0"}), row(2, **{field: "5000"}))
+    assert records.loc[1, field] == 1
+    if field in TERTILES:
+        raw = parse_support2(text(row(1, **{field: "0"}), row(2, **{field: "5000"})))
+        assert tertile_base(raw)[field].to_dict() == {1: 0.0, 2: 5000.0}
+
+
+def test_tertile_base_drops_listed_zeros_and_unkept_records() -> None:
+    sods = ("0", "135", "138", "140", "144")
+    raw = parse_support2(
+        text(*(row(n, sod=v) for n, v in enumerate(sods, 1)), row(6, sod="120", scoma=""))
+    )
+    base = tertile_base(raw)
+    assert list(base) == list(TERTILES)
+    assert base["sod"].tolist() == [135.0, 138.0, 140.0, 144.0]
+    assert tertiles(base["sod"]) == (138.0, 140.0)
+
+
+def test_an_unmasked_zero_would_move_the_tertiles() -> None:
+    """Why the zeros are masked before the cut: the same kept values with the 0 left in cut at
+    136.0 and 139.33, not the masked base's 138.0 and 140.0."""
+    raw_kept = tertiles(pd.Series([0.0, 135.0, 138.0, 140.0, 144.0]))
+    assert tuple(round(cut, DECIMALS) for cut in raw_kept) == (136.0, 139.33)
+
+
+def test_each_loader_logs_a_zero_count_per_listed_field(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.support2"):
+        _records(
+            row(1, hrt="0", meanbp="0"),
+            row(2, hrt="0"),
+            row(3, hrt="0", scoma=""),
+            row(4, urine="0", resp="0"),
+        )
+    zeros = [m for m in caplog.messages if m.startswith("zeros ")]
+    assert zeros == [
+        f"zeros dataset=support2 field={field} readings={n} records={n}"
+        for field, n in ((f, {"hrt": 2, "meanbp": 1}.get(f, 0)) for f in IMPLAUSIBLE_ZERO)
+    ]
+    assert caplog.messages.index(zeros[-1]) < len(caplog.messages) - 1
+    assert caplog.messages[-1].startswith("cohort ")
+
+
+def test_each_loader_logs_each_tertile_fields_cuts_and_base(caplog) -> None:
+    sods = ("0", "135", "138", "140", "144")
+    with caplog.at_level(logging.INFO, logger="bko.datasets.support2"):
+        _records(*(row(n, sod=v) for n, v in enumerate(sods, 1)), row(6, sod="120", scoma=""))
+    lines = [m for m in caplog.messages if m.startswith("tertile ")]
+    assert [line.split()[2] for line in lines] == [f"field={name}" for name in TERTILES]
+    assert "tertile dataset=support2 field=sod low=138.0 high=140.0 base=4" in lines
+    assert "tertile dataset=support2 field=glucose low=none high=none base=0" in lines
+    assert "tertile dataset=support2 field=edu low=11.0 high=11.0 base=5" in lines
+    assert caplog.messages[-1].startswith("cohort ")
 
 
 def test_missing_race_and_income_are_code_0_not_recorded() -> None:
@@ -224,9 +308,9 @@ def test_each_cited_field_is_coded_at_its_cutoffs() -> None:
         ("sod", ("134.99", "135", "139.99", "140"), (135.0, 140.0)),
         ("alb", ("2.49", "2.5", "3.29", "3.3"), (2.5, 3.3)),
         ("ph", ("7.39", "7.4", "7.44", "7.45"), (7.4, 7.45)),
-        ("glucose", ("110.99", "111", "166.32", "166.33"), (111.0, 166.33)),
+        ("glucose", ("110.99", "111", "165.99", "166"), (111.0, 166.0)),
         ("bun", ("16.99", "17", "32.99", "33"), (17.0, 33.0)),
-        ("urine", ("1429.99", "1430", "2594.99", "2595"), (1430.0, 2595.0)),
+        ("urine", ("1428.32", "1428.33", "2594.99", "2595"), (1428.33, 2595.0)),
     ],
 )
 def test_each_tertile_field_takes_the_upper_state_at_each_cutoff(

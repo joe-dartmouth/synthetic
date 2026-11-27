@@ -16,10 +16,12 @@ from bko.datasets.nhanes import (
     COLUMNS,
     COMPONENTS,
     READINGS,
+    TERTILES,
     check_readings,
     frame_records,
     load_nhanes,
     read_component,
+    tertile_base,
 )
 from bko.datasets.nhanes_frame import nhanes_frame
 from bko.datasets.sources import Source
@@ -176,11 +178,12 @@ def test_a_record_with_no_yes_and_an_unknown_answer_is_left_out(unknown, caplog)
         records = _records(people)
     assert records.index.tolist() == [2, 3]
     assert caplog.messages == [
+        "tertile dataset=nhanes field=BMXBMI low=27.0 high=27.0 base=2",
         (
             "cohort dataset=nhanes demographics=3 with_conditions=3 adults=3 any_yes=0 "
             "all_no=2 left_out=1 records=2 composite=0 measured_BPXOSY=2 measured_BPXODI=2 "
             "measured_LBXGH=2 measured_LBXTC=2 measured_LBDHDD=2 measured_BMXBMI=2"
-        )
+        ),
     ]
 
 
@@ -188,11 +191,12 @@ def test_the_cohort_line_accounts_for_every_filter(caplog) -> None:
     with caplog.at_level(logging.INFO, logger="bko.datasets.nhanes"):
         _records([*mixed(), Respondent(130390, interviewed=False)])
     assert caplog.messages == [
+        "tertile dataset=nhanes field=BMXBMI low=27.0 high=27.0 base=7",
         (
             "cohort dataset=nhanes demographics=13 with_conditions=12 adults=11 any_yes=4 "
             "all_no=5 left_out=2 records=9 composite=4 measured_BPXOSY=7 measured_BPXODI=8 "
             "measured_LBXGH=8 measured_LBXTC=7 measured_LBDHDD=8 measured_BMXBMI=7"
-        )
+        ),
     ]
 
 
@@ -281,8 +285,40 @@ def test_a_glycohemoglobin_of_0_is_no_lab_result() -> None:
 
 
 def test_each_bmi_tertile_takes_the_upper_state_at_its_cutoff() -> None:
-    people = [Respondent(n, bmi=b) for n, b in enumerate((23.39, 23.4, 29.59, 29.6), start=1)]
+    assert TERTILES["BMXBMI"].at_or_above == (25.9, 31.6)
+    people = [Respondent(n, bmi=b) for n, b in enumerate((25.89, 25.9, 31.59, 31.6), start=1)]
     assert _records(people)["BMXBMI"].tolist() == [1, 2, 2, 3]
+
+
+def _bmi_people() -> list[Respondent]:
+    """Four kept adults with a BMI, one kept adult without, a child and a left-out adult."""
+    return [
+        *(Respondent(n, bmi=b) for n, b in enumerate((20.0, 25.0, 30.0, 35.0), start=1)),
+        Respondent(5, bmi=None),
+        Respondent(6, age=10.0, bmi=15.0),
+        Respondent(7, answers=(2.0, 2.0, 9.0, 2.0), bmi=50.0),
+    ]
+
+
+def test_bmi_tertile_base_is_the_kept_adults() -> None:
+    read = {name: read_component(data, name) for name, data in files(_bmi_people()).items()}
+    base = tertile_base(read)
+    assert list(base) == ["BMXBMI"]
+    assert base["BMXBMI"].to_dict() == {1: 20.0, 2: 25.0, 3: 30.0, 4: 35.0}
+
+
+def test_each_loader_logs_each_tertile_fields_cuts_and_base(caplog) -> None:
+    with caplog.at_level(logging.INFO, logger="bko.datasets.nhanes"):
+        _records(_bmi_people())
+    assert caplog.messages[:-1] == ["tertile dataset=nhanes field=BMXBMI low=25.0 high=30.0 base=4"]
+    assert caplog.messages[-1].startswith("cohort dataset=nhanes ")
+
+
+def test_a_tertile_field_no_kept_record_measures_logs_none(caplog) -> None:
+    people = [Respondent(1, bmi=None), Respondent(2, bmi=None), Respondent(3, age=10.0, bmi=20.0)]
+    with caplog.at_level(logging.INFO, logger="bko.datasets.nhanes"):
+        _records(people)
+    assert caplog.messages[:-1] == ["tertile dataset=nhanes field=BMXBMI low=none high=none base=0"]
 
 
 @pytest.mark.parametrize(

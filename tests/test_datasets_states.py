@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import math
 
 import pandas as pd
 import pytest
 
-from bko.datasets.states import Cutoffs, band_state, coded, tertiles
+from bko.datasets.states import Cutoffs, band_state, coded, log_tertile, tertiles
 
 
 def _states(values: list[float], **cutoffs: tuple[float, ...]) -> list[int]:
@@ -63,6 +64,25 @@ def test_tertiles_ignore_missing_values() -> None:
 def test_tertiles_of_no_measured_value_are_refused() -> None:
     with pytest.raises(ValueError, match="no measured value"):
         tertiles(pd.Series([math.nan, math.nan]))
+
+
+def test_log_tertile_logs_the_cuts_at_the_decimals_and_the_base(caplog) -> None:
+    logger = logging.getLogger("tests.states")
+    base = pd.Series([1.0, 2.0, 2.0, 4.0])
+    with caplog.at_level(logging.INFO, logger="tests.states"):
+        log_tertile(logger, "frame", "x", base, decimals=2)
+        log_tertile(logger, "frame", "y", pd.Series([], dtype="float64"), decimals=2)
+    assert caplog.messages == [
+        "tertile dataset=frame field=x low=2.0 high=2.0 base=4",
+        "tertile dataset=frame field=y low=none high=none base=0",
+    ]
+
+
+def test_log_tertile_rounds_each_cut(caplog) -> None:
+    logger = logging.getLogger("tests.states")
+    with caplog.at_level(logging.INFO, logger="tests.states"):
+        log_tertile(logger, "frame", "x", pd.Series([0.0, 135.0, 138.0, 140.0, 144.0]), decimals=2)
+    assert caplog.messages == ["tertile dataset=frame field=x low=136.0 high=139.33 base=5"]
 
 
 def test_band_state_finds_a_state_by_its_bands_name() -> None:

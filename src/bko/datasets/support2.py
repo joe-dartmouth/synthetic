@@ -6,9 +6,11 @@ which becomes `record_id`. Values carry leading spaces, a missing value is an em
 categoricals are text. The cohort drops the records whose `scoma` is missing. A record holds
 `age` floored to whole years, the coded demographics and comorbidities, `num.co`, `hday`,
 `scoma`, each measured lab or vital as a coded state (`bko.datasets.states.coded`) and `LABEL`,
-`hospdead`. The columns the publisher warns against using as predictors, those known only at or
-after the outcome, `dzclass` (a grouping of `dzgroup`) and the partly imputed activity scores never
-enter. ADR `research/support2-frame` records the frame.
+`hospdead`. A value that reads as 0 at `DECIMALS` in a field of `IMPLAUSIBLE_ZERO` is not
+measured, and the tertile fields are cut over the kept records once those zeros are masked
+(`tertile_base`). The columns the publisher warns against using as predictors, those known only
+at or after the outcome, `dzclass` (a grouping of `dzgroup`) and the partly imputed activity
+scores never enter. ADR `research/support2-frame` records the frame.
 """
 
 from __future__ import annotations
@@ -29,7 +31,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import Source
-from bko.datasets.states import Cutoffs, coded
+from bko.datasets.states import Cutoffs, coded, log_tertile
 
 
 logger = logging.getLogger(__name__)
@@ -190,17 +192,37 @@ TERTILES: Final[Mapping[str, Cutoffs]] = MappingProxyType(
         "sod": Cutoffs(at_or_above=(135.0, 140.0)),
         "alb": Cutoffs(at_or_above=(2.5, 3.3)),
         "ph": Cutoffs(at_or_above=(7.4, 7.45)),
-        "glucose": Cutoffs(at_or_above=(111.0, 166.33)),
+        "glucose": Cutoffs(at_or_above=(111.0, 166.0)),
         "bun": Cutoffs(at_or_above=(17.0, 33.0)),
-        "urine": Cutoffs(at_or_above=(1430.0, 2595.0)),
+        "urine": Cutoffs(at_or_above=(1428.33, 2595.0)),
     }
 )
 """The numeric fields with missing values and no cited cutoff, coded at the tertiles
-(`bko.datasets.states.tertiles`) of their measured values over every record of the published
-file, each value read and each tertile rounded at `DECIMALS`; their cutoffs cite no source."""
+(`bko.datasets.states.tertiles`) of their measured values over the records the frame keeps, a
+listed zero masked (`tertile_base`), each value read and each tertile rounded at `DECIMALS`; their
+cutoffs cite no source."""
 
 MEASURED: Final[Mapping[str, Cutoffs]] = MappingProxyType({**CITED, **TERTILES})
 """Every coded measured field, in record order, and its cutoffs."""
+
+IMPLAUSIBLE_ZERO: Final[tuple[str, ...]] = (
+    "hrt",
+    "temp",
+    "wblc",
+    "meanbp",
+    "crea",
+    "bili",
+    "pafi",
+    "sod",
+    "alb",
+    "ph",
+    "glucose",
+    "bun",
+)
+"""The measured fields whose recorded 0 is physiologically implausible, so not measured: a value
+that reads as 0 at `DECIMALS`, such as `0.000000` or `0.004`, is masked. `resp`
+(a ventilated patient's own breaths), `urine` (an anuric day) and `edu` (no schooling) keep their
+0 as measured."""
 
 DECIMALS: Final = 2
 """The decimals a measured value is read at before it is coded: the file stores values truncated
@@ -315,11 +337,61 @@ def measured(values: pd.Series) -> pd.Series:
     return numbers.astype("float64").round(DECIMALS)
 
 
+def _kept(rows: pd.DataFrame) -> pd.DataFrame:
+    """The checked rows the cohort keeps: those whose `scoma` is recorded."""
+    return rows.loc[rows["scoma"] != ""]
+
+
+def _values(kept: pd.DataFrame, name: str) -> pd.Series:
+    """A measured field's values on the kept rows, a listed field's 0 masked to NaN.
+
+    A value of a field of `IMPLAUSIBLE_ZERO` that reads as 0 at `DECIMALS`, such as `0.004`, is
+    a 0.
+    """
+    values = measured(kept[name])
+    return values.mask(values == 0) if name in IMPLAUSIBLE_ZERO else values
+
+
+def tertile_base(raw: pd.DataFrame) -> Mapping[str, pd.Series]:
+    """Each `TERTILES` field's measured values over the kept records, a listed zero masked.
+
+    Args:
+        raw: The output of `parse_support2`.
+
+    Returns:
+        Per tertile field, in `TERTILES` order, its measured values at `DECIMALS`, indexed by
+        `record_id`: the values `TERTILES`' cutoffs are the tertiles of.
+
+    Raises:
+        ContractError: As `checked`.
+    """
+    return _bases(_kept(checked(raw)))
+
+
+def _bases(kept: pd.DataFrame) -> Mapping[str, pd.Series]:
+    """Each `TERTILES` field's measured values on the kept rows, a listed zero masked."""
+    return MappingProxyType({name: _values(kept, name).dropna() for name in TERTILES})
+
+
+def _log_rules(kept: pd.DataFrame) -> None:
+    """Log a `zeros` line per `IMPLAUSIBLE_ZERO` field and a `tertile` line per tertile field."""
+    for name in IMPLAUSIBLE_ZERO:
+        zeros = int((measured(kept[name]) == 0).sum())
+        logger.info(
+            "zeros dataset=%s field=%s readings=%d records=%d", SUPPORT2_NAME, name, zeros, zeros
+        )
+    for name, base in _bases(kept).items():
+        log_tertile(logger, SUPPORT2_NAME, name, base, decimals=DECIMALS)
+
+
 def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
     """Return the frame records of `raw`'s cohort, in record order.
 
     Every row is checked before any is dropped. The cohort drops the records whose `scoma` is
-    missing, and logs one `cohort` line that accounts for every row.
+    missing; a value that reads as 0 at `DECIMALS` in a field of `IMPLAUSIBLE_ZERO` codes as not
+    measured. Before one `cohort` line that accounts for every row, it logs per listed field the
+    zeros it masked (`zeros`) and per tertile field the tertiles and base count of its kept,
+    masked values (`tertile`, `bko.datasets.states.log_tertile`).
 
     Args:
         raw: The output of `parse_support2`.
@@ -331,7 +403,7 @@ def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
         ContractError: As `checked`.
     """
     rows = checked(raw)
-    kept = rows.loc[rows["scoma"] != ""]
+    kept = _kept(rows)
     columns: dict[str, pd.Series] = {
         "age": kept["age"].astype("float64").floordiv(1),
         **{name: kept[name].map(CATEGORIES[name]) for name in ("sex", "dzgroup")},
@@ -341,13 +413,14 @@ def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
         "scoma": kept["scoma"],
         **{name: kept[name].map(CATEGORIES[name]) for name in ("race", "income")},
         **{
-            name: coded(measured(kept[name]), at_or_above=cut.at_or_above, above=cut.above)
+            name: coded(_values(kept, name), at_or_above=cut.at_or_above, above=cut.above)
             for name, cut in MEASURED.items()
         },
         LABEL: kept["hospdead"].map(PRESENCE_CODES),
     }
     records = pd.DataFrame(columns).astype("int64")
     records.index.name = "record_id"
+    _log_rules(kept)
     logger.info(
         "cohort dataset=%s rows=%d missing_scoma=%d records=%d hospital_deaths=%d",
         SUPPORT2_NAME,

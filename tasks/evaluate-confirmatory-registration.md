@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: datasets-frame-rule-revisions, evaluate-composite-dev-results, evaluate-diabetes-control-results, evaluate-synthea-direct-results, paper-control-results
+depends_on: evaluate-composite-dev-results, evaluate-diabetes-control-results, evaluate-synthea-direct-results, paper-control-results
 blocks: evaluate-confirmatory-results, paper-scarcity
 parallel_safe: false
 milestone: direct-method-research
@@ -62,9 +62,14 @@ readings are fixed before any score exists on the new datasets.
     ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) Configurations.
 - `tests/test_unrun_frames.py` loses each dataset this unit's `RUNS` entries read, and is deleted
-  once it names none: unit [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md)
-  has changed those frames under their own names, and the exception of `direct-index.md`, What
-  every unit relies on, ends with this unit's entries.
+  once it names none. Three frames changed under their own names, read at tag `run/d1-15`: ADR
+  [`research/support2-frame`](../docs/adr/research/support2-frame.md) records SUPPORT2's zero
+  rule and its tertiles over the kept records, ADR
+  [`research/nhanes-frame`](../docs/adr/research/nhanes-frame.md) NHANES's `BMXBMI` tertiles
+  over the kept records, and ADR
+  [`research/physionet2012-frame`](../docs/adr/research/physionet2012-frame.md) PhysioNet 2012's
+  zero rule and `map_min` over `MAP` and `NIMAP` together. The exception of `direct-index.md`,
+  What every unit relies on, ends with this unit's entries.
 - A signed tag.
 - ADR [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) revised
   in place.
