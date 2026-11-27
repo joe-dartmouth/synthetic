@@ -25,7 +25,7 @@ from bko.core.logs import configure
 from bko.datasets.diabetes import DIAGNOSES
 from bko.datasets.errors import DatasetError
 from bko.datasets.fetch import UrlOpener, default_data_dir, open_https
-from bko.ontology import auto_local_diabetes_rows, auto_tables
+from bko.ontology import auto_tables
 from bko.ontology.automatic import NONE, state, unmovable
 from bko.ontology.code_frames import DIABETES_CODES_FIELD_ROWS
 from bko.ontology.frames import DIABETES_FIELD_ROWS
@@ -131,7 +131,7 @@ def measures(ontologies: Mapping[str, Ontology]) -> list[dict[str, str]]:
     """One `COLUMNS` record per committed table of `bko.ontology.auto_tables`."""
     crossed = [row for row in auto_tables.AUTO_LEXICAL_CODES_ROWS if state(row)[0] in DIAGNOSES]
     local = {
-        "diabetes-auto-local": judged(auto_local_diabetes_rows.VERDICTS, ()),
+        "diabetes-auto-local": judged(auto_tables.DIABETES_VERDICTS, ()),
         "diabetes-codes-auto-local": judged(auto_tables.CODES_VERDICTS, crossed),
     }
     tables = (

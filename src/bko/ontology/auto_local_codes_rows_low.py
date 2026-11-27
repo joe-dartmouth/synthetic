@@ -19,8 +19,8 @@ PART: Final = "low"
 
 # fmt: off
 VERDICTS: Final[Mapping[str, str]] = {
-    "A1Cresult=2": "none",
-    "A1Cresult=3": "none",
+    "A1Cresult=2": "HP:0040217",
+    "A1Cresult=3": "HP:0040217",
     "change=1": "none",
     "diabetesMed=1": "none",
     "diag_1=1011000": "none",
@@ -436,6 +436,7 @@ VERDICTS: Final[Mapping[str, str]] = {
 }
 
 LABELS: Final[Mapping[str, str]] = {
+    "HP:0040217": "Elevated hemoglobin A1c",
     "MONDO:0000620": "breast benign neoplasm",
     "MONDO:0000960": "diabetic peripheral angiopathy",
     "MONDO:0001071": "intellectual disability",
