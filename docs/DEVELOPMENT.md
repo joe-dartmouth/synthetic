@@ -2258,7 +2258,9 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   writes the `auto-local` module text: `VERDICTS`, each state's concept or `none` keyed
   `"<field>=<code>"`, the states the cross-reference route maps included, and `LABELS`, each
   verdict concept's name. With the model served as above, for `diabetes` (and
-  `diabetes-codes` into `auto_local_codes_rows.py`):
+  `diabetes-codes --part low` into `auto_local_codes_rows_low.py` and `--part high` into
+  `auto_local_codes_rows_high.py`, the table split at the field `diag_3` to keep each module under
+  the size cap):
 
       mkdir -p scratchpad && uv run --no-sync python -m bko.generate.judge diabetes --model gemma-4-26b-a4b-q8_0 > scratchpad/auto_local_diabetes_rows.py && mv scratchpad/auto_local_diabetes_rows.py src/bko/ontology/auto_local_diabetes_rows.py
 
@@ -2268,7 +2270,8 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   `concept`, is an enum of the state's top ten options and `none`. A reply outside the enum, or
   not JSON, fails the command, exit 2. It
   logs the `local server` line, one `verdict field=... code=... concept=... options=N` line per
-  call and a closing `judge dataset=... model=... states=N mapped=M sha256=...` line.
+  call and a closing `judge dataset=... model=... part=... states=N mapped=M sha256=...` line,
+  `part=all` for an unsplit table.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and

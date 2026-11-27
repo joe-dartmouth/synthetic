@@ -67,9 +67,11 @@ system that aligns one ontology with another, not a dataset's codebook with one.
    `bko.ontology.code_frames`.
 6. **Committed modules.** `python -m bko.ontology.automatic lexical <dataset>` and
    `python -m bko.generate.judge <dataset> --model gemma-4-26b-a4b-q8_0` write
-   `auto_lexical_diabetes_rows.py`, `auto_lexical_codes_rows.py`, `auto_local_diabetes_rows.py`
-   and `auto_local_codes_rows.py` under `src/bko/ontology/`, each through `scratchpad/` then
-   `mv`, a module over the size cap split in two by field.
+   `auto_lexical_diabetes_rows.py`, `auto_lexical_codes_rows.py` and `auto_local_diabetes_rows.py`
+   under `src/bko/ontology/`, each through `scratchpad/` then `mv`. `diabetes-codes`' verdict
+   table is over the size cap in one module, so `--part low` and `--part high` write it as
+   `auto_local_codes_rows_low.py` and `auto_local_codes_rows_high.py`, split at the field
+   `diag_3`; `bko.ontology.auto_tables` merges them.
 7. **Measures.** Precision and recall over (field, code, concept) atoms against the hand rows,
    exact curie, each None on an empty denominator. On `diabetes-codes`, the judged candidates are
    reported as the count the judge accepts.
@@ -119,7 +121,16 @@ pinned weights and the server's build, which its run logs name.
   the permuted control and the verdict table's rows), `tests/test_ontology_obo.py`
   (`Term.synonyms`), `tests/test_generate_judge.py` (temperature 0 and a seed, the top ten options
   and `none`, one call per state, a refused verdict, rows a pure function of the verdict table)
-  and `tests/test_generate_local.py` (every existing local request's bytes)
+  and `tests/test_generate_local.py` (every existing local request's bytes); with `--releases`,
+  `tests/test_ontology_auto_pinned.py` (each lexical module a
+  rebuild, each `auto-local` table's rows `rows_from_verdicts` of its verdicts on the
+  records-built frame, the check accepting every table's rows, and each table's
+  `bko.ontology.schema.rows_digest`: `auto-lexical` `diabetes`
+  `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945`, no row; `auto-lexical`
+  `diabetes-codes` `bf119a4d05428defc250c070b551d232f6a6d5f8a2421d84d01490fcd606b5c2`;
+  `auto-local` `diabetes` `3b71bbe6e3f5cd8cf15965252a6b3afb60a5dc81022fb5855fa0e57369115e7a`;
+  `auto-local` `diabetes-codes`
+  `45caeb10a710164738fb6f28eccbd811dbcd78e991c9fcb0ac8f5da3293a3a63`)
 
 ## Reversal Conditions
 

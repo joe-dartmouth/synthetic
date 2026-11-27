@@ -8,7 +8,11 @@ is refused. The verdict table holds every state the cross-reference route maps b
 ones, so `bko.ontology.automatic.rows_from_verdicts` of the committed table gives the `auto-local`
 rows (ADR `research/automatic-mapping`).
 
-    python -m bko.generate.judge <dataset> --model <model> [--data-dir <dir>] [--url <url>]
+A table too long for one module is written as two, `--part low` and `--part high`, split at the
+field `SPLIT`.
+
+    python -m bko.generate.judge <dataset> --model <model> [--part {low,high}] [--data-dir <dir>]
+        [--url <url>]
 """
 
 from __future__ import annotations
@@ -40,6 +44,12 @@ logger = logging.getLogger("bko.generate.judge")
 
 MODEL: Final = "gemma-4-26b-a4b-q8_0"
 """The pinned local model the `auto-local` tables are judged with."""
+
+PARTS: Final = ("low", "high")
+"""A split table's two modules: the states of the fields sorting before `SPLIT`, then the rest."""
+
+SPLIT: Final = "diag_3"
+"""The first field of a split table's `high` part."""
 
 MAX_TOKENS: Final = 256
 """The output limit of one verdict call, room for one curie in JSON."""
@@ -137,6 +147,7 @@ async def judge(
     *,
     model: str,
     codes: Sequence[str] = (),
+    part: str | None = None,
 ) -> Judged:
     """The verdict table of `frame`: the cross-reference states, then one call per candidate.
 
@@ -146,16 +157,21 @@ async def judge(
         send: Answers each verdict call, in candidate order, one at a time.
         model: The model each call names.
         codes: As `bko.ontology.automatic.build_lexical` takes them.
+        part: One of `PARTS`: only the states of that part's fields; None for every state.
 
     Raises:
         GenerationError: As `send`, or `read_verdict` for a reply that is not a verdict.
     """
     crossed = [
-        row for row in build_lexical(frame, ontologies, codes=codes) if state(row)[0] in codes
+        row
+        for row in build_lexical(frame, ontologies, codes=codes)
+        if state(row)[0] in codes and in_part(state(row)[0], part)
     ]
     verdicts = {"{}={}".format(*state(row)): row.concept for row in crossed}
     labels = {row.concept: row.label for row in crossed}
     for candidate in candidates(frame, ontologies, codes=codes):
+        if not in_part(candidate.field, part):
+            continue
         reply = await send(verdict_call(candidate, frame, model=model))
         concept = read_verdict(reply, candidate)
         logger.info(
@@ -170,12 +186,30 @@ async def judge(
     return Judged(verdicts=verdicts, labels=dict(sorted(labels.items())))
 
 
-def render_verdicts(judged: Judged, *, dataset: str, model: str) -> str:
-    """The `auto-local` module text holding `judged`, one entry per line between `# fmt` markers."""
+def in_part(field: str, part: str | None) -> bool:
+    """Whether `field`'s states belong to `part` of a split table; every field's when None.
+
+    Raises:
+        ValueError: If `part` is neither None nor one of `PARTS`.
+    """
+    if part is None:
+        return True
+    if part not in PARTS:
+        msg = f"part {part!r} is not one of {list(PARTS)}"
+        raise ValueError(msg)
+    return (field < SPLIT) == (part == PARTS[0])
+
+
+def render_verdicts(judged: Judged, *, dataset: str, model: str, part: str | None = None) -> str:
+    """The `auto-local` module text holding `judged`, one entry per line between `# fmt` markers.
+
+    A part's module names it in `PART`.
+    """
+    named = "" if part is None else f"PART: Final = {json.dumps(part)}\n"
     lines = [
         _HEADER,
         f"DATASET: Final = {json.dumps(dataset)}\n",
-        f"MODEL: Final = {json.dumps(model)}\n\n# fmt: off\n",
+        f"MODEL: Final = {json.dumps(model)}\n{named}\n# fmt: off\n",
         "VERDICTS: Final[Mapping[str, str]] = {\n",
     ]
     lines.extend(
@@ -202,23 +236,27 @@ def main(argv: Sequence[str] | None = None, *, out: TextIO | None = None) -> int
     parser.add_argument("--model", required=True, choices=sorted(LOCAL_MODELS))
     parser.add_argument("--data-dir", type=Path, default=None)
     parser.add_argument("--url", default=LOCAL_URL)
+    parser.add_argument("--part", choices=PARTS, default=None)
     args = parser.parse_args(argv)
     try:
         data_dir = None if args.data_dir is None else args.data_dir.resolve()
         frame, ontologies, codes = inputs(args.dataset, data_dir)
         send = local_send(args.model, url=args.url, build=verdict_payload)
-        judged = asyncio.run(judge(frame, ontologies, send, model=args.model, codes=codes))
+        judged = asyncio.run(
+            judge(frame, ontologies, send, model=args.model, codes=codes, part=args.part)
+        )
     except DatasetError as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return exc.exit_code
     except (GenerationError, OSError, ValueError) as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    text = render_verdicts(judged, dataset=args.dataset, model=args.model)
+    text = render_verdicts(judged, dataset=args.dataset, model=args.model, part=args.part)
     logger.info(
-        "judge dataset=%s model=%s states=%d mapped=%d sha256=%s",
+        "judge dataset=%s model=%s part=%s states=%d mapped=%d sha256=%s",
         args.dataset,
         args.model,
+        args.part or "all",
         len(judged.verdicts),
         sum(concept != NONE for concept in judged.verdicts.values()),
         hashlib.sha256(text.encode()).hexdigest(),
@@ -241,8 +279,8 @@ _HEADER: Final = '''"""Local judge verdicts, written by `python -m bko.generate.
 Regenerate this module rather than editing it. `VERDICTS` holds each candidate state's concept,
 or `none`, keyed `<field>=<code>`, the states the cross-reference route maps included, and
 `LABELS` each verdict concept's name. The rows are
-`bko.ontology.automatic.rows_from_verdicts(frame, VERDICTS, LABELS)` (ADR
-`research/automatic-mapping`).
+`bko.ontology.automatic.rows_from_verdicts(frame, VERDICTS, LABELS)`, a split table's two parts
+merged first (ADR `research/automatic-mapping`).
 """
 
 from __future__ import annotations

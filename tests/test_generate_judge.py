@@ -15,6 +15,10 @@ import bko.generate.judge as judge_module
 from bko.generate.errors import GenerationError
 from bko.generate.judge import (
     MODEL,
+    PARTS,
+    SPLIT,
+    Judged,
+    in_part,
     judge,
     main,
     render_verdicts,
@@ -142,6 +146,27 @@ def test_rows_are_a_pure_function_of_the_verdicts(ontologies):
         judge(FRAME, ontologies, FakeSend(frozenset({"chol"})), model=MODEL, codes=("diag",))
     )
     assert render_verdicts(again, dataset="toy", model=MODEL) == text
+
+
+def test_a_split_tables_parts_partition_its_states(ontologies):
+    def judged(part: str | None) -> Judged:
+        send = FakeSend(frozenset({"chol"}))
+        return asyncio.run(judge(FRAME, ontologies, send, model=MODEL, codes=("diag",), part=part))
+
+    whole, low, high = judged(None), *(judged(part) for part in PARTS)
+    assert PARTS == ("low", "high")
+    assert low.verdicts.keys().isdisjoint(high.verdicts.keys())
+    assert {**low.verdicts, **high.verdicts} == whole.verdicts
+    assert {**low.labels, **high.labels} == whole.labels
+    assert all(key.partition("=")[0] < SPLIT for key in low.verdicts)
+    assert all(key.partition("=")[0] >= SPLIT for key in high.verdicts)
+    assert low.verdicts
+    assert high.verdicts
+    text = render_verdicts(low, dataset="toy", model=MODEL, part="low")
+    assert 'PART: Final = "low"\n' in text
+    assert "PART:" not in render_verdicts(whole, dataset="toy", model=MODEL)
+    with pytest.raises(ValueError, match="middle"):
+        in_part("chol", "middle")
 
 
 def test_a_verdict_outside_the_candidates_is_refused(ontologies):

@@ -16,7 +16,6 @@ import argparse
 import csv
 import hashlib
 import io
-import json
 import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -36,7 +35,7 @@ from bko.evaluate.provenance import log_versions
 from bko.gaps.contradictions import KINDS, Finding, survey
 from bko.ontology.catalog import CATALOG
 from bko.ontology.releases import load_releases
-from bko.ontology.schema import Clause, Codes, FieldMapping
+from bko.ontology.schema import FieldMapping, rows_digest
 from bko.ontology.terms import Ontology
 
 
@@ -247,26 +246,6 @@ def census(framed: Sequence[Framed]) -> str:
     text = out.getvalue()
     logger.info("census rows=%d sha256=%s", rows, hashlib.sha256(text.encode()).hexdigest())
     return text
-
-
-def rows_digest(rows: Sequence[FieldMapping]) -> str:
-    """The sha256 of `rows` as JSON, in their order, each clause's codes sorted."""
-    document = [
-        {
-            "when": [[type(c).__name__, c.field, _read(c)] for c in row.when],
-            "concept": row.concept,
-            "label": row.label,
-            "source": row.source,
-            "limits": row.limits,
-        }
-        for row in rows
-    ]
-    return hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()
-
-
-def _read(clause: Clause) -> list[int] | float:
-    """What `clause` reads: its codes in ascending order, or its threshold."""
-    return sorted(clause.codes) if isinstance(clause, Codes) else clause.value
 
 
 def _row(finding: Finding, frame: str) -> tuple[str, ...]:

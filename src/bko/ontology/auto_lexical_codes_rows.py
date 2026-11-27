@@ -1,0 +1,125 @@
+"""Automatic mapping rows that `python -m bko.ontology.automatic lexical` wrote.
+
+Regenerate this module rather than editing it (ADR `research/automatic-mapping`). `_ROWS` holds
+one (field, code, concept, label, limits) tuple per line.
+"""
+
+from __future__ import annotations
+
+from typing import Final
+
+from bko.ontology.schema import Codes, FieldMapping
+
+
+# fmt: off
+_ROWS: Final[tuple[tuple[str, int, str, str, str], ...]] = (
+    ("diag_1", 1035000, "MONDO:0001266", "erysipelas", "ICD-9 035 in diag_1; MONDO:0001266 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1042000, "MONDO:0005109", "HIV infectious disease", "ICD-9 042 in diag_1; MONDO:0005109 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1061000, "MONDO:0005502", "dengue disease", "ICD-9 061 in diag_1; MONDO:0005502 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1084000, "MONDO:0005136", "malaria", "ICD-9 084 in diag_1; MONDO:0005136 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1135000, "MONDO:0008399", "sarcoidosis, susceptibility to, 1", "ICD-9 135 in diag_1; MONDO:0008399 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1179000, "MONDO:0002715", "uterine cancer", "ICD-9 179 in diag_1; MONDO:0002715 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1185000, "MONDO:0008315", "prostate cancer", "ICD-9 185 in diag_1; MONDO:0008315 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1193000, "MONDO:0002108", "thyroid cancer", "ICD-9 193 in diag_1; MONDO:0002108 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1217000, "MONDO:0000620", "breast benign neoplasm", "ICD-9 217 in diag_1; MONDO:0000620 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1226000, "MONDO:0006107", "benign thyroid gland neoplasm", "ICD-9 226 in diag_1; MONDO:0006107 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1260000, "MONDO:0006826", "kwashiorkor", "ICD-9 260 in diag_1; MONDO:0006826 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1261000, "MONDO:0006848", "marasmus", "ICD-9 261 in diag_1; MONDO:0006848 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1268000, "MONDO:0100471", "vitamin D deficiency", "ICD-9 268 in diag_1; MONDO:0100471 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1319000, "MONDO:0001071", "intellectual disability", "ICD-9 319 in diag_1; MONDO:0001071 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1430000, "MONDO:0005099", "subarachnoid hemorrhage", "ICD-9 430 in diag_1; MONDO:0005099 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1452000, "MONDO:0001339", "portal vein thrombosis", "ICD-9 452 in diag_1; MONDO:0001339 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1460000, "MONDO:0005709", "common cold", "ICD-9 460 in diag_1; MONDO:0005709 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1475000, "MONDO:0005906", "peritonsillar abscess", "ICD-9 475 in diag_1; MONDO:0005906 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1485000, "MONDO:0005682", "bronchopneumonia", "ICD-9 485 in diag_1; MONDO:0005682 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1486000, "MONDO:0005249", "pneumonia", "ICD-9 486 in diag_1; MONDO:0005249 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1494000, "MONDO:0004822", "bronchiectasis", "ICD-9 494 in diag_1; MONDO:0004822 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1500000, "MONDO:0006654", "anthracosis", "ICD-9 500 in diag_1; MONDO:0006654 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1501000, "MONDO:0016466", "asbestosis", "ICD-9 501 in diag_1; MONDO:0016466 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1515000, "MONDO:0001438", "postinflammatory pulmonary fibrosis", "ICD-9 515 in diag_1; MONDO:0001438 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1570000, "MONDO:0002251", "hepatitis", "ICD-9 570 in diag_1; MONDO:0002251 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1585000, "MONDO:0005300", "chronic kidney disease", "ICD-9 585 in diag_1; MONDO:0005300 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1586000, "MONDO:0001106", "kidney failure", "ICD-9 586 in diag_1; MONDO:0001106 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1591000, "MONDO:0005510", "hydronephrosis", "ICD-9 591 in diag_1; MONDO:0005510 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1683000, "MONDO:0002052", "lymphadenitis", "ICD-9 683 in diag_1; MONDO:0002052 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1684000, "MONDO:0004592", "impetigo", "ICD-9 684 in diag_1; MONDO:0004592 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1690000, "MONDO:0006546", "erythematosquamous dermatosis", "ICD-9 690 in diag_1; MONDO:0006546 carries its xref under MONDO:equivalentTo"),
+    ("diag_1", 1725000, "MONDO:0019735", "polymyalgia rheumatica", "ICD-9 725 in diag_1; MONDO:0019735 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1035000, "MONDO:0001266", "erysipelas", "ICD-9 035 in diag_2; MONDO:0001266 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1042000, "MONDO:0005109", "HIV infectious disease", "ICD-9 042 in diag_2; MONDO:0005109 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1061000, "MONDO:0005502", "dengue disease", "ICD-9 061 in diag_2; MONDO:0005502 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1084000, "MONDO:0005136", "malaria", "ICD-9 084 in diag_2; MONDO:0005136 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1135000, "MONDO:0008399", "sarcoidosis, susceptibility to, 1", "ICD-9 135 in diag_2; MONDO:0008399 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1179000, "MONDO:0002715", "uterine cancer", "ICD-9 179 in diag_2; MONDO:0002715 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1185000, "MONDO:0008315", "prostate cancer", "ICD-9 185 in diag_2; MONDO:0008315 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1193000, "MONDO:0002108", "thyroid cancer", "ICD-9 193 in diag_2; MONDO:0002108 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1217000, "MONDO:0000620", "breast benign neoplasm", "ICD-9 217 in diag_2; MONDO:0000620 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1226000, "MONDO:0006107", "benign thyroid gland neoplasm", "ICD-9 226 in diag_2; MONDO:0006107 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1260000, "MONDO:0006826", "kwashiorkor", "ICD-9 260 in diag_2; MONDO:0006826 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1261000, "MONDO:0006848", "marasmus", "ICD-9 261 in diag_2; MONDO:0006848 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1268000, "MONDO:0100471", "vitamin D deficiency", "ICD-9 268 in diag_2; MONDO:0100471 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1319000, "MONDO:0001071", "intellectual disability", "ICD-9 319 in diag_2; MONDO:0001071 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1430000, "MONDO:0005099", "subarachnoid hemorrhage", "ICD-9 430 in diag_2; MONDO:0005099 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1452000, "MONDO:0001339", "portal vein thrombosis", "ICD-9 452 in diag_2; MONDO:0001339 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1460000, "MONDO:0005709", "common cold", "ICD-9 460 in diag_2; MONDO:0005709 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1475000, "MONDO:0005906", "peritonsillar abscess", "ICD-9 475 in diag_2; MONDO:0005906 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1485000, "MONDO:0005682", "bronchopneumonia", "ICD-9 485 in diag_2; MONDO:0005682 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1486000, "MONDO:0005249", "pneumonia", "ICD-9 486 in diag_2; MONDO:0005249 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1494000, "MONDO:0004822", "bronchiectasis", "ICD-9 494 in diag_2; MONDO:0004822 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1500000, "MONDO:0006654", "anthracosis", "ICD-9 500 in diag_2; MONDO:0006654 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1501000, "MONDO:0016466", "asbestosis", "ICD-9 501 in diag_2; MONDO:0016466 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1515000, "MONDO:0001438", "postinflammatory pulmonary fibrosis", "ICD-9 515 in diag_2; MONDO:0001438 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1570000, "MONDO:0002251", "hepatitis", "ICD-9 570 in diag_2; MONDO:0002251 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1585000, "MONDO:0005300", "chronic kidney disease", "ICD-9 585 in diag_2; MONDO:0005300 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1586000, "MONDO:0001106", "kidney failure", "ICD-9 586 in diag_2; MONDO:0001106 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1591000, "MONDO:0005510", "hydronephrosis", "ICD-9 591 in diag_2; MONDO:0005510 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1683000, "MONDO:0002052", "lymphadenitis", "ICD-9 683 in diag_2; MONDO:0002052 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1684000, "MONDO:0004592", "impetigo", "ICD-9 684 in diag_2; MONDO:0004592 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1690000, "MONDO:0006546", "erythematosquamous dermatosis", "ICD-9 690 in diag_2; MONDO:0006546 carries its xref under MONDO:equivalentTo"),
+    ("diag_2", 1725000, "MONDO:0019735", "polymyalgia rheumatica", "ICD-9 725 in diag_2; MONDO:0019735 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1035000, "MONDO:0001266", "erysipelas", "ICD-9 035 in diag_3; MONDO:0001266 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1042000, "MONDO:0005109", "HIV infectious disease", "ICD-9 042 in diag_3; MONDO:0005109 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1061000, "MONDO:0005502", "dengue disease", "ICD-9 061 in diag_3; MONDO:0005502 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1084000, "MONDO:0005136", "malaria", "ICD-9 084 in diag_3; MONDO:0005136 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1135000, "MONDO:0008399", "sarcoidosis, susceptibility to, 1", "ICD-9 135 in diag_3; MONDO:0008399 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1179000, "MONDO:0002715", "uterine cancer", "ICD-9 179 in diag_3; MONDO:0002715 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1185000, "MONDO:0008315", "prostate cancer", "ICD-9 185 in diag_3; MONDO:0008315 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1193000, "MONDO:0002108", "thyroid cancer", "ICD-9 193 in diag_3; MONDO:0002108 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1217000, "MONDO:0000620", "breast benign neoplasm", "ICD-9 217 in diag_3; MONDO:0000620 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1226000, "MONDO:0006107", "benign thyroid gland neoplasm", "ICD-9 226 in diag_3; MONDO:0006107 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1260000, "MONDO:0006826", "kwashiorkor", "ICD-9 260 in diag_3; MONDO:0006826 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1261000, "MONDO:0006848", "marasmus", "ICD-9 261 in diag_3; MONDO:0006848 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1268000, "MONDO:0100471", "vitamin D deficiency", "ICD-9 268 in diag_3; MONDO:0100471 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1319000, "MONDO:0001071", "intellectual disability", "ICD-9 319 in diag_3; MONDO:0001071 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1430000, "MONDO:0005099", "subarachnoid hemorrhage", "ICD-9 430 in diag_3; MONDO:0005099 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1452000, "MONDO:0001339", "portal vein thrombosis", "ICD-9 452 in diag_3; MONDO:0001339 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1460000, "MONDO:0005709", "common cold", "ICD-9 460 in diag_3; MONDO:0005709 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1475000, "MONDO:0005906", "peritonsillar abscess", "ICD-9 475 in diag_3; MONDO:0005906 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1485000, "MONDO:0005682", "bronchopneumonia", "ICD-9 485 in diag_3; MONDO:0005682 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1486000, "MONDO:0005249", "pneumonia", "ICD-9 486 in diag_3; MONDO:0005249 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1494000, "MONDO:0004822", "bronchiectasis", "ICD-9 494 in diag_3; MONDO:0004822 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1500000, "MONDO:0006654", "anthracosis", "ICD-9 500 in diag_3; MONDO:0006654 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1501000, "MONDO:0016466", "asbestosis", "ICD-9 501 in diag_3; MONDO:0016466 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1515000, "MONDO:0001438", "postinflammatory pulmonary fibrosis", "ICD-9 515 in diag_3; MONDO:0001438 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1570000, "MONDO:0002251", "hepatitis", "ICD-9 570 in diag_3; MONDO:0002251 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1585000, "MONDO:0005300", "chronic kidney disease", "ICD-9 585 in diag_3; MONDO:0005300 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1586000, "MONDO:0001106", "kidney failure", "ICD-9 586 in diag_3; MONDO:0001106 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1591000, "MONDO:0005510", "hydronephrosis", "ICD-9 591 in diag_3; MONDO:0005510 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1683000, "MONDO:0002052", "lymphadenitis", "ICD-9 683 in diag_3; MONDO:0002052 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1684000, "MONDO:0004592", "impetigo", "ICD-9 684 in diag_3; MONDO:0004592 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1690000, "MONDO:0006546", "erythematosquamous dermatosis", "ICD-9 690 in diag_3; MONDO:0006546 carries its xref under MONDO:equivalentTo"),
+    ("diag_3", 1725000, "MONDO:0019735", "polymyalgia rheumatica", "ICD-9 725 in diag_3; MONDO:0019735 carries its xref under MONDO:equivalentTo"),
+)
+# fmt: on
+
+ROWS: Final[tuple[FieldMapping, ...]] = tuple(
+    FieldMapping(
+        when=(Codes(field, frozenset({code})),),
+        concept=concept,
+        label=label,
+        source="research/automatic-mapping",
+        limits=limits,
+    )
+    for field, code, concept, label, limits in _ROWS
+)
+"""The rows, sorted by (field, code, concept)."""

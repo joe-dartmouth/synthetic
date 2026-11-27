@@ -133,9 +133,9 @@ import it (ADR `tooling/agent-config-single-home`).
   cross-reference and label match, with no model, fetching both into `data/` if absent. It makes
   no API call ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#ontologies)).
 - `mkdir -p scratchpad && uv run --no-sync python -m bko.generate.judge diabetes --model gemma-4-26b-a4b-q8_0 > scratchpad/auto_local_diabetes_rows.py && mv scratchpad/auto_local_diabetes_rows.py src/bko/ontology/auto_local_diabetes_rows.py`,
-  and the same with `diabetes-codes` into `auto_local_codes_rows.py`, then `make format`: judge
-  each candidate state of a frame's automatic mapping with the served local model and write its
-  verdict table. It makes no API call
+  and the same with `diabetes-codes --part low` into `auto_local_codes_rows_low.py` and `--part high`
+  into `auto_local_codes_rows_high.py`, then `make format`: judge each candidate state of a frame's
+  automatic mapping with the served local model and write its verdict table. It makes no API call
   ([`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#generation), The mapping judge).
 - `mkdir -p runs/<run-id> && test ! -e runs/<run-id>/hierarchy.csv && test ! -e runs/<run-id>/hierarchy.log && uv run --no-sync python -m bko.ontology elk > runs/<run-id>/hierarchy.csv 2> runs/<run-id>/hierarchy.log </dev/null`:
   classify the pinned MONDO and HPO OWL releases with ELK through ROBOT and list each in-scope

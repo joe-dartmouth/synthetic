@@ -11,7 +11,9 @@ the standard library.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+import hashlib
+import json
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from bko.datasets.frames import RangeConstraint  # ruff: ignore[unused-import]  (re-exported)
@@ -184,3 +186,23 @@ type CheckedRow = ConceptRow | UnmappedCode | UnmappedIcd9
 
 type CodedRow = CodeMapping | UnmappedCode
 """A row whose subject is a Synthea SNOMED-CT code."""
+
+
+def rows_digest(rows: Sequence[FieldMapping]) -> str:
+    """The sha256 of `rows` as JSON, in their order, each clause's codes sorted."""
+    document = [
+        {
+            "when": [[type(c).__name__, c.field, _reads(c)] for c in row.when],
+            "concept": row.concept,
+            "label": row.label,
+            "source": row.source,
+            "limits": row.limits,
+        }
+        for row in rows
+    ]
+    return hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()
+
+
+def _reads(clause: Clause) -> list[int] | float:
+    """What `clause` reads: its codes in ascending order, or its threshold."""
+    return sorted(clause.codes) if isinstance(clause, Codes) else clause.value
