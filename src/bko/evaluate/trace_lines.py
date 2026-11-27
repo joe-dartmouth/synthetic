@@ -29,7 +29,7 @@ from bko.evaluate.call_prompts import CALLS, Json, Prompts, asked, read_prompts
 from bko.evaluate.errors import EvaluationError, IdentityError
 from bko.evaluate.holdout_candidates import KEPT, Candidate
 from bko.evaluate.run_folder import Folder, base
-from bko.evaluate.shared import returned_attempt
+from bko.evaluate.shared import logged_params, returned_attempt
 from bko.gaps.observe import cell_key
 from bko.generate.direct import Draw
 from bko.validate.checks import validate
@@ -326,7 +326,22 @@ def json_value(value: object) -> object:
 
 
 def trace_baseline(fill: Fill) -> list[Trace]:
-    """A baseline fill's one line: its method and its seed."""
-    return [
-        Trace(fill.holdout, fill.arm, fill.kind, request={"method": fill.name, "seed": fill.seed})
-    ]
+    """A baseline fill's one line: its method and its seed, with no re-draw.
+
+    A replica that filled partially (`Experiment.partial_replica`) adds its `arm` line's `short`
+    params and logs a `trace replica-short` line.
+
+    Raises:
+        IdentityError: As `bko.evaluate.shared.logged_params`, for a replica fill.
+    """
+    request: dict[str, object] = {"method": fill.name, "seed": fill.seed}
+    short = logged_params(fill.line).get("short") if fill.kind == "replica" else None
+    if short:
+        request["short"] = short
+        logger.info(
+            "trace replica-short holdout=%d arm=%s short=%s",
+            fill.holdout,
+            fill.arm,
+            json.dumps(short, sort_keys=True, separators=(",", ":")),
+        )
+    return [Trace(fill.holdout, fill.arm, fill.kind, request=request)]

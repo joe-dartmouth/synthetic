@@ -184,6 +184,28 @@ class StoredArm:
         return tally(lines, self._template).measures()
 
 
+def refuse_partial_replica(folder: Folder) -> None:
+    """Refuse a folder whose replica fill filled partially, as a partial gap fill is refused.
+
+    A replica's `arm` line names its shortfall under `short` in its params when it filled
+    partially (`Experiment.partial_replica`); `shared` reads a replica as a copy of every
+    training cell, so it does not rescore one. `rows` and `panel` read it.
+
+    Raises:
+        IdentityError: If a replica's `arm` line names a shortfall.
+    """
+    for (holdout, arm), line in sorted(folder.arms.items()):
+        if not arm.endswith("-replica"):
+            continue
+        # `json.JSONDecodeError` is a `ValueError`: malformed params are refused where read.
+        with suppress(ValueError):
+            params = json.loads(fields(line)["params"])
+            if isinstance(params, dict) and "short" in params:
+                msg = f"{folder.path}'s holdout {holdout}'s {arm} fill is a partial replica, short"
+                msg += f" of {params['short']}, which a shared rescore does not read"
+                raise IdentityError(msg)
+
+
 def logged_params(line: str) -> dict[str, object]:
     """The params an `arm` line logs.
 

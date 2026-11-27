@@ -44,7 +44,8 @@ def merge(seeds: Sequence[int], paths: Sequence[Path]) -> str:
     refused, and logged with its path, its lowest and highest holdout, its row count and its
     sha256. Every holdout must hold the same (arm, source, measure, scope) keys, as one run's
     holdouts do, but for the added rows' distances (`ADDED_DISTANCES`), which an arm whose added
-    `rows` score is 0 on a holdout lacks there. Each file's sibling `scores.log` must hold the
+    `rows` score is 0 on a holdout lacks there, and `Measure.REPLICA_SHORT`, which only a holdout
+    whose replica filled partially holds. Each file's sibling `scores.log` must hold the
     first file's `data`, `versions` and `experiment` lines, `SLICE_KEYS` set aside and a key an
     older line lacks read at the value `ASSUMED` or `DATA_ASSUMED` gives it, so slices scored under
     different code or configuration are refused. The rows are written in the order of `seeds`
@@ -123,14 +124,19 @@ def _keys(held: Sequence[Score]) -> _Keys:
     """One holdout's (arm, source, measure, scope) keys, as an arm that added rows holds them.
 
     An arm whose added `rows` score is 0 is given the added rows' distances (`ADDED_DISTANCES`)
-    it lacks; an arm that added rows and lacks them still differs.
+    it lacks; an arm that added rows and lacks them still differs. A partial replica's
+    `Measure.REPLICA_SHORT` key is left out, since a holdout whose replica completes lacks it.
     """
     empty = {
         s.arm
         for s in held
         if s.source is Source.ADDED and s.measure is Measure.ROWS and not s.value
     }
-    found = {(s.arm, s.source, s.measure, s.scope) for s in held}
+    found = {
+        (s.arm, s.source, s.measure, s.scope)
+        for s in held
+        if s.measure is not Measure.REPLICA_SHORT
+    }
     found |= {(arm, Source.ADDED, m, Scope.ALL) for arm in empty for m in ADDED_DISTANCES}
     return frozenset(found)
 
