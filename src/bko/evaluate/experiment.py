@@ -168,15 +168,16 @@ class Experiment:
                 `REAL_ARM` is an arm with no removal, a replica arm, or an arm of an experiment that
                 removes copies, or the cutoff is not a float strictly between 0 and 1 (NaN and
                 bool among them), or the replica rows are below 1, or `partial_replica` is set
-                with no replica arm, or a flagged cell set beside a
-                removal is not the removal's cell, or the synthetic share is not a Fraction in
-                (0, 1], is set beside a removal or a training fraction below 1, names no
-                flagged cell, or stands beside `PRIOR_SHIFT_ARM` or class weighting, whose
-                offsets and weights read the whole training split, or beside a replica arm,
-                whose replica scores read it too, or beside `TREE_ARM`, whose code-share error
-                reads the removed rows, or a quota rule other than `QuotaRule.FILL_TO` stands
-                beside a flagged cell or a synthetic share, or the quota rule names no
-                `QuotaRule`; a rule given by its value is stored as the `QuotaRule`.
+                with no replica arm, or a flagged cell set beside a removal is not the removal's
+                cell, or the synthetic share is not a Fraction in (0, 1], is set beside a removal
+                or a training fraction below 1, names no flagged cell, or stands beside
+                `PRIOR_SHIFT_ARM` or class weighting, whose offsets and weights read the whole
+                training split, or beside a replica arm, whose replica scores read it too, or
+                beside `TREE_ARM`, whose code-share error reads the removed rows, or a quota rule
+                other than `QuotaRule.FILL_TO` stands beside a flagged cell or a synthetic share,
+                or the quota rule names no `QuotaRule`; a rule given by its value is stored as the
+                `QuotaRule`.
+            TypeError: If `partial_replica` is not a bool.
         """
         object.__setattr__(self, "quota_rule", QuotaRule(self.quota_rule))
         seeds = self.holdout_seeds
@@ -256,6 +257,9 @@ class Experiment:
         if self.replica_rows is not None and self.replica_rows < 1:
             msg = f"replica rows {self.replica_rows} must be 1 or more"
             raise ValueError(msg)
+        if not isinstance(self.partial_replica, bool):
+            msg = f"partial_replica {self.partial_replica!r} must be a bool"
+            raise TypeError(msg)
         if self.partial_replica and not self.replica_arms:
             msg = "partial_replica needs a replica arm: it changes only how a replica fill ends"
             raise ValueError(msg)

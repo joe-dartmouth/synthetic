@@ -196,3 +196,9 @@ def test_an_older_experiment_line_reads_at_the_assumed_partial_replica(tmp_path,
 def test_a_partial_replica_without_replica_arms_is_refused():
     with pytest.raises(ValueError, match="partial_replica needs a replica arm"):
         dataclasses.replace(ONLY_SMOTE, partial_replica=True)
+
+
+@pytest.mark.parametrize("value", [1, "true", None])
+def test_a_partial_replica_that_is_not_a_bool_is_refused(value):
+    with pytest.raises(TypeError, match=r"^partial_replica \S+ must be a bool$"):
+        dataclasses.replace(REPLICA, partial_replica=value)

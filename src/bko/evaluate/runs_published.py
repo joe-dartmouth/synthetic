@@ -1,11 +1,11 @@
 """The experiments run beside published numbers: P1, P2 and P3.
 
 P1 is TableShift's readmission partition, P2 UCI Heart Disease under SynthEval's metrics, and P3
-Juwara et al.'s removal fractions on E6's cell. `bko.evaluate.named_runs.RUNS` names P1's two
-runs, `p1-id` and `p1-ood`, one per test split (ADR `research/tableshift-comparison`;
-`docs/EVIDENCE.md`, P1), P2's run `p2` (ADR `research/syntheval-reading`; `docs/EVIDENCE.md`, P2)
-and P3's runs `p3-<fraction>` with their slices (ADR `research/covariate-bias-comparison`;
-`docs/EVIDENCE.md`, P3).
+Juwara et al.'s removal fractions on E6's cell. `bko.evaluate.named_runs.RUNS` names P1's four
+runs, `p1-id` and `p1-ood`, one per test split, and their partial-replica runs `p1-id-partial` and
+`p1-ood-partial` (ADR `research/tableshift-comparison`; `docs/EVIDENCE.md`, P1), P2's run `p2`
+(ADR `research/syntheval-reading`; `docs/EVIDENCE.md`, P2) and P3's runs `p3-<fraction>` with
+their slices (ADR `research/covariate-bias-comparison`; `docs/EVIDENCE.md`, P3).
 """
 
 from __future__ import annotations

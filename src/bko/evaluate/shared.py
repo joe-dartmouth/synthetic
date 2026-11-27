@@ -364,7 +364,9 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
     A run scored before a held-out row joined the harness gains that row, so it reads false
     without failing. A given `after` is called with each holdout's seed, its `Logged` lines and
     its scores, once its checks pass; `calibration` is `score_holdout`'s, and `extend_models`
-    `check_folders`'.
+    `check_folders`'. `shared`'s partial-replica refusal (`refuse_partial_replica`) sits in its
+    command handler, not here, because `rows` and `panel` rescore through this function too and
+    read a partial replica.
 
     Raises:
         IdentityError: As `check_folders`, `excluded` and `_check_holdout`, or if `others` are

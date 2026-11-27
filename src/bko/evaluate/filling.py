@@ -84,11 +84,10 @@ def fill_arm(
     On a gap fill, a generator still short at its row limit on the last attempt returns the rows
     it kept (`bko.evaluate.shortfall.partial_fill`) rather than refusing; a replica fill refuses,
     since its scores read it as a copy of every training cell, unless `partial` is set
-    (`Experiment.partial_replica`), when it fills partially on its last attempt the same way. On a
-    gap fill whose
-    shortfall falls on strata of fewer than 2 training rows alone (`structural`), it fills
-    partially on any attempt, since no retry changes those rows; a shortfall that also falls on
-    another stratum, and a plain refusal, are retried as any other.
+    (`Experiment.partial_replica`), when it fills partially on its last attempt the same way. On
+    a gap fill whose shortfall falls on strata of fewer than 2 training rows alone (`structural`),
+    it fills partially on any attempt, since no retry changes those rows; a shortfall that also
+    falls on another stratum, and a plain refusal, are retried as any other.
 
     The runner gets a copy of `train` on every attempt, so one that changes its input changes
     nothing the harness reads. `CURRENT_FILL` names the holdout and `kind` around each call.
