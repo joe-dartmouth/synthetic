@@ -116,8 +116,10 @@ pinned weights and the server's build, which its run logs name.
 - Pinned by: `tests/test_ontology_automatic.py` (the cross-reference route and its candidates,
   the threshold, negative and generic states, numeric columns, ties, no records taken, no import
   of a later stage, the render under two hash seeds, the structural check, precision and recall,
-  the permuted control and the verdict table's rows) and `tests/test_ontology_obo.py`
-  (`Term.synonyms`)
+  the permuted control and the verdict table's rows), `tests/test_ontology_obo.py`
+  (`Term.synonyms`), `tests/test_generate_judge.py` (temperature 0 and a seed, the top ten options
+  and `none`, one call per state, a refused verdict, rows a pure function of the verdict table)
+  and `tests/test_generate_local.py` (every existing local request's bytes)
 
 ## Reversal Conditions
 

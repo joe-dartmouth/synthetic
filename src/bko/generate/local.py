@@ -4,8 +4,9 @@
 `127.0.0.1`, over `http.client` (no proxy, no redirect), with the call's system and user turns, its
 `max_tokens`, sampling fixed at temperature 1.0 and top-p 1.0 (the Messages API's default
 temperature), the call's reply schema (`Call.reply_schema`, a rewrite call's included) as a
-`json_schema` response format, and thinking off unless the model's id is a `-thinking` variant.
-Nothing leaves the machine. Its first call reads the server's `/props` and refuses a server whose
+`json_schema` response format, and thinking off unless the model's id is a `-thinking` variant
+(`payload`); a caller may build its own body instead, as `bko.generate.judge` does. Nothing leaves
+the machine. Its first call reads the server's `/props` and refuses a server whose
 alias or weights file is not the model's; for a `-thinking` id it then sends a short pre-flight
 call and refuses a server whose reply carries no reasoning. It logs the checked server's build and
 file. A cancelled call, by the idle rule or an interrupt, posts nothing more and shuts its socket,
@@ -226,8 +227,10 @@ def check_server(model: str, port: int) -> Mapping[str, object]:
     return props
 
 
-def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
-    """Post each call to the llama.cpp server at `url`, in a worker thread.
+def local_send(
+    model: str, *, url: str = LOCAL_URL, build: Callable[[Call], dict[str, object]] = payload
+) -> AsyncSend:
+    """Post each call's `build` body to the llama.cpp server at `url`, in a worker thread.
 
     The first call checks the server (`check_server`); a refusal that is not retryable is kept, so
     each later call fails with it at once. Each `-thinking` call logs its `reasoning` line
@@ -237,6 +240,8 @@ def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
     Args:
         model: The model id the server serves under its alias; each call's settings name it.
         url: The server's address, `http://127.0.0.1:<port>`.
+        build: The request body of a call: `payload`, a run's, unless a caller such as
+            `bko.generate.judge` sends its own; the server check's pre-flight is always `payload`'s.
 
     Returns:
         A send whose replies come from the server.
@@ -266,7 +271,7 @@ def local_send(model: str, *, url: str = LOCAL_URL) -> AsyncSend:
                         refused.append(str(exc))
                     raise
                 checked.set()
-        data = json.dumps(payload(call)).encode()
+        data = json.dumps(build(call)).encode()
         _live(cancel)
         reply = reply_of(_exchange(connection, "POST", "/v1/chat/completions", data))
         if LOCAL_MODELS[model].thinking:

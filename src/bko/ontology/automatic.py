@@ -206,7 +206,7 @@ def render(rows: Sequence[FieldMapping]) -> str:
     lines = [_HEADER, "# fmt: off\n"]
     lines.append("_ROWS: Final[tuple[tuple[str, int, str, str, str], ...]] = (\n")
     for row in rows:
-        field, code = _state(row)
+        field, code = state(row)
         values = ", ".join(_literal(text) for text in (row.concept, row.label, row.limits))
         lines.append(f"    ({_literal(field)}, {code}, {values}),\n")
     lines.extend((")\n# fmt: on\n", _FOOTER))
@@ -404,7 +404,12 @@ def _row(field: str, code: int, concept: str, label: str, limits: str) -> FieldM
     )
 
 
-def _state(row: FieldMapping) -> tuple[str, int]:
+def state(row: FieldMapping) -> tuple[str, int]:
+    """The (field, code) of an automatic row: one `Codes` clause of one code.
+
+    Raises:
+        ValueError: If `row` is not such a row.
+    """
     match row.when:
         case (Codes(field=field, codes=codes),) if len(codes) == 1:
             return field, next(iter(codes))
@@ -413,7 +418,7 @@ def _state(row: FieldMapping) -> tuple[str, int]:
 
 
 def _order(row: FieldMapping) -> tuple[str, int, str]:
-    return (*_state(row), row.concept)
+    return (*state(row), row.concept)
 
 
 def _literal(text: str) -> str:

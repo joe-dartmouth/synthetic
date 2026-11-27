@@ -2262,9 +2262,11 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
 
       mkdir -p scratchpad && uv run --no-sync python -m bko.generate.judge diabetes --model gemma-4-26b-a4b-q8_0 > scratchpad/auto_local_diabetes_rows.py && mv scratchpad/auto_local_diabetes_rows.py src/bko/ontology/auto_local_diabetes_rows.py
 
-  then `make format`. Its payload is a run's but for three values: temperature 0, `seed` 0 and a
-  strict `json_schema` named `verdict` whose one property, `concept`, is an enum of the state's top
-  ten options and `none`. A reply outside the enum, or not JSON, fails the command, exit 2. It
+  then `make format`. `--data-dir` and `--url` default to the data root and the server above; the
+  calls go one at a time, in (field, code) order. Each payload is a run's but for three values:
+  temperature 0, `seed` 0 and a strict `json_schema` named `verdict` whose one property,
+  `concept`, is an enum of the state's top ten options and `none`. A reply outside the enum, or
+  not JSON, fails the command, exit 2. It
   logs the `local server` line, one `verdict field=... code=... concept=... options=N` line per
   call and a closing `judge dataset=... model=... states=N mapped=M sha256=...` line.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
