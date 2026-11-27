@@ -1,7 +1,7 @@
 """Automatic mapping rows that `python -m bko.ontology.automatic lexical` wrote.
 
 Regenerate this module rather than editing it (ADR `research/automatic-mapping`). `_ROWS` holds
-one (field, code, concept, label, limits) tuple per line.
+one (field, code, concept, label, source, limits) tuple per line.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from bko.ontology.schema import Codes, FieldMapping
 
 
 # fmt: off
-_ROWS: Final[tuple[tuple[str, int, str, str, str], ...]] = (
+_ROWS: Final[tuple[tuple[str, int, str, str, str, str], ...]] = (
 )
 # fmt: on
 
@@ -21,9 +21,9 @@ ROWS: Final[tuple[FieldMapping, ...]] = tuple(
         when=(Codes(field, frozenset({code})),),
         concept=concept,
         label=label,
-        source="research/automatic-mapping",
+        source=source,
         limits=limits,
     )
-    for field, code, concept, label, limits in _ROWS
+    for field, code, concept, label, source, limits in _ROWS
 )
 """The rows, sorted by (field, code, concept)."""

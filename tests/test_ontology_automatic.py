@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import hashlib
 import inspect
 import os
 import subprocess
@@ -13,18 +14,27 @@ from pathlib import Path
 
 import pytest
 
-from bko.ontology import automatic, automatic_inputs
+from bko.datasets.diagnoses import code_number
+from bko.datasets.errors import ContractError
+from bko.datasets.frames import FrameSpec
+from bko.datasets.uci import UCI_FRAME
+from bko.ontology import auto_measures, automatic, automatic_inputs, lexical
+from bko.ontology.auto_measures import precision_recall
 from bko.ontology.automatic import (
     SOURCE,
     THRESHOLD,
+    TOP,
     build_lexical,
     candidates,
     permuted,
-    precision_recall,
     render,
     rows_from_verdicts,
+    survey,
+    unmovable,
 )
 from bko.ontology.check import check
+from bko.ontology.codes import REASONS
+from bko.ontology.obo import parse_obo
 from bko.ontology.schema import AtLeast, Codes, FieldMapping
 from bko.ontology.terms import Ontology
 from tests._automatic_fixtures import (
@@ -35,6 +45,7 @@ from tests._automatic_fixtures import (
     automatic_ontologies,
 )
 from tests._corpus import REPO_ROOT
+from tests._ontology_fixtures import write_obo
 
 
 def _rendered(directory: str) -> str:
@@ -136,7 +147,7 @@ def test_the_builder_takes_no_records():
 
 
 def test_the_module_imports_no_later_stage():
-    for module in (automatic, automatic_inputs):
+    for module in (automatic, automatic_inputs, auto_measures, lexical):
         tree = ast.parse(Path(inspect.getfile(module)).read_text(encoding="utf-8"))
         names = [
             name
@@ -293,3 +304,126 @@ def test_rows_from_verdicts_skip_none_and_name_each_concept():
 def test_rows_from_verdicts_refuse_an_unknown_state_or_label(verdicts, message):
     with pytest.raises(ValueError, match=message):
         rows_from_verdicts(FRAME, verdicts, {"HP:0000822": "Hypertension"})
+
+
+def _code_release(directory: Path) -> Ontology:
+    """A MONDO release exercising every branch of the cross-reference route."""
+    weaker = "".join(
+        f"[Term]\nid: MONDO:01{i:05d}\nname: weak {i}\n"
+        'xref: ICD9:403 {source="MONDO:relatedTo"}\n\n'
+        for i in range(TOP + 2, 0, -1)
+    )
+    text = (
+        "format-version: 1.2\ndata-version: releases/2026-10-06\nontology: mondo\n\n"
+        '[Term]\nid: MONDO:0000010\nname: broad\nxref: ICD9:401 {source="MONDO:equivalentTo"}\n\n'
+        "[Term]\nid: MONDO:0000011\nname: narrow\nis_a: MONDO:0000010 ! broad\n"
+        'xref: ICD9:401 {source="MONDO:equivalentTo"}\n\n'
+        '[Term]\nid: MONDO:0000020\nname: left\nxref: ICD9:402 {source="MONDO:equivalentTo"}\n\n'
+        '[Term]\nid: MONDO:0000021\nname: right\nxref: ICD9:402 {source="MONDO:equivalentTo"}\n\n'
+        '[Term]\nid: MONDO:0000030\nname: v\nxref: ICD9:V45 {source="MONDO:equivalentTo"}\n\n'
+        + weaker
+    )
+    return parse_obo(write_obo(directory, text, "codes.obo"), name="mondo")
+
+
+CODES = {
+    0: "?",
+    code_number("401"): "401",
+    code_number("402"): "402",
+    code_number("403"): "403",
+    code_number("404"): "404",
+    code_number("V45"): "V45",
+    code_number("E888"): "E888",
+}
+
+
+def _code_frame() -> FrameSpec:
+    return dataclasses.replace(
+        FRAME,
+        features=("age", "sex", "diag"),
+        categorical=("sex", "diag"),
+        codebook={"sex": FRAME.codebook["sex"], "diag": CODES},
+        descriptions={"age": "a", "sex": "sex", "diag": "d", "target": "t"},
+    )
+
+
+def test_the_cross_reference_route_on_each_kind_of_code(tmp_path):
+    found = survey(_code_frame(), {"MONDO": _code_release(tmp_path)}, ("diag",))
+    assert _concepts(found.rows) == {("diag", code_number("401")): "MONDO:0000010"}
+    (candidate,) = found.candidates
+    assert candidate.code == code_number("403")
+    assert [o.curie for o in candidate.options] == [f"MONDO:01{i:05d}" for i in range(1, TOP + 1)]
+    assert {o.kind for o in candidate.options} == {"xref"}
+    assert found.dropped == {
+        **dict.fromkeys(REASONS, 0),
+        "V code": 1,
+        "E code": 1,
+        "holders not nested": 1,
+        "no live xref": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    ("codes", "ontologies", "message"),
+    [(("age",), True, "not a coded field"), (("diag",), False, "need the MONDO release")],
+)
+def test_the_survey_refuses_a_bad_code_field(tmp_path, codes, ontologies, message):
+    releases = {"MONDO": _code_release(tmp_path)} if ontologies else {}
+    with pytest.raises(ValueError, match=message):
+        survey(_code_frame(), releases, codes)
+
+
+def test_the_lexical_command_writes_utf8_bytes_and_logs_their_digest(
+    tmp_path, monkeypatch, capsysbinary, caplog
+):
+    caplog.set_level("INFO")
+    frame = dataclasses.replace(FRAME, label_meanings={0: "not readmitted", 1: "Café hypertension"})
+    ontologies = automatic_ontologies(tmp_path)
+    monkeypatch.setattr(
+        automatic, "inputs", lambda dataset, data_dir: (frame, ontologies, ("diag",))
+    )
+    assert automatic.main(["lexical", "diabetes-codes"]) == 0
+    data = capsysbinary.readouterr().out
+    assert data == render(build_lexical(frame, ontologies, codes=("diag",))).encode()
+    digest = hashlib.sha256(data).hexdigest()
+    assert any(
+        m.startswith("lexical dataset=diabetes-codes rows=") and m.endswith(f"sha256={digest}")
+        for m in caplog.messages
+    )
+    assert 'lexical dropped reason="V code" states=0' in caplog.messages
+
+
+def test_the_lexical_command_exits_two_on_a_refused_code_field(tmp_path, monkeypatch, capsysbinary):
+    ontologies = automatic_ontologies(tmp_path)
+    monkeypatch.setattr(
+        automatic, "inputs", lambda dataset, data_dir: (FRAME, ontologies, ("age",))
+    )
+    assert automatic.main(["lexical", "diabetes"]) == 2
+    assert capsysbinary.readouterr().out == b""
+
+
+def test_the_lexical_command_returns_a_dataset_errors_code(monkeypatch, capsysbinary):
+    def refuse(dataset: str, data_dir: Path | None) -> None:
+        raise ContractError("the snapshot contradicts its pin")
+
+    monkeypatch.setattr(automatic, "inputs", refuse)
+    assert automatic.main(["lexical", "uci"]) == 3
+    assert capsysbinary.readouterr().out == b""
+
+
+def test_uci_is_read_with_no_code_field(tmp_path, monkeypatch):
+    ontologies = automatic_ontologies(tmp_path)
+    monkeypatch.setattr(automatic_inputs, "load_releases", lambda *args, **kwargs: ontologies)
+    frame, releases, codes = automatic_inputs.inputs("uci", tmp_path)
+    assert (frame, releases, codes) == (UCI_FRAME, ontologies, ())
+    with pytest.raises(ValueError, match="no automatic mapping"):
+        automatic_inputs.inputs("synthea", tmp_path)
+
+
+def test_permuted_moves_every_concept_but_a_prefixs_lone_one():
+    hand = (*(_row(f"f{i}", 1, f"MONDO:{i:07d}") for i in range(2)), _row("g", 1, "HP:0000001"))
+    assert unmovable(hand) == 1
+    for seed in range(20):
+        shuffled = permuted(hand, seed=seed)
+        assert [r.concept for r in shuffled[:2]] == ["MONDO:0000001", "MONDO:0000000"]
+        assert shuffled[2].concept == "HP:0000001"

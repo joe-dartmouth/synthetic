@@ -12,6 +12,7 @@ other qualifier maps nothing, and V and E codes are not looked up. ADR
 
 from __future__ import annotations
 
+import json
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -159,16 +160,16 @@ def render_rows(
             raise ValueError(msg)
     lines = [header, "# fmt: off\n", "_ROWS: Final[tuple[tuple[str, str, str], ...]] = (\n"]
     lines.extend(
-        f"    ({_quoted(row.code)}, {_quoted(row.concept)}, {_quoted(row.label)}),\n"
+        f"    ({literal(row.code)}, {literal(row.concept)}, {literal(row.label)}),\n"
         for row in rows
     )
     lines.append(")\n# fmt: on\n\n")
     also = [row for row in rows if len(row.holders) > 1]
     lines.append(f"_ALSO: Final[Mapping[str, tuple[str, ...]]] = {{{'\n' if also else ''}")
     for row in also:
-        others = [_quoted(curie) for curie in sorted(row.holders - {row.concept})]
+        others = [literal(curie) for curie in sorted(row.holders - {row.concept})]
         tail = "," if len(others) == 1 else ""
-        lines.append(f"    {_quoted(row.code)}: ({', '.join(others)}{tail}),\n")
+        lines.append(f"    {literal(row.code)}: ({', '.join(others)}{tail}),\n")
     lines.extend(("}\n", footer))
     return "".join(lines)
 
@@ -253,7 +254,9 @@ def _controlled(text: str) -> bool:
     return any(unicodedata.category(char) == "Cc" for char in text)
 
 
-def _quoted(text: str) -> str:
-    """`text` as a double-quoted Python string literal."""
-    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+def literal(text: str) -> str:
+    """`text` as a double-quoted Python string literal, a control character escaped.
+
+    Every generated module of `bko.ontology` and `bko.generate.judge` writes its strings with it.
+    """
+    return json.dumps(text, ensure_ascii=False)

@@ -192,7 +192,7 @@ def rows_digest(rows: Sequence[FieldMapping]) -> str:
     """The sha256 of `rows` as JSON, in their order, each clause's codes sorted."""
     document = [
         {
-            "when": [[type(c).__name__, c.field, _reads(c)] for c in row.when],
+            "when": [[type(c).__name__, c.field, reads(c)] for c in row.when],
             "concept": row.concept,
             "label": row.label,
             "source": row.source,
@@ -203,6 +203,6 @@ def rows_digest(rows: Sequence[FieldMapping]) -> str:
     return hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()
 
 
-def _reads(clause: Clause) -> list[int] | float:
+def reads(clause: Clause) -> list[int] | float:
     """What `clause` reads: its codes in ascending order, or its threshold."""
     return sorted(clause.codes) if isinstance(clause, Codes) else clause.value

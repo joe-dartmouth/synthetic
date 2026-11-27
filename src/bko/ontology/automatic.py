@@ -4,14 +4,16 @@ ADR `research/automatic-mapping` records the route. A field whose codes encode I
 tokens (`bko.datasets.diagnoses.code_number`), named in `codes`, maps each code by
 `bko.ontology.codes`' rule with no curated row: the one live MONDO holder of its `ICD9:` xref under
 `EXACT` that every other live exact holder descends from. A code MONDO links only under another
-qualifier is a candidate state, its live holders the options. Every other coded state, the label's
-included, is matched by its codebook meaning: skipped when a token is a `NEGATIVE` word or it has
-no token, replaced by the field's description when every token is a digit string or a `GENERIC`
-word, then scored by token-set Jaccard against each live term's name and EXACT synonyms
-(`tokens`). Options rank by score, the sorted order of the release prefixes, a name over a
-synonym, then the smaller curie, one per term; the first maps the state at `THRESHOLD` or above.
-Numeric columns stay unmapped. No function reads a record: a frame's codebook is its only input
-from the data. This module imports nothing from `bko.generate` or `bko.evaluate`.
+qualifier is a candidate state, its live holders the options; V and E codes, and codes whose live
+exact holders do not nest, map nothing. Every other coded state, the label's included, is matched
+by its codebook meaning: skipped when it has no word or its first word is a `NEGATIVE` word
+(`negative`), replaced by its field's description (`generic_query`) when every word is a digit
+string or a `GENERIC` word, then scored by token-set Jaccard against each live term's name and
+EXACT synonyms (`tokens`); `bko.ontology.lexical` holds these rules and the term index. Options
+rank by score, the sorted order of the release prefixes, a name over a synonym, then the smaller
+curie, one per term; the first maps the state at `THRESHOLD` or above. Numeric columns stay
+unmapped. No function reads a record: a frame's codebook is its only input from the data. This
+module imports nothing from `bko.generate` or `bko.evaluate`.
 
     python -m bko.ontology.automatic lexical <dataset> [--data-dir <dir>]
 """
@@ -24,13 +26,11 @@ import hashlib
 import json
 import logging
 import sys
-import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
-from operator import itemgetter
 from pathlib import Path
-from typing import Final
+from typing import Final, NamedTuple
 
 import numpy as np
 
@@ -39,8 +39,16 @@ from bko.datasets.diagnoses import UNKNOWN, canonical, code_text
 from bko.datasets.errors import DatasetError
 from bko.datasets.frames import FrameSpec
 from bko.ontology.automatic_inputs import DATASETS, inputs
-from bko.ontology.codes import exact_holders, spanning_holder
+from bko.ontology.codes import (
+    REASONS,
+    concept_name,
+    exact_holders,
+    literal,
+    spanning_holder,
+    unmapped_reason,
+)
 from bko.ontology.icd9 import EXACT
+from bko.ontology.lexical import GENERIC, Index, Option, generic_query, negative, tokens
 from bko.ontology.schema import Codes, FieldMapping
 from bko.ontology.terms import Ontology
 
@@ -59,40 +67,10 @@ TOP: Final = 10
 NONE: Final = "none"
 """The verdict that maps a candidate state to no concept."""
 
-NEGATIVE: Final = frozenset(
-    {"absent", "no", "none", "not", "norm", "normal", "false", "negative", "without"}
-)
-"""Words that make a meaning a negative state, which is skipped."""
-
-GENERIC: Final = frozenset(
-    {"present", "yes", "true", "positive", "up", "down", "steady", "ch", "changed", "high", "low"}
-)
-"""Words that say nothing of a concept: a meaning of these and digits reads its description."""
-
 XREF_PREFIX: Final = "MONDO"
 """The release whose `ICD9:` xrefs map a code field."""
 
 _XREF: Final = "ICD9:"
-_KINDS: Final = ("name", "synonym")
-
-
-@dataclass(frozen=True, slots=True)
-class Option:
-    """One concept a candidate state may show.
-
-    Attributes:
-        curie: The term's id.
-        label: The term's name.
-        score: The token-set Jaccard of its best target; None for a cross-reference option.
-        kind: `name`, `synonym` or `xref`: what the score was read from.
-        text: The name or synonym matched, or the xref.
-    """
-
-    curie: str
-    label: str
-    score: Fraction | None
-    kind: str
-    text: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +81,7 @@ class Candidate:
         field: The column, the label's included.
         code: The state's code.
         meaning: The codebook meaning.
-        query: The text matched: the meaning, or the field's description for a generic one.
+        query: The text matched: the meaning, or a generic state's `generic_query` words.
         options: At most `TOP` options.
     """
 
@@ -119,10 +97,19 @@ class Candidate:
         return f"{self.field}={self.code}"
 
 
-def tokens(text: str) -> frozenset[str]:
-    """`text` NFKC-normalized, casefolded, its non-alphanumeric characters spaces, as a set."""
-    folded = unicodedata.normalize("NFKC", text).casefold()
-    return frozenset("".join(c if c.isalnum() else " " for c in folded).split())
+class Survey(NamedTuple):
+    """What the builder finds in one frame.
+
+    Attributes:
+        rows: The rows, sorted by (field, code, concept).
+        candidates: Each state with an option, sorted by (field, code).
+        dropped: Each of `bko.ontology.codes.REASONS` and how many code-field states it leaves
+            with no row and no candidate.
+    """
+
+    rows: tuple[FieldMapping, ...]
+    candidates: tuple[Candidate, ...]
+    dropped: Mapping[str, int]
 
 
 def candidates(
@@ -133,7 +120,7 @@ def candidates(
     Raises:
         ValueError: As `build_lexical`.
     """
-    return _survey(frame, ontologies, codes)[1]
+    return survey(frame, ontologies, codes).candidates
 
 
 def build_lexical(
@@ -153,7 +140,7 @@ def build_lexical(
         ValueError: If a field of `codes` is not a coded field, or `codes` is given and
             `ontologies` lacks `XREF_PREFIX`.
     """
-    return _survey(frame, ontologies, codes)[0]
+    return survey(frame, ontologies, codes).rows
 
 
 def rows_from_verdicts(
@@ -204,115 +191,69 @@ def render(rows: Sequence[FieldMapping]) -> str:
         ValueError: If a row is not one `Codes` clause of one code.
     """
     lines = [_HEADER, "# fmt: off\n"]
-    lines.append("_ROWS: Final[tuple[tuple[str, int, str, str, str], ...]] = (\n")
+    lines.append("_ROWS: Final[tuple[tuple[str, int, str, str, str, str], ...]] = (\n")
     for row in rows:
         field, code = state(row)
-        values = ", ".join(_literal(text) for text in (row.concept, row.label, row.limits))
-        lines.append(f"    ({_literal(field)}, {code}, {values}),\n")
+        texts = (row.concept, row.label, row.source, row.limits)
+        lines.append(f"    ({literal(field)}, {code}, {', '.join(map(literal, texts))}),\n")
     lines.extend((")\n# fmt: on\n", _FOOTER))
     return "".join(lines)
-
-
-def precision_recall(
-    built: Sequence[FieldMapping], hand: Sequence[FieldMapping]
-) -> tuple[Fraction | None, Fraction | None]:
-    """The share of `built`'s atoms `hand` holds, and of `hand`'s that `built` holds.
-
-    An atom is (field, code, concept) for each code of a row of one `Codes` clause; any other row
-    is one atom of its clauses. Each share is None when its denominator is empty.
-    """
-    mine, theirs = atoms(built), atoms(hand)
-    common = len(mine & theirs)
-    return (
-        Fraction(common, len(mine)) if mine else None,
-        Fraction(common, len(theirs)) if theirs else None,
-    )
-
-
-def atoms(rows: Sequence[FieldMapping]) -> frozenset[tuple[str, str, str]]:
-    """Each row's (field, code, concept) atoms, as `precision_recall` counts them."""
-    found: set[tuple[str, str, str]] = set()
-    for row in rows:
-        match row.when:
-            case (Codes() as clause,):
-                found.update((clause.field, str(code), row.concept) for code in clause.codes)
-            case _:
-                found.add((" & ".join(repr(clause) for clause in row.when), "", row.concept))
-    return frozenset(found)
 
 
 def permuted(rows: Sequence[FieldMapping], *, seed: int) -> tuple[FieldMapping, ...]:
     """`rows` with each concept and its label moved to another of its release prefix's concepts.
 
-    The distinct concepts of each prefix, sorted, are permuted by `numpy.random.default_rng(seed)`,
-    prefixes in sorted order; each row keeps its clauses, source and limits.
+    The distinct concepts of each prefix, sorted, are deranged by `numpy.random.default_rng(seed)`,
+    prefixes in sorted order: a prefix's permutation is redrawn until no concept keeps its place,
+    so only a prefix's lone concept stays (`unmovable`). Each row keeps its clauses, source and
+    limits.
     """
     labels = {row.concept: row.label for row in rows}
-    groups: dict[str, list[str]] = {}
-    for concept in sorted(labels):
-        groups.setdefault(concept.partition(":")[0], []).append(concept)
+    groups = _prefix_groups(labels)
     rng = np.random.default_rng(seed)
     moved: dict[str, str] = {}
     for prefix in sorted(groups):
         order = groups[prefix]
-        moved.update(zip(order, (order[i] for i in rng.permutation(len(order))), strict=True))
+        moved.update(zip(order, (order[i] for i in _derangement(rng, len(order))), strict=True))
     return tuple(
         dataclasses.replace(row, concept=moved[row.concept], label=labels[moved[row.concept]])
         for row in rows
     )
 
 
-@dataclass(frozen=True, slots=True)
-class _Target:
-    words: frozenset[str]
-    rank: tuple[int, int, str]
-    curie: str
-    label: str
-    kind: str
-    text: str
+def unmovable(rows: Sequence[FieldMapping]) -> int:
+    """How many of `rows` `permuted` leaves on their concept.
+
+    They are the rows whose concept is the only one of its release prefix among `rows`.
+    """
+    groups = _prefix_groups({row.concept: row.label for row in rows})
+    alone = {group[0] for group in groups.values() if len(group) == 1}
+    return sum(row.concept in alone for row in rows)
 
 
-class _Index:
-    """Every live term's name and EXACT synonyms, by token."""
-
-    def __init__(self, ontologies: Mapping[str, Ontology]) -> None:
-        self.targets: list[_Target] = []
-        self.by_word: dict[str, list[int]] = {}
-        for rank, prefix in enumerate(sorted(ontologies)):
-            for curie, term in ontologies[prefix].terms.items():
-                if term.obsolete or term.name is None or not curie.startswith(f"{prefix}:"):
-                    continue
-                texts = ((0, term.name), *((1, text) for text in term.exact_synonyms()))
-                for kind, text in texts:
-                    words = tokens(text)
-                    if words:
-                        self._add(
-                            _Target(
-                                words, (rank, kind, curie), curie, term.name, _KINDS[kind], text
-                            )
-                        )
-
-    def _add(self, target: _Target) -> None:
-        for word in target.words:
-            self.by_word.setdefault(word, []).append(len(self.targets))
-        self.targets.append(target)
-
-    def options(self, query: frozenset[str]) -> tuple[Option, ...]:
-        best: dict[str, tuple[tuple[Fraction, tuple[int, int, str]], _Target]] = {}
-        for i in sorted({i for word in query for i in self.by_word.get(word, ())}):
-            target = self.targets[i]
-            shared = len(query & target.words)
-            score = Fraction(shared, len(query) + len(target.words) - shared)
-            key = (-score, target.rank)
-            if target.curie not in best or key < best[target.curie][0]:
-                best[target.curie] = (key, target)
-        ranked = sorted(best.values(), key=itemgetter(0))[:TOP]
-        return tuple(Option(t.curie, t.label, -key[0], t.kind, t.text) for key, t in ranked)
+def _prefix_groups(concepts: Mapping[str, str]) -> dict[str, list[str]]:
+    groups: dict[str, list[str]] = {}
+    for concept in sorted(concepts):
+        groups.setdefault(concept.partition(":")[0], []).append(concept)
+    return groups
 
 
-def _survey(
-    frame: FrameSpec, ontologies: Mapping[str, Ontology], codes: Sequence[str]
-) -> tuple[tuple[FieldMapping, ...], tuple[Candidate, ...]]:
+def _derangement(rng: np.random.Generator, n: int) -> list[int]:
+    """A permutation of `range(n)` with no fixed point, redrawn until found; identity below 2."""
+    while True:
+        drawn = [int(i) for i in rng.permutation(n)]
+        if n < 2 or all(i != j for i, j in enumerate(drawn)):
+            return drawn
+
+
+def survey(
+    frame: FrameSpec, ontologies: Mapping[str, Ontology], codes: Sequence[str] = ()
+) -> Survey:
+    """The rows, the candidates and the dropped code-field states of `frame`.
+
+    Raises:
+        ValueError: As `build_lexical`.
+    """
     for field in codes:
         if field not in frame.categorical:
             msg = f"{field} is not a coded field of {frame.name}"
@@ -320,20 +261,20 @@ def _survey(
     if codes and XREF_PREFIX not in ontologies:
         msg = f"code fields {list(codes)} need the {XREF_PREFIX} release"
         raise ValueError(msg)
-    rows, found = _code_states(frame, ontologies, codes) if codes else ([], [])
-    index = _Index(ontologies)
+    rows, found, dropped = _code_states(frame, ontologies, codes)
+    index = Index(ontologies)
     for field in (*frame.categorical, frame.label):
         if field in codes:
             continue
         meanings = _meanings(frame, field) or {}
         for code in sorted(meanings):
             meaning = meanings[code]
-            words = tokens(meaning)
-            if not words or words & NEGATIVE:
+            said = tokens(meaning)
+            if not said or negative(meaning):
                 continue
-            generic = all(word.isdigit() or word in GENERIC for word in words)
-            query = frame.descriptions[field] if generic else meaning
-            options = index.options(tokens(query))
+            generic = all(word.isdigit() or word in GENERIC for word in said)
+            query = " ".join(generic_query(frame.descriptions[field])) if generic else meaning
+            options = index.options(tokens(query), TOP)
             if not options:
                 continue
             found.append(Candidate(field, code, meaning, query, options))
@@ -344,14 +285,18 @@ def _survey(
                     f"at token-set Jaccard {best.score}"
                 )
                 rows.append(_row(field, code, best.curie, best.label, limits))
-    return tuple(sorted(rows, key=_order)), tuple(sorted(found, key=lambda c: (c.field, c.code)))
+    ordered = tuple(sorted(found, key=lambda c: (c.field, c.code)))
+    return Survey(tuple(sorted(rows, key=_order)), ordered, dropped)
 
 
 def _code_states(
     frame: FrameSpec, ontologies: Mapping[str, Ontology], codes: Sequence[str]
-) -> tuple[list[FieldMapping], list[Candidate]]:
+) -> tuple[list[FieldMapping], list[Candidate], dict[str, int]]:
+    dropped = dict.fromkeys(REASONS, 0)
+    if not codes:
+        return [], [], dropped
     mondo = ontologies[XREF_PREFIX]
-    exact, _, _ = exact_holders(mondo, _XREF)
+    exact, related, dead = exact_holders(mondo, _XREF)
     weaker: dict[str, list[str]] = {}
     for curie, term in mondo.terms.items():
         if term.obsolete or term.name is None:
@@ -363,29 +308,27 @@ def _code_states(
     found: list[Candidate] = []
     for field in codes:
         for code, meaning in sorted(frame.codebook[field].items()):
-            token = canonical(code_text(code)) if code != UNKNOWN else ""
-            if not token or token[0] in "VE":
+            if code == UNKNOWN:
                 continue
+            token = canonical(code_text(code))
             holders = exact.get(token, ())
             concept = spanning_holder(mondo, holders) if holders else None
-            if concept is not None:
+            if token[0] in "VE":
+                dropped[f"{token[0]} code"] += 1
+            elif concept is not None:
                 limits = f"ICD-9 {token} in {field}; {concept} carries its xref under {EXACT}"
-                rows.append(_row(field, code, concept, _name(mondo, concept), limits))
-            elif not holders and token in weaker:
+                rows.append(_row(field, code, concept, concept_name(mondo, concept), limits))
+            elif holders:
+                dropped["holders not nested"] += 1
+            elif token in weaker:
                 options = tuple(
-                    Option(c, _name(mondo, c), None, "xref", f"{_XREF}{token}")
+                    Option(c, concept_name(mondo, c), None, "xref", f"{_XREF}{token}")
                     for c in sorted(weaker[token])[:TOP]
                 )
                 found.append(Candidate(field, code, meaning, f"{_XREF}{token}", options))
-    return rows, found
-
-
-def _name(ontology: Ontology, curie: str) -> str:
-    name = ontology.terms[curie].name
-    if name is None:
-        msg = f"{curie} has no name in {ontology.name} {ontology.version}"
-        raise ValueError(msg)
-    return name
+            else:
+                dropped[unmapped_reason(token, related, dead)] += 1
+    return rows, found, dropped
 
 
 def _meanings(frame: FrameSpec, field: str) -> Mapping[int, str] | None:
@@ -421,15 +364,10 @@ def _order(row: FieldMapping) -> tuple[str, int, str]:
     return (*state(row), row.concept)
 
 
-def _literal(text: str) -> str:
-    """`text` as a double-quoted Python string literal, a control character escaped."""
-    return json.dumps(text, ensure_ascii=False)
-
-
 _HEADER: Final = '''"""Automatic mapping rows that `python -m bko.ontology.automatic lexical` wrote.
 
 Regenerate this module rather than editing it (ADR `research/automatic-mapping`). `_ROWS` holds
-one (field, code, concept, label, limits) tuple per line.
+one (field, code, concept, label, source, limits) tuple per line.
 """
 
 from __future__ import annotations
@@ -447,21 +385,24 @@ ROWS: Final[tuple[FieldMapping, ...]] = tuple(
         when=(Codes(field, frozenset({code})),),
         concept=concept,
         label=label,
-        source="research/automatic-mapping",
+        source=source,
         limits=limits,
     )
-    for field, code, concept, label, limits in _ROWS
+    for field, code, concept, label, source, limits in _ROWS
 )
 """The rows, sorted by (field, code, concept)."""
 '''
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Write `lexical <dataset>`'s module text to stdout.
+    """Write `lexical <dataset>`'s module text to stdout as UTF-8 bytes.
+
+    Logs a `lexical dropped` line per reason for a dataset with code fields, and a closing
+    `lexical` line whose sha256 is that of the bytes written.
 
     Returns:
         0 done; a `DatasetError`'s exit code when a snapshot cannot be read; 2 another I/O
-        failure.
+        failure, or code fields the builder refuses.
     """
     parser = argparse.ArgumentParser(prog="python -m bko.ontology.automatic", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -472,22 +413,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         data_dir = None if args.data_dir is None else args.data_dir.resolve()
         frame, ontologies, code_fields = inputs(args.dataset, data_dir)
+        found = survey(frame, ontologies, code_fields)
     except DatasetError as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return exc.exit_code
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    rows, found = _survey(frame, ontologies, code_fields)
-    text = render(rows)
+    data = render(found.rows).encode()
+    if code_fields:
+        for reason, count in found.dropped.items():
+            logger.info("lexical dropped reason=%s states=%d", json.dumps(reason), count)
     logger.info(
         "lexical dataset=%s rows=%d candidates=%d sha256=%s",
         args.dataset,
-        len(rows),
-        len(found),
-        hashlib.sha256(text.encode()).hexdigest(),
+        len(found.rows),
+        len(found.candidates),
+        hashlib.sha256(data).hexdigest(),
     )
-    sys.stdout.write(text)
+    sys.stdout.buffer.write(data)
+    sys.stdout.buffer.flush()
     return 0
 
 
