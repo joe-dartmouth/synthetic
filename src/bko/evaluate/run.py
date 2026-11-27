@@ -202,12 +202,14 @@ def score_holdout(  # ruff: ignore[too-many-arguments]  (the data's rows and nam
     `exclude` set, `Measure.SHARED_SPLIT` (`bko.evaluate.shared_split.marker`). A given `logged`
     is reset, then receives the `split` line and every fill's `Filled` as they are logged. With
     `calibration`, each model's AUGMENTED utility adds its Brier score and calibration-in-the-large;
-    replica utility never does. A replica filled partially (`Experiment.partial_replica`) ends
-    its arm's replica rows with `Measure.REPLICA_SHORT`. An experiment with a `flagged_cell` adds
-    each model's AUGMENTED ROC AUC on each scope. When the experiment holds `TREE_ARM`, each arm
-    writes `Measure.CODE_SHARE_ERROR` over the tree fields of `rows`, the dataset's field rows,
-    against the rows the removal took, NaN for a fill with no rows. The gap request reads `rows`
-    and `source_name`, the dataset's source name, under a share-based quota rule (`gap_request`).
+    replica utility never does. Under `Experiment.partial_replica`, a replica filled partially
+    ends its arm's replica rows with `Measure.REPLICA_SHORT`; without the field, no replica writes
+    one, though a classifier-curated replica's params name `short`. An experiment with a
+    `flagged_cell` adds each model's AUGMENTED ROC AUC on each scope. When the experiment holds
+    `TREE_ARM`, each arm writes `Measure.CODE_SHARE_ERROR` over the tree fields of `rows`, the
+    dataset's field rows, against the rows the removal took, NaN for a fill with no rows. The gap
+    request reads `rows` and `source_name`, the dataset's source name, under a share-based quota
+    rule (`gap_request`).
 
     Raises:
         EvaluationError: If `models` lacks `Model.LR`, the experiment holds `TREE_ARM` and `rows`
@@ -319,7 +321,7 @@ def score_holdout(  # ruff: ignore[too-many-arguments]  (the data's rows and nam
                 frame,
                 experiment.cutoff,
             )
-            scores += _replica_short(seed, name, replicas[name])
+            scores += _replica_short(seed, name, replicas[name], partial=experiment.partial_replica)
         if name in gap_counts:
             scores += _rows(seed, name, Source.CANDIDATES, gap_counts[name])
         if name in replica_counts:

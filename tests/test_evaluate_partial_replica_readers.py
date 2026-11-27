@@ -21,6 +21,7 @@ from bko.baselines.errors import ShortfallError
 from bko.baselines.fills import CURRENT_FILL
 from bko.baselines.records import Baseline, number
 from bko.baselines.request import Request
+from bko.evaluate import reader_commands
 from bko.evaluate.__main__ import main
 from bko.evaluate.context import Context
 from bko.evaluate.rows_read import read_rows
@@ -35,7 +36,7 @@ from tests.test_evaluate_merge import HIGH, LOW, _merged, _scored
 from tests.test_evaluate_panel import FAST_PANEL, folder_and_store, paneled
 from tests.test_evaluate_partial_replica import shortfalls
 from tests.test_evaluate_rows import stored
-from tests.test_evaluate_shared import run_folder, shared
+from tests.test_evaluate_shared import edit_log, run_folder, shared
 
 
 pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
@@ -149,11 +150,110 @@ def test_panel_counts_the_replica_in_partial(tmp_path, caplog):
     ]
 
 
-def test_shared_refuses_a_partial_replica(tmp_path, caplog):
+def errors(caplog) -> list[str]:
+    """The messages logged at ERROR or above."""
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+def test_shared_refuses_a_partial_replica_before_the_dataset_is_loaded(
+    tmp_path, caplog, monkeypatch
+):
     folder = partial_folder(tmp_path, caplog)
-    assert shared(tmp_path, folder, experiment=PARTIAL) == (3, "")
-    (error,) = [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR]
-    assert f"holdout 0's {REPLICA_ARM} fill is a partial replica" in error
+    short = json.loads(fields(read_folder(folder).arms[0, REPLICA_ARM])["params"])["short"]
+    shown = json.dumps(short, sort_keys=True, separators=(",", ":"))
+
+    def unloaded(*_args, **_kwargs):
+        raise AssertionError("shared loaded the dataset before its partial-replica refusal")
+
+    monkeypatch.setattr(reader_commands, "load", unloaded)
+    caplog.clear()
+    assert shared(tmp_path, folder, experiment=PARTIAL, arms=ARMS) == (3, "")
+    (error,) = errors(caplog)
+    assert error == (
+        f"{folder}'s holdout 0's {REPLICA_ARM} fill is a partial replica, short of {shown},"
+        " which a shared rescore does not read; `rows` or `panel` read it"
+    )
+
+
+def test_shared_refuses_a_with_folder_whose_replica_filled_partially(tmp_path, caplog):
+    folder = run_folder(tmp_path, "whole", caplog, experiment=PARTIAL, arms=FAST_ARMS)
+    other = partial_folder(tmp_path, caplog)
+    caplog.clear()
+    assert shared(tmp_path, folder, other, experiment=PARTIAL, arms=ARMS) == (3, "")
+    (error,) = errors(caplog)
+    assert error.startswith(f"{other}'s holdout 0's {REPLICA_ARM} fill is a partial replica")
+
+
+def test_shared_refuses_malformed_params_on_a_partial_runs_replica_line(tmp_path, caplog):
+    folder = partial_folder(tmp_path, caplog)
+    edit_log(
+        folder,
+        f"arm holdout=0 arm={REPLICA_ARM} ",
+        lambda line: line.split(" params=")[0] + " params=[1]\n",
+    )
+    caplog.clear()
+    assert shared(tmp_path, folder, experiment=PARTIAL, arms=ARMS) == (3, "")
+    (error,) = errors(caplog)
+    assert error.startswith("the params of ")
+    assert error.endswith(" are not a JSON object")
+
+
+def curated_short(train: pd.DataFrame, request: Request) -> Baseline:
+    """SMOTE's fill; on a replica fill, its params name a `short` as a curated replica's do."""
+    full = FAST_ARMS["smote"](train, request)
+    fill = CURRENT_FILL.get()
+    if fill is None or fill.kind != "replica":
+        return full
+    cell, *_ = request.quota
+    return Baseline(full.added, full.weights, {"short": {"/".join(map(str, cell)): 1}})
+
+
+CURATED: Final = dataclasses.replace(PARTIAL, partial_replica=False)
+"""`PARTIAL` without the field, as B3's run is: a replica naming `short` is not a partial fill."""
+
+
+def test_a_replica_naming_short_without_the_field_reads_as_before(tmp_path, caplog):
+    arms = {"none": FAST_ARMS["none"], "smote": curated_short}
+    folder = run_folder(tmp_path, "curated", caplog, experiment=CURATED, arms=arms)
+    assert all(
+        '"short": {' in line
+        for (_, arm), line in read_folder(folder).arms.items()
+        if arm == REPLICA_ARM
+    )
+    written = (folder / "scores.csv").read_text(encoding="utf-8")
+    assert not any(s.measure is Measure.REPLICA_SHORT for s in parse(written))
+    assert shared(tmp_path, folder, experiment=CURATED, arms=arms) == (0, written)
+
+
+def short_gap(train: pd.DataFrame, request: Request) -> Baseline:
+    """SMOTE's fill; on a gap fill, short of its first cell's rows on every attempt."""
+    full = FAST_ARMS["smote"](train, request)
+    fill = CURRENT_FILL.get()
+    if fill is None or fill.kind != "gap":
+        return full
+    cell, *_ = request.quota
+    keep = [stratum != cell for stratum in cell_list(full.added)]
+    missing = {"/".join(map(str, cell)): request.quota[cell]}
+    kept = Baseline(number(full.added.loc[keep]), full.weights, {"short": missing})
+    msg = f"short of {missing}"
+    raise ShortfallError(msg, missing, kept.added, kept)
+
+
+def test_shared_reads_a_partial_baseline_gap_fill_under_the_field(tmp_path, caplog):
+    arms = {"none": FAST_ARMS["none"], "smote": short_gap}
+    folder = run_folder(tmp_path, "gap", caplog, experiment=PARTIAL, arms=arms)
+    assert '"short": {' in read_folder(folder).arms[0, "smote"]
+    written = (folder / "scores.csv").read_text(encoding="utf-8")
+    assert shared(tmp_path, folder, experiment=PARTIAL, arms=arms) == (0, written)
+
+
+def test_a_line_without_the_field_is_refused_under_a_run_that_sets_it(tmp_path, caplog):
+    folder = run_folder(tmp_path, "older", caplog, experiment=CURATED, arms=FAST_ARMS)
+    assert "partial_replica" not in read_folder(folder).experiment
+    caplog.clear()
+    assert shared(tmp_path, folder, experiment=PARTIAL, arms=FAST_ARMS) == (3, "")
+    (error,) = errors(caplog)
+    assert error.endswith("differ: {'partial_replica': ('false', 'true')}")
 
 
 def test_trace_writes_a_partial_baseline_replicas_shortfall(tmp_path, caplog):

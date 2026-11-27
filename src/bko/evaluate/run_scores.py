@@ -241,15 +241,18 @@ def _replica_scores(
     ]
 
 
-def _replica_short(seed: int, name: str, replica: Baseline) -> list[Score]:
+def _replica_short(seed: int, name: str, replica: Baseline, *, partial: bool) -> list[Score]:
     """A partial replica's `Measure.REPLICA_SHORT` row, the rows its params name under `short`.
 
-    A replica that completes holds no `short` params and writes no row.
+    Only an experiment that sets `partial_replica` (`partial`) writes the row. A replica that
+    completes writes none, and nor does one whose generator names `short` itself under an
+    experiment without the field, as a classifier-curated Messages arm's replica does
+    (`bko.evaluate.guided`): its scores read as before the field existed.
     """
     short = replica.params.get("short")
-    if not isinstance(short, Mapping) or not short:
+    if not partial or not isinstance(short, Mapping) or not short:
         return []
-    missing = float(sum(int(rows) for rows in cast("Mapping[str, int]", short).values()))
+    missing = float(sum(cast("Mapping[str, int]", short).values()))
     return _rows(seed, name, Source.REPLICA, {Measure.REPLICA_SHORT: missing})
 
 

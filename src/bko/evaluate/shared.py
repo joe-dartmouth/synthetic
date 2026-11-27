@@ -56,7 +56,17 @@ from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, require_cells
 from bko.evaluate.provenance import experiment_line, log_experiment
 from bko.evaluate.run import score_holdout
-from bko.evaluate.run_folder import ARM, BKO, SCORES_LOG, SPLIT, Folder, Key, check_folders, fields
+from bko.evaluate.run_folder import (
+    ARM,
+    ASSUMED,
+    BKO,
+    SCORES_LOG,
+    SPLIT,
+    Folder,
+    Key,
+    check_folders,
+    fields,
+)
 from bko.evaluate.scores import Measure, Score, Source, render
 from bko.ontology.schema import FieldMapping
 from bko.validate.checks import validate
@@ -187,23 +197,28 @@ class StoredArm:
 def refuse_partial_replica(folder: Folder) -> None:
     """Refuse a folder whose replica fill filled partially, as a partial gap fill is refused.
 
-    A replica's `arm` line names its shortfall under `short` in its params when it filled
-    partially (`Experiment.partial_replica`); `shared` reads a replica as a copy of every
-    training cell, so it does not rescore one. `rows` and `panel` read it.
+    Only a folder whose `experiment` line sets `partial_replica` is read, since only that field
+    lets a replica fill partially (`Experiment.partial_replica`); its partial replica's `arm` line
+    names the shortfall under `short` in its params. `shared` reads a replica as a copy of every
+    training cell, so it does not rescore one; `rows` and `panel` read it. A folder without the
+    field is left to the rescore, as before the field existed, even where a classifier-curated
+    Messages arm's replica names its own `short` (`bko.evaluate.guided`).
 
     Raises:
-        IdentityError: If a replica's `arm` line names a shortfall.
+        IdentityError: If such a folder's replica `arm` line names a shortfall, or its params are
+            not a JSON object (`logged_params`).
     """
+    if folder.experiment.get("partial_replica", ASSUMED["partial_replica"]) != "true":
+        return
     for (holdout, arm), line in sorted(folder.arms.items()):
         if not arm.endswith("-replica"):
             continue
-        # `json.JSONDecodeError` is a `ValueError`: malformed params are refused where read.
-        with suppress(ValueError):
-            params = json.loads(fields(line)["params"])
-            if isinstance(params, dict) and "short" in params:
-                msg = f"{folder.path}'s holdout {holdout}'s {arm} fill is a partial replica, short"
-                msg += f" of {params['short']}, which a shared rescore does not read"
-                raise IdentityError(msg)
+        short = logged_params(line).get("short")
+        if short:
+            shown = json.dumps(short, sort_keys=True, separators=(",", ":"))
+            msg = f"{folder.path}'s holdout {holdout}'s {arm} fill is a partial replica, short"
+            msg += f" of {shown}, which a shared rescore does not read; `rows` or `panel` read it"
+            raise IdentityError(msg)
 
 
 def logged_params(line: str) -> dict[str, object]:
