@@ -1289,6 +1289,12 @@ start or the supervisor cannot run.
   (`bko.evaluate.runs_direct.E21` and `E21_NAMES`: `E12_THIN` and `E12_EMPTY` with `quota_rule`
   set to the rule, the ceiling inert, `REFERENCE` `real`) and their slices `e21-<word>-thina`
   to `e21-<word>-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E21,
+  describes them. `RUNS` holds E22's runs, eight families each in a thin and an empty run sliced
+  as E6's are: `e22-hand-*`, `e22-auto-lexical-*`, `e22-auto-local-*` and `e22-permuted-*` on
+  `diabetes` and its three mapping variants with `none`, `real`, `bko-direct`, `bko-nomap` and
+  `bko-hier-w`, and `e22-codes-hand-*`, `e22-codes-auto-lexical-*`, `e22-codes-auto-local-*` and
+  `e22-codes-permuted-*` on `diabetes-codes` and its three with `bko-tree` in place of
+  `bko-hier-w`, candidate `bko-direct`, `REFERENCE` `bko-direct`; `docs/EVIDENCE.md`, E22,
   describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
@@ -1827,6 +1833,20 @@ inside `.venv`:
       uv run --no-sync pytest tests/test_ontology_occupation_codes_pinned.py --releases -q -p no:cacheprovider --no-cov </dev/null
 
   It reads and never fetches or converts, so run the command first.
+- **The automatic mapping rows**: `bko.ontology.automatic` builds field rows from a frame's
+  codebook and the pinned MONDO and HPO releases with no model, by cross-reference and label match
+  (ADR [`research/automatic-mapping`](adr/research/automatic-mapping.md)). Its `lexical` command
+  takes `uci`, `diabetes` or `diabetes-codes` and writes a module text, never edited, through a
+  scratch file as above, for `diabetes` into `auto_lexical_diabetes_rows.py` and for
+  `diabetes-codes` into `auto_lexical_codes_rows.py`:
+
+      mkdir -p scratchpad && uv run --no-sync python -m bko.ontology.automatic lexical diabetes > scratchpad/auto_lexical_diabetes_rows.py && mv scratchpad/auto_lexical_diabetes_rows.py src/bko/ontology/auto_lexical_diabetes_rows.py
+
+  then `make format`. The command fetches the releases, and for `diabetes-codes` the archive,
+  into the data root if absent, writes nothing to stdout until the module text is complete, and
+  logs a closing `lexical dataset=... rows=N candidates=C sha256=...` line, `C` the states the
+  local judge would be asked about. It reads no record-level statistic; `diabetes-codes`' codebook
+  is the codes its cohort holds. Two runs over the same releases write the same bytes.
 
 ### ELK comparison
 
@@ -2232,6 +2252,21 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   reasoning and no content. A replay logs no `reasoning` line, as it logs no `local server` line.
   A local run keeps at most four calls in flight (`bko.generate.local.SLOTS`), logging
   `local in_flight=` when `--in-flight` asked for more.
+- **The mapping judge**: `bko.generate.judge` asks a served local model which concept each
+  candidate state of a frame's automatic mapping shows (ADR
+  [`research/automatic-mapping`](adr/research/automatic-mapping.md)), one call per state, and
+  writes the `auto-local` module text: `VERDICTS`, each state's concept or `none` keyed
+  `"<field>=<code>"`, the states the cross-reference route maps included, and `LABELS`, each
+  verdict concept's name. With the model served as above, for `diabetes` (and
+  `diabetes-codes` into `auto_local_codes_rows.py`):
+
+      mkdir -p scratchpad && uv run --no-sync python -m bko.generate.judge diabetes --model gemma-4-26b-a4b-q8_0 > scratchpad/auto_local_diabetes_rows.py && mv scratchpad/auto_local_diabetes_rows.py src/bko/ontology/auto_local_diabetes_rows.py
+
+  then `make format`. Its payload is a run's but for three values: temperature 0, `seed` 0 and a
+  strict `json_schema` named `verdict` whose one property, `concept`, is an enum of the state's top
+  ten options and `none`. A reply outside the enum, or not JSON, fails the command, exit 2. It
+  logs the `local server` line, one `verdict field=... code=... concept=... options=N` line per
+  call and a closing `judge dataset=... model=... states=N mapped=M sha256=...` line.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and

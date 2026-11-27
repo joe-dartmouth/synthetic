@@ -553,6 +553,7 @@ not a test of it.
 | [E19](EVIDENCE.md#e19-matched-knowledge-controls-on-the-diabetes-130-removal) | Ablation |
 | [E20](EVIDENCE.md#e20-microaggregated-count-fields-on-the-diabetes-130-removal) | Ablation |
 | [E21](EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal) | Development result |
+| [E22](EVIDENCE.md#e22-automatic-mappings-on-the-diabetes-130-removal) | Development result |
 | [B1](EVIDENCE.md#b1-classical-baselines) | Development result |
 | [B2](EVIDENCE.md#b2-bayesian-network-baseline) | Development result |
 | [B3](EVIDENCE.md#b3-cllm-arms) | Development result |
@@ -623,6 +624,19 @@ arms, splits and seeds, it reads per count how far each arm's added rows sit fro
 shares, the cell's share of the training set beside `real`'s, and removed-cell recall against
 the fixed fill. ADR [`research/share-based-quota`](adr/research/share-based-quota.md) holds the design and
 [E21](EVIDENCE.md#e21-share-based-quota-sweep-on-the-diabetes-130-removal) the runs. It is a
+development reading and registers no confirmatory claim.
+
+### Automatic mapping
+
+The mapping table is written by hand. E22 asks whether rows built from a frame's codebook and the
+pinned releases, by a lexical rule or by a local model judging the rule's candidates, serve
+`bko-direct` as well, on E6's frame and the `diabetes-codes` frame. The reading is automatic minus
+hand on `bko-direct`'s removed-cell recall, paired by holdout, branched as the
+[control reading rule](#control-reading-rule) branches a contrast at its margin, 0.0480; automatic
+minus `bko-nomap` is read beside it, and the permuted hand table is read on the arms that use the
+hierarchy, `bko-hier-w` and `bko-tree`. ADR
+[`research/automatic-mapping`](adr/research/automatic-mapping.md) holds the design and
+[E22](EVIDENCE.md#e22-automatic-mappings-on-the-diabetes-130-removal) the runs. It is a
 development reading and registers no confirmatory claim.
 
 ### Language-model classifier

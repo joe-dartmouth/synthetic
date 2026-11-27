@@ -12,8 +12,9 @@ A named run chooses its records, frame and field rows through one `Dataset` valu
 (`bko.evaluate.data`; ADR [`research/uci-evaluation-frame`](uci-evaluation-frame.md) records why
 the run, not a flag, chooses them). The matched knowledge controls need Diabetes 130's records on
 a subset of its columns, the fields the mapping table can generate (ADR
-[`research/matched-knowledge-controls`](matched-knowledge-controls.md), Decision 10), and later
-units need the same records under another mapping table. Every existing run of record reads its
+[`research/matched-knowledge-controls`](matched-knowledge-controls.md), Decision 10), and E22
+needs the same records under automatic and permuted mapping tables (ADR
+[`research/automatic-mapping`](automatic-mapping.md)). Every existing run of record reads its
 dataset's records, frame and rows as they are, and its logs name the dataset.
 
 ## Decision Drivers
@@ -42,6 +43,12 @@ dataset's records, frame and rows as they are, and its logs name the dataset.
    line for its base.
 6. **The first variant** is `diabetes-supported`, `diabetes` on `age`, `sex`, the label and every
    field of a `Codes` clause of a non-label row.
+7. **Row-swap variants.** `diabetes-auto-lexical`, `diabetes-auto-local` and `diabetes-permuted`
+   read `diabetes`' records under the rows of an automatic builder or the permuted hand rows, and
+   `diabetes-codes-auto-lexical`, `diabetes-codes-auto-local` and `diabetes-codes-permuted` read
+   `diabetes-codes`' the same way (ADR [`research/automatic-mapping`](automatic-mapping.md)).
+   Loading one logs `mapping dataset=<variant> rows=<n> sha256=<digest>`, the digest over its
+   rows, so a folder says which table it read.
 
 ## Rationale
 
@@ -83,4 +90,5 @@ from its base's whenever its records do, so its folders never merge with the bas
 ## Related
 
 - [The matched knowledge controls change one input of bko-direct's draw at a time](matched-knowledge-controls.md)
+- [An automatic mapping: codebook meanings matched to pinned releases, with no paid model](automatic-mapping.md)
 - [The UCI evaluation frame: Cleveland records, a binary label and a cell-stratified split](uci-evaluation-frame.md)

@@ -197,7 +197,8 @@ constants in `bko.ontology.mapping`, each row naming its source.**
   leaves the lock. `ty.toml` reads fastobo, a compiled extension without stubs, as `Any`.
 - **Sources vocabulary**: a row's `source` is the `name` of a `Source` in `bko.datasets.sources`
   (`uci-heart-disease` means `heart-disease.names` inside that archive), a key in
-  [`docs/literature.md`](../../literature.md), or an ADR id under `docs/adr/`.
+  [`docs/literature.md`](../../literature.md), or an ADR id under `docs/adr/`; a row an
+  automatic builder emits names ADR [`research/automatic-mapping`](automatic-mapping.md).
 
 ## Rationale
 
