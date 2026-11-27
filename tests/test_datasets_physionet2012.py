@@ -301,14 +301,17 @@ def test_the_cohort_line_counts_the_three_map_cases(caplog) -> None:
     assert "map_from_nimap=" not in message
 
 
-def test_each_loader_logs_a_zero_count_per_listed_field(caplog) -> None:
+def test_each_loader_logs_a_zero_count_per_listed_field_over_every_stay(caplog) -> None:
+    """The `zeros` lines count over every stay read, as `missing` and `below_zero` do."""
     with caplog.at_level(logging.INFO, logger="bko.datasets.physionet2012"):
         records(
             (stay(1, ("01:00", "HR", "0"), ("02:00", "HR", "0"), ("03:00", "MAP", "0")), 0),
             (stay(2, ("01:00", "HR", "0"), ("02:00", "RespRate", "0")), 0),
-            (stay(3, ("01:00", "Temp", "0"), gender="-1"), 1),
+            (stay(3, ("01:00", "Temp", "0"), ("02:00", "HR", "-1"), gender="-1"), 1),
         )
-    counts = {"HR": (3, 2), "MAP": (1, 1)}
+    counts = {"HR": (3, 2), "Temp": (1, 1), "MAP": (1, 1)}
+    assert " left_out=1 records=2 " in caplog.messages[-1]
+    assert " missing=1 below_zero=0 " in caplog.messages[-1]
     assert caplog.messages[:-1] == [
         "zeros dataset=physionet2012 field={} readings={} records={}".format(
             variable, *counts.get(variable, (0, 0))

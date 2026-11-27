@@ -32,7 +32,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import Source
-from bko.datasets.states import Cutoffs, coded, tertiles
+from bko.datasets.states import Cutoffs, coded, log_tertile
 
 
 logger = logging.getLogger(__name__)
@@ -284,6 +284,17 @@ def _adults(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
     return adults, (answers == YES).any(axis=1), (answers == NO).all(axis=1)
 
 
+def _kept(joined: pd.DataFrame) -> pd.DataFrame:
+    """The joined adults the cohort keeps: those with any item yes or all four no."""
+    adults, any_yes, all_no = _adults(joined)
+    return adults.loc[any_yes | all_no]
+
+
+def _bases(kept: pd.DataFrame) -> Mapping[str, pd.Series]:
+    """Each `TERTILES` field's values on the kept records measured in it."""
+    return MappingProxyType({field: reading(kept, field).dropna() for field in TERTILES})
+
+
 def tertile_base(components: Mapping[str, pd.DataFrame]) -> Mapping[str, pd.Series]:
     """Each `TERTILES` field's measured values over the records the frame keeps.
 
@@ -297,26 +308,7 @@ def tertile_base(components: Mapping[str, pd.DataFrame]) -> Mapping[str, pd.Seri
     Raises:
         ContractError: As `frame_records`.
     """
-    adults, any_yes, all_no = _adults(_joined(components))
-    kept = adults.loc[any_yes | all_no]
-    return MappingProxyType({field: reading(kept, field).dropna() for field in TERTILES})
-
-
-def _log_tertiles(kept: pd.DataFrame) -> None:
-    """Log a `tertile` line per tertile field: its kept records' cuts and their count."""
-    for field in TERTILES:
-        base = reading(kept, field).dropna()
-        low, high = (
-            (str(round(cut, DECIMALS)) for cut in tertiles(base)) if len(base) else ("none",) * 2
-        )
-        logger.info(
-            "tertile dataset=%s field=%s low=%s high=%s base=%d",
-            NHANES_NAME,
-            field,
-            low,
-            high,
-            len(base),
-        )
+    return _bases(_kept(_joined(components)))
 
 
 def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
@@ -326,9 +318,10 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
         components: Each component file's output of `read_component`, by `COMPONENTS` name.
 
     Logs a `tertile` line per tertile field, its cuts over the kept records and their count
-    (`tertile_base`), then one `cohort` line: the demographics records, those with a
-    medical-conditions record (`with_conditions`), the adults among them, each label's count, the
-    adults left out, and per coded field the kept records it was measured on.
+    (`tertile_base`, `bko.datasets.states.log_tertile`), then one `cohort` line: the demographics
+    records, those with a medical-conditions record (`with_conditions`), the adults among them,
+    each label's count, the adults left out, and per coded field the kept records it was measured
+    on.
 
     Returns:
         `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
@@ -340,7 +333,7 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
     joined = _joined(components)
     demo = components["DEMO_L"]
     adults, any_yes, all_no = _adults(joined)
-    kept = adults.loc[any_yes | all_no]
+    kept = _kept(joined)
     columns: dict[str, pd.Series] = {
         "age": measured(kept["RIDAGEYR"]),
         "sex": kept["RIAGENDR"].map(SEX_CODES),
@@ -352,7 +345,8 @@ def frame_records(components: Mapping[str, pd.DataFrame]) -> pd.DataFrame:
     }
     records = pd.DataFrame(columns).astype("int64")
     records.index.name = "record_id"
-    _log_tertiles(kept)
+    for field, base in _bases(kept).items():
+        log_tertile(logger, NHANES_NAME, field, base, decimals=DECIMALS)
     logger.info(
         "cohort dataset=%s demographics=%d with_conditions=%d adults=%d any_yes=%d all_no=%d "
         "left_out=%d records=%d composite=%d %s",

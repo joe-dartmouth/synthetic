@@ -6,11 +6,11 @@ which becomes `record_id`. Values carry leading spaces, a missing value is an em
 categoricals are text. The cohort drops the records whose `scoma` is missing. A record holds
 `age` floored to whole years, the coded demographics and comorbidities, `num.co`, `hday`,
 `scoma`, each measured lab or vital as a coded state (`bko.datasets.states.coded`) and `LABEL`,
-`hospdead`. A 0 in a field of `IMPLAUSIBLE_ZERO` is not measured, and the tertile fields are cut
-over the kept records once those zeros are masked (`tertile_base`). The columns the publisher
-warns against using as predictors, those known only at or after the outcome, `dzclass` (a
-grouping of `dzgroup`) and the partly imputed activity scores never enter. ADR
-`research/support2-frame` records the frame.
+`hospdead`. A value that reads as 0 at `DECIMALS` in a field of `IMPLAUSIBLE_ZERO` is not
+measured, and the tertile fields are cut over the kept records once those zeros are masked
+(`tertile_base`). The columns the publisher warns against using as predictors, those known only
+at or after the outcome, `dzclass` (a grouping of `dzgroup`) and the partly imputed activity
+scores never enter. ADR `research/support2-frame` records the frame.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from bko.datasets.cells import LABEL
 from bko.datasets.errors import ContractError
 from bko.datasets.fetch import read_verified
 from bko.datasets.sources import Source
-from bko.datasets.states import Cutoffs, coded, tertiles
+from bko.datasets.states import Cutoffs, coded, log_tertile
 
 
 logger = logging.getLogger(__name__)
@@ -205,11 +205,22 @@ cutoffs cite no source."""
 MEASURED: Final[Mapping[str, Cutoffs]] = MappingProxyType({**CITED, **TERTILES})
 """Every coded measured field, in record order, and its cutoffs."""
 
-IMPLAUSIBLE_ZERO: Final = (
-    *("hrt", "temp", "wblc", "meanbp", "crea", "bili", "pafi"),
-    *("sod", "alb", "ph", "glucose", "bun"),
+IMPLAUSIBLE_ZERO: Final[tuple[str, ...]] = (
+    "hrt",
+    "temp",
+    "wblc",
+    "meanbp",
+    "crea",
+    "bili",
+    "pafi",
+    "sod",
+    "alb",
+    "ph",
+    "glucose",
+    "bun",
 )
-"""The measured fields whose recorded 0 is physiologically implausible, so not measured. `resp`
+"""The measured fields whose recorded 0 is physiologically implausible, so not measured: a value
+that reads as 0 at `DECIMALS`, such as `0.000000` or `0.004`, is masked. `resp`
 (a ventilated patient's own breaths), `urine` (an anuric day) and `edu` (no schooling) keep their
 0 as measured."""
 
@@ -332,7 +343,11 @@ def _kept(rows: pd.DataFrame) -> pd.DataFrame:
 
 
 def _values(kept: pd.DataFrame, name: str) -> pd.Series:
-    """A measured field's values on the kept rows, a 0 of `IMPLAUSIBLE_ZERO` masked to NaN."""
+    """A measured field's values on the kept rows, a listed field's 0 masked to NaN.
+
+    A value of a field of `IMPLAUSIBLE_ZERO` that reads as 0 at `DECIMALS`, such as `0.004`, is
+    a 0.
+    """
     values = measured(kept[name])
     return values.mask(values == 0) if name in IMPLAUSIBLE_ZERO else values
 
@@ -350,7 +365,11 @@ def tertile_base(raw: pd.DataFrame) -> Mapping[str, pd.Series]:
     Raises:
         ContractError: As `checked`.
     """
-    kept = _kept(checked(raw))
+    return _bases(_kept(checked(raw)))
+
+
+def _bases(kept: pd.DataFrame) -> Mapping[str, pd.Series]:
+    """Each `TERTILES` field's measured values on the kept rows, a listed zero masked."""
     return MappingProxyType({name: _values(kept, name).dropna() for name in TERTILES})
 
 
@@ -361,28 +380,18 @@ def _log_rules(kept: pd.DataFrame) -> None:
         logger.info(
             "zeros dataset=%s field=%s readings=%d records=%d", SUPPORT2_NAME, name, zeros, zeros
         )
-    for name in TERTILES:
-        base = _values(kept, name).dropna()
-        low, high = (
-            (str(round(cut, DECIMALS)) for cut in tertiles(base)) if len(base) else ("none",) * 2
-        )
-        logger.info(
-            "tertile dataset=%s field=%s low=%s high=%s base=%d",
-            SUPPORT2_NAME,
-            name,
-            low,
-            high,
-            len(base),
-        )
+    for name, base in _bases(kept).items():
+        log_tertile(logger, SUPPORT2_NAME, name, base, decimals=DECIMALS)
 
 
 def frame_records(raw: pd.DataFrame) -> pd.DataFrame:
     """Return the frame records of `raw`'s cohort, in record order.
 
     Every row is checked before any is dropped. The cohort drops the records whose `scoma` is
-    missing; a 0 in a field of `IMPLAUSIBLE_ZERO` codes as not measured. Before one `cohort` line
-    that accounts for every row, it logs per listed field the zeros it masked (`zeros`) and per
-    tertile field the tertiles and base count of its kept, masked values (`tertile`).
+    missing; a value that reads as 0 at `DECIMALS` in a field of `IMPLAUSIBLE_ZERO` codes as not
+    measured. Before one `cohort` line that accounts for every row, it logs per listed field the
+    zeros it masked (`zeros`) and per tertile field the tertiles and base count of its kept,
+    masked values (`tertile`, `bko.datasets.states.log_tertile`).
 
     Args:
         raw: The output of `parse_support2`.

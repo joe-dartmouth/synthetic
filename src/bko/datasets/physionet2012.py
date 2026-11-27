@@ -104,8 +104,16 @@ MEASURED: Final[Mapping[str, Cutoffs]] = MappingProxyType(
 )
 """Every coded field, in record order, and its cutoffs."""
 
-IMPLAUSIBLE_ZERO: Final = (
-    *("HR", "Temp", "WBC", "MAP", "NIMAP", "Creatinine", "Bilirubin", "Platelets", "GCS"),
+IMPLAUSIBLE_ZERO: Final[tuple[str, ...]] = (
+    "HR",
+    "Temp",
+    "WBC",
+    "MAP",
+    "NIMAP",
+    "Creatinine",
+    "Bilirubin",
+    "Platelets",
+    "GCS",
 )
 """The read variables whose recorded 0 is physiologically implausible, so no reading: `GCS`'s
 scale runs from 3. `RespRate` keeps its 0, which a ventilated patient can record."""
@@ -191,10 +199,11 @@ def _read(
     where: str,
     parameter: str,
     value: float,
-    into: tuple[dict[str, list[float]], dict[str, int], dict[str, int]],
+    values: dict[str, list[float]],
+    counts: dict[str, int],
+    zeros: dict[str, int],
 ) -> None:
     """File one value of a read variable: a reading, a listed 0, a -1 or another value below 0."""
-    values, counts, zeros = into
     if parameter == MECHVENT and value not in {0.0, 1.0, MISSING}:
         msg = f"{where}: MechVent is {value:g}, not 0, 1 or -1"
         raise ContractError(msg)
@@ -254,10 +263,8 @@ def parse_stay(name: str, text: str) -> Stay:
             msg = f"{where}: {parameter!r} is no descriptor or time series"
             raise ContractError(msg)
         elif parameter in READ:
-            _read(where, parameter, value, (values, counts, zeros))
-    stay = _checked(name, (named[1], int(named[2])), found, values, counts)
-    stay.zeros = zeros
-    return stay
+            _read(where, parameter, value, values, counts, zeros)
+    return _checked(name, (named[1], int(named[2])), found, values, counts, zeros)
 
 
 def _checked(
@@ -266,6 +273,7 @@ def _checked(
     found: Mapping[str, float],
     values: dict[str, list[float]],
     counts: Mapping[str, int],
+    zeros: dict[str, int],
 ) -> Stay:
     """The stay from its parsed descriptors, refusing one that is missing or out of its codes."""
     absent = [descriptor for descriptor in ONCE if descriptor not in found]
@@ -297,6 +305,7 @@ def _checked(
         unnamed=counts["unnamed"],
         missing=counts["missing"],
         below_zero=counts["below_zero"],
+        zeros=zeros,
     )
 
 
@@ -352,13 +361,14 @@ def _matched(label: str, stays: Sequence[Stay], deaths: Mapping[int, int]) -> No
 def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFrame:
     """Return the records of the stays whose age and sex are known, in `RecordID` order.
 
-    Logs a `zeros` line per variable of `IMPLAUSIBLE_ZERO`, its 0 lines and the records holding
-    one, then one `cohort` line: the stays, in all and per set, those of unknown age and of
-    unknown sex, the stays left out, the records and their deaths, the skipped empty-`Parameter`
-    lines, the read values of -1 and those below 0 but not -1, per coded field the records it was
-    measured on, the records whose `map_min` is a `NIMAP` reading with no `MAP` reading
-    (`map_min_nimap`), those holding both whose lowest `NIMAP` is the lower
-    (`map_min_nimap_lower`) and those with neither (`map_unmeasured`), and the records ventilated.
+    Logs a `zeros` line per variable of `IMPLAUSIBLE_ZERO`, its 0 lines and the stays holding one
+    (`records`), counted over every stay as `missing` and `below_zero` are, then one `cohort`
+    line: the stays, in all and per set, those of unknown age and of unknown sex, the stays left
+    out, the records and their deaths, the skipped empty-`Parameter` lines, the read values of -1
+    and those below 0 but not -1, per coded field the records it was measured on, the records
+    whose `map_min` is a `NIMAP` reading with no `MAP` reading (`map_min_nimap`), those holding
+    both whose lowest `NIMAP` is strictly the lower (`map_min_nimap_lower`) and those with neither
+    (`map_unmeasured`), and the records ventilated.
 
     Returns:
         `FEATURES` and `LABEL`, all int64, indexed by `record_id`.
@@ -389,8 +399,8 @@ def frame_records(stays: Sequence[Stay], deaths: Mapping[int, int]) -> pd.DataFr
             "zeros dataset=%s field=%s readings=%d records=%d",
             PHYSIONET2012_NAME,
             variable,
-            sum(stay.zeros.get(variable, 0) for stay in kept),
-            sum(variable in stay.zeros for stay in kept),
+            sum(stay.zeros.get(variable, 0) for stay in stays),
+            sum(variable in stay.zeros for stay in stays),
         )
     arterial = [bool(stay.values["MAP"]) for stay in kept]
     cuff = [bool(stay.values["NIMAP"]) for stay in kept]

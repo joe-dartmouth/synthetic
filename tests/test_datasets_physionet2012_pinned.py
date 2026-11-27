@@ -137,12 +137,14 @@ def test_the_values_hold_the_adrs_figures() -> None:
 
 
 def test_the_recorded_zeros_are_the_adrs() -> None:
-    """Each listed variable's 0 lines over the kept stays, and the stays holding one."""
-    kept = [stay for stay in _stays() if -1.0 not in {stay.age, stay.gender}]
+    """Each listed variable's 0 lines over every stay, and the stays holding one; the 12 stays
+    left out hold none, so the kept stays hold the same."""
+    stays = _stays()
+    assert not any(stay.zeros for stay in stays if -1.0 in {stay.age, stay.gender})
     zeros = {
         variable: (
-            sum(stay.zeros.get(variable, 0) for stay in kept),
-            sum(variable in stay.zeros for stay in kept),
+            sum(stay.zeros.get(variable, 0) for stay in stays),
+            sum(variable in stay.zeros for stay in stays),
         )
         for variable in IMPLAUSIBLE_ZERO
     }
