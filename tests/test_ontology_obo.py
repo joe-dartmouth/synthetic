@@ -74,6 +74,22 @@ def test_each_xrefs_qualifiers_are_kept_beside_its_id(tmp_path):
     assert term.xref_sources("ICD9:999") == ()
 
 
+def test_a_term_carries_its_exact_synonyms(tmp_path):
+    stanza = (
+        "\n[Term]\nid: MONDO:0000001\nname: hypertensive disorder\n"
+        'synonym: "high blood pressure" RELATED []\n'
+        'synonym: "hypertension" EXACT []\n'
+        'synonym: "arterial hypertension" EXACT []\n'
+    )
+    term = parse_obo(write_obo(tmp_path, HEADER + stanza), name="test").terms["MONDO:0000001"]
+    assert term.synonyms == (
+        ("EXACT", "arterial hypertension"),
+        ("EXACT", "hypertension"),
+        ("RELATED", "high blood pressure"),
+    )
+    assert term.exact_synonyms() == ("arterial hypertension", "hypertension")
+
+
 def test_version_is_the_header_verbatim(tmp_path):
     mondo = parse_obo(write_obo(tmp_path, MONDO_TEXT, "mondo.obo"), name="mondo")
     hpo = parse_obo(write_obo(tmp_path, HPO_TEXT, "hp.obo"), name="hpo")

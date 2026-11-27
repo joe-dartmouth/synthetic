@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import hashlib
+import inspect
 import json
 import time
 from collections.abc import Iterator
@@ -75,6 +77,34 @@ def test_the_payload_carries_both_turns_the_schema_and_fixed_sampling():
         },
         "chat_template_kwargs": {"enable_thinking": False},
     }
+
+
+PAYLOAD_DIGESTS = {
+    "call": "74bbb17b04cace8a1e8c8213cd4d7b404683b60d985ea0520f20ddb29ca4adc1",
+    "thinking": "f6a9fc70bd669dc086586d8833186ed725db322d737f07eadceaacc5c1a3744d",
+    "preflight": "bb0e0477dfcc00b63deac6942620540a8051bf9d1d380e27eaebc89ad63254d8",
+}
+"""The sha256 of each existing request body's JSON bytes, read before `local_send` took `build`."""
+
+
+def test_existing_local_payloads_keep_their_bytes():
+    bodies = {
+        "call": payload(CALL),
+        "thinking": payload(THINKING_CALL),
+        "preflight": payload(probe_call(THINKING, PROBE_ROWS, max_tokens=PREFLIGHT_TOKENS)),
+    }
+    digests = {k: hashlib.sha256(json.dumps(v).encode()).hexdigest() for k, v in bodies.items()}
+    assert digests == PAYLOAD_DIGESTS
+    assert inspect.signature(local_send).parameters["build"].default is payload
+
+
+def test_a_send_posts_the_body_its_build_gives():
+    def build(call: Call) -> dict[str, object]:
+        return {**payload(call), "seed": 7}
+
+    with Server([(200, completion([RECORD]))]) as fake:
+        asyncio.run(local_send(MODEL, url=fake.url, build=build)(CALL))
+    assert fake.requests == [("POST", "/v1/chat/completions", "application/json", build(CALL))]
 
 
 def test_a_rewrite_calls_payload_carries_its_own_schema():

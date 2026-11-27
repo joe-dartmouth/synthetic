@@ -16,7 +16,7 @@ from bko.evaluate.direct_arms import CAPPED_ARM
 from bko.evaluate.errors import EvaluationError
 from bko.evaluate.experiment import DIRECT_ARM, REAL_ARM, Experiment
 from bko.evaluate.named_runs import NamedRun, wholes_of
-from bko.evaluate.runs_direct import E18_SHARES, E21
+from bko.evaluate.runs_direct import E18_SHARES, E21, E22
 
 
 REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
@@ -29,6 +29,7 @@ REFERENCE: Final[Mapping[str, str]] = MappingProxyType(
     | {"e16-thin": DIRECT_ARM, "e16-empty": DIRECT_ARM}
     | {"e17-thin": DIRECT_ARM, "e17-empty": DIRECT_ARM}
     | {f"e18-{share}": DIRECT_ARM for share in E18_SHARES}
+    | {f"e22-{name}": DIRECT_ARM for name in E22}
     | {
         f"e19-{family}": REAL_ARM
         for family in ("thin", "empty", "supported-thin", "supported-empty")
@@ -44,7 +45,8 @@ for the quota sweep, whose arms are E12's, or
 `bko-direct` for the perturbation runs and the coherent free-field runs, whose arms perturb its
 rows, for the donor-limit, tree-share and conditional `is_a` runs, whose arms change who donates
 them or what they draw, and for the synthetic-share runs, whose comparators each read against
-`bko-direct`; or `bko-capped` for the microaggregation runs, whose candidate `bko-micro` refines
+`bko-direct`, and for the automatic-mapping runs, whose families change the rows it draws from;
+or `bko-capped` for the microaggregation runs, whose candidate `bko-micro` refines
 `bko-capped`'s draw, so `bko-micro` and `bko-direct` each read against it."""
 
 

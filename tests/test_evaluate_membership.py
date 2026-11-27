@@ -857,6 +857,20 @@ def test_each_run_family_reads_against_its_reference_arm():
         "e18-quarter": DIRECT_ARM,
         "e18-half": DIRECT_ARM,
         "e18-all": DIRECT_ARM,
+        **{
+            f"e22-{family}-{fraction}": DIRECT_ARM
+            for family in (
+                "hand",
+                "auto-lexical",
+                "auto-local",
+                "permuted",
+                "codes-hand",
+                "codes-auto-lexical",
+                "codes-auto-local",
+                "codes-permuted",
+            )
+            for fraction in ("thin", "empty")
+        },
         "e19-thin": REAL_ARM,
         "e19-empty": REAL_ARM,
         "e19-supported-thin": REAL_ARM,

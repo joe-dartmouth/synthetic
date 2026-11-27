@@ -2,7 +2,7 @@
 id: paper-scarcity
 title: Register a paired support-removal and knowledge-quality sweep
 status: blocked
-depends_on: evaluate-confirmatory-registration, ontology-auto-mapping, paper-baselines
+depends_on: evaluate-confirmatory-registration, paper-baselines
 blocks: paper-scarcity-results
 parallel_safe: false
 milestone: direct-method-research
@@ -32,8 +32,8 @@ information and measure the amount retained.
 
 **Findings from planning.**
 
-- The mapping perturbation reuses the permutation unit `ontology-auto-mapping` adds
-  (`bko.ontology.automatic.permuted`).
+- The mapping perturbation reuses the hand rows' permutation
+  `bko.ontology.automatic.permuted` (ADR `research/automatic-mapping`, Decision 8).
 - "P3 masks" means P3's registered removals (`bko.evaluate.runs_published.P3`), not its results.
 
 ## Acceptance

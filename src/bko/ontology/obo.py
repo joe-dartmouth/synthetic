@@ -144,6 +144,7 @@ def _term(term: pronto.Term, qualified: dict[str, set[tuple[str, str]]]) -> Term
             (xref, tuple(sorted(qualified[xref]))) for xref in xrefs if xref in qualified
         ),
         annotations=_annotations(term),
+        synonyms=tuple(sorted((str(s.scope), s.description) for s in term.synonyms)),
     )
 
 
