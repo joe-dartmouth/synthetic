@@ -494,8 +494,10 @@ and writes no candidates file, so it refuses `--log`, `--candidates`, `--replay`
 holdouts overlap, whose union is not the named run's holdout seeds, whose headers differ, or whose
 holdouts hold different (arm, source, measure, scope) keys, as slices scored under other code or
 configuration would; an arm's added-row `dcr-p5` and `dcr-median` are set aside, since `score`
-writes them only on a holdout where the arm added rows. It writes the rows in the named run's seed order under one header to stdout,
-each holdout's rows in its file's order. It also reads each slice's sibling `scores.log` and
+writes them only on a holdout where the arm added rows, and so is a replica arm's `replica-short`
+row at scope `all`, which only a holdout whose replica filled partially holds. It writes the rows
+in the named run's seed order under one header to stdout, each holdout's rows in its file's
+order. It also reads each slice's sibling `scores.log` and
 refuses a slice with none, or whose `data`, `versions` or `experiment` line differs from the first
 slice's once `run=`, `holdouts=`, `seeds=` and `spend_ceiling=` are set aside, as slices at another
 training fraction, removal fraction, cutoff or commit would. A key an older line lacks is read at
@@ -534,7 +536,11 @@ identity checks and what self-reproduction admits). It makes no API call. It rea
 `scores.log` and `holdout-candidates.jsonl`, rebuilds each BKO arm's rows from its last returned
 attempt's `kept` candidates, regenerates each baseline, and checks each row set against its logged
 `arm` line; each `--with` folder's rows leave the test split too, and every holdout is scored
-through `run.score_holdout`.
+through `run.score_holdout`. A folder or `--with` folder whose `experiment` line sets
+`partial_replica=true` and whose replica `arm` line names a shortfall under `short` is refused with
+exit 3 before the dataset is loaded, naming `rows` and `panel`, which read it; a folder without the
+field is rescored as before, even where a classifier-curated replica's params name `short` (ADR
+[`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)).
 
 With `--with`, each holdout writes a `shared-split` held-out row, the first 12 hex digits of the
 sha256 of its kept test record ids, and logs
@@ -574,7 +580,9 @@ fails a check exits 3 before its rows are written. The store is created when the
 passes, so a run refused before then leaves none; a later refusal leaves the holdouts checked
 before it, which a reader refuses as incomplete (ADR
 [`research/rebuilt-rows-store`](adr/research/rebuilt-rows-store.md)). Exit codes are `shared`'s;
-a `--rows` path that exists, or whose directory does not, exits 2 before any file is read. The
+a `--rows` path that exists, or whose directory does not, exits 2 before any file is read. A
+partial replica is re-drawn through the harness's own fill, so its rows hash to its `arm` line's
+sha256 and the draw's `shortfall` lines are logged again. The
 panel's shortfall WARNING lines are not reproduced, because a stored fill does not run the
 generator again.
 
@@ -635,7 +643,7 @@ generator, `rows`' `rows differing` lines, and these, at INFO:
   the arm `prior-shift`'s offsets, folds counted from 0.
 - `panel holdout=%d differing=%d partial=%d subsampled=true|false`, per holdout once its strict
   check 7 passes: the `rows differing` lines logged, the fills whose `arm` line logs a shortfall,
-  and whether the holdout trains on more than 50,000 rows.
+  a partial replica's included, and whether the holdout trains on more than 50,000 rows.
 - `panel done holdouts=%d`, last.
 
 A paid run that stopped resumes with `--resume STOPPED`. It answers the stopped log's answered
@@ -883,7 +891,13 @@ start or the supervisor cannot run.
   scope, empty where the scope holds one label; no other run writes it. The replica
   arms also fill the training split's own cell counts, or, when `Experiment.replica_rows` is set, that
   many rows split across the cells in proportion to those counts; those rows alone train a
-  classifier and are compared with the training split for fidelity. A replica holding rows of fewer
+  classifier and are compared with the training split for fidelity. A replica fill short of its
+  request on every attempt stops the run, unless the run's `Experiment.partial_replica` is set:
+  then it fills partially on its last attempt as a gap fill does and is scored on the rows it
+  kept, and the arm's replica rows on that holdout end with a `replica-short` row (scope `all`,
+  its value the rows missing), which a run whose replicas complete never writes; a direct arm's
+  short replica still refuses (ADR
+  [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). A replica holding rows of fewer
   than two labels, or none, scores its classifier measures undefined, a replica of no rows its
   fidelity too, and the run goes on. It writes one row per holdout, arm, source, measure
   and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO arm reads the
@@ -990,6 +1004,9 @@ start or the supervisor cannot run.
   ` replica_rows=<rows>` follows `replica=` only when the run's `Experiment.replica_rows` caps the
   replica fill near that many rows in all: each cell asks its `kept_count` at the share
   `replica_rows` over the training rows, so the rounded cells may sum to a few rows off it;
+  ` partial_replica=true` follows `replica=` and `replica_rows=` only when the run's
+  `Experiment.partial_replica` lets a replica fill partially on its last attempt (P1's partial
+  runs);
   `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's
   0.5, the probability at which utility calls a record positive; `quota_rule=<rule>` follows
   `fill_to=` and `cutoff=` only when the run's `Experiment.quota_rule` is not `fill-to`, the rule
@@ -1035,7 +1052,9 @@ start or the supervisor cannot run.
   shortfall that falls on such cells alone fills partially on the attempt that meets it, with no
   retry, and one that also falls on another cell is retried (its `arm` line then names the cell's
   missing rows under `short` in the params, and the arm scores the rows it kept; a short replica
-  fill still refuses,
+  fill still refuses, unless the run sets `Experiment.partial_replica`, when a replica fill short
+  on its last attempt fills partially the same way, `arm=` naming `<arm>-replica`, and takes no
+  partial fill on structural cells,
   and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256 and a
   `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote, read in chunks
@@ -1126,7 +1145,10 @@ start or the supervisor cannot run.
   guidance level (`none` for a run with no paid arm) and its training fraction,
   then one `criterion` line per criterion with its verdict, a `criterion=validity` line, a
   `validity` line per other BKO arm, a `candidates` line per BKO arm and fill (`fill=gap`,
-  `fill=replica`) with its counts and rate, a `copies` line per arm, a `mean` line per arm, measure
+  `fill=replica`) with its counts and rate, a `copies` line per arm, a
+  `replica-short holdout=%d arm=<arm>-replica rows=%d` line per `replica-short` row (a replica
+  filled partially under `Experiment.partial_replica`, and the rows it lacks), a `mean` line per
+  arm, measure
   and scope, a `contrast model=hgb` line per contrast of the boosting model's measures when the
   scores hold them (`criterion=`, `scope=`, `arm=`, `against=`, `measure=`, `mean=`, `low=`,
   `high=`, `refuting_high=`, `holdouts=`, `differing=`) or, once per pair of arms either of which
@@ -1272,7 +1294,10 @@ start or the supervisor cannot run.
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
   and the candidate, no criterion and test copies kept, every holdout on TableShift's fixed test
-  split; ADR [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It holds
+  split; ADR [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)), then
+  `p1-id-partial` and `p1-ood-partial` on the same datasets
+  (`bko.evaluate.runs_published.P1_PARTIAL`: P1 with `partial_replica` set, so a replica a
+  generator cannot complete is scored on the rows it kept). It holds
   P2's run, `p2` (`bko.evaluate.runs_published.P2`: E1 on UCI Heart Disease with P1's arms, the
   candidate `bko-direct`, a replica for every row-adding arm and the candidate and no criterion),
   whose replica fills `syntheval` scores (ADR
@@ -1341,7 +1366,8 @@ call:
 
     mkdir -p runs/<run-id> && test ! -e runs/<run-id>/privacy.csv && env VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 uv run --no-sync python -m bko.evaluate privacy <run> [--runs-dir DIR] $(printf -- '--rows %s ' runs/<store-id>-rows/rows.jsonl <more>...) > runs/<run-id>/privacy.csv 2> runs/<run-id>/privacy.log </dev/null
 
-Per holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01 and
+It reads each arm's gap fill alone, so a replica, a partial one included, never enters it. Per
+holdout and arm, it reads the attack in each scope the ADR fixes (AUC, and TPR at FPR 0.01 and
 0.001), NNDR, and DCR recomputed under the same distance; an arm with no rows on a holdout is NaN
 and counted, and a TPR below 1 / (the scope's non-members) is NaN. The `privacy.csv` holds the
 measures `mi-auc`, `mi-tpr01` and `mi-tpr001`, suffixed by scope (`-outside`, `-cell` and `-label`;
@@ -1473,8 +1499,10 @@ object it writes. The script gets `PATH`, `HOME`, the locale variables and
 environment. The `syntheval.csv` holds one row per holdout, replica fill (`<arm>-replica`) and
 metric SynthEval returns, `holdout,arm,metric,value`, a value SynthEval could not compute or
 returned non-finite empty. Its `syntheval.log` opens with the `versions commit=` line and
-`syntheval store=%s sha256=%s`, then logs per fill `syntheval start holdout=%d arm=%s`, one
-`syntheval input holdout=%d arm=%s file=%s sha256=%s` line per input file and
+`syntheval store=%s sha256=%s`, then logs per fill `syntheval start holdout=%d arm=%s`, under
+`Experiment.partial_replica` a `replica-short holdout=%d arm=%s rows=%d` line, `compare`'s, for a
+replica that filled partially, read from its `arm` line's `short` params and otherwise scored as
+any, one `syntheval input holdout=%d arm=%s file=%s sha256=%s` line per input file and
 `syntheval holdout=%d arm=%s rows=%d metrics=%d`, and closes with `syntheval rows=%d sha256=%s`,
 the CSV's rows and sha256. It exits 2 when the environment is absent, naming
 `make syntheval-env`, when the script exits non-zero, with the last lines of its stdout and
@@ -1583,9 +1611,12 @@ PRAM's `changed` or `unchanged`); `fields`, the fields that differ from the draw
 draw's values for them. `bko-coherent` then re-runs its change at the fill's seed, which reads its
 own stream, refuses unless the changed rows are the lines' records, and names each free field's leaf
 donor in `sources`. The other arm kinds read their facts from the run folder, a Messages arm's from
-its `calls.jsonl`. It writes `trace.jsonl`, one sorted-key JSON line per record (one per fill for a
-baseline), which holds source training record ids; keep the file in its run folder. `<run-id>` is
-the folder read, `<run>` the named run, `<h>` the holdout and `<arm>` the arm:
+its `calls.jsonl`. A baseline is never re-drawn: its one line names its method and seed, and for
+a replica filled partially (`Experiment.partial_replica`) its `arm` line's `short` params too,
+logging a WARNING `trace replica-short holdout=%d arm=<arm>-replica cells=%s`, the params as
+compact sorted JSON. It writes `trace.jsonl`, one sorted-key JSON line per record (one per fill
+for a baseline), which holds source training record ids; keep the file in its run folder.
+`<run-id>` is the folder read, `<run>` the named run, `<h>` the holdout and `<arm>` the arm:
 
     mkdir -p runs/<run-id>-trace && test ! -e runs/<run-id>-trace/trace.jsonl && test ! -e runs/<run-id>-trace/trace.log && uv run --no-sync python -m bko.evaluate trace <run> --folder runs/<run-id> --holdout <h> --arm <arm> > runs/<run-id>-trace/trace.jsonl 2> runs/<run-id>-trace/trace.log </dev/null
 

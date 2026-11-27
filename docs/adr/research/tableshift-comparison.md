@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-26
 ---
 # TableShift's readmission split, rebuilt in numpy on the pinned Diabetes 130 archive as two datasets
 
@@ -77,7 +77,11 @@ split per run.
    `(<1, female, 0)` holds 20 (measured 2026-11-24).
 9. **Runs.** Experiment P1, runs `p1-id` and `p1-ood`, with `decontaminate=False`, since the
    partition is TableShift's. Accuracy at the 0.5 cutoff is derived from recall, precision and the
-   test prevalence.
+   test prevalence. A replica fill under P1 refuses a shortfall, so `p1-id` and `p1-ood` stop on
+   holdout 0, where TVAE's replica lacks rows of the rare cells after 1,000,000 drawn rows
+   (`docs/EVIDENCE.md`, P1). `P1_PARTIAL` is P1 with `Experiment.partial_replica` set, run as
+   `p1-id-partial` on `tableshift-id` and `p1-ood-partial` on `tableshift-ood`, under ADR
+   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)'s partial-replica rule.
 
 **Differences from TableShift.** No tuning on validation; our classifiers and encodings; one-hot
 coding without its 0.01 frequency floor (`PreprocessorConfig(min_frequency=0.01)`); partition
@@ -113,6 +117,8 @@ variance. The diagnosis columns carry no ontology concept.
 | `DIABETES_FRAME` | Its cohort (first encounters, adults, no hospice) does not give Table 12's counts | 2026-11-24 |
 | One dataset with two test sets | The harness scores one test split per run | 2026-11-24 |
 | The code rows of `diabetes-codes` as field rows | `bko-direct` finds no donor for a draw naming two codes for one field | 2026-11-24 |
+| Partial replicas under the names `p1-id` and `p1-ood` | An existing `RUNS` entry never changes, so a folder scored under a name keeps its identity checks; the rule runs under new names | 2026-11-26 |
+| Dropping `tvae` from P1's replica arms | Changes P1's arms and loses TVAE's replica reading on every holdout to save the rare cells' rows | 2026-11-26 |
 | A new accuracy `Measure` | Accuracy at the cutoff follows from recall, precision and the test prevalence | 2026-11-24 |
 
 ## Enforcement
@@ -130,7 +136,10 @@ variance. The diagnosis columns carry no ontology concept.
   `run`, `run_direct`, `score` and the rehearsal's ranges, the seed-based split unchanged without
   held ids, a missing held id, a duplicate index and an empty held set refused, the digest over
   the held ids, a held-out ratio of 0 and the plain t interval, `load` holding each domain's
-  test split, `bko-direct` drawing on the lab rows, P1's stated configuration),
+  test split, `bko-direct` drawing on the lab rows, P1's stated configuration, `P1_PARTIAL` equal
+  to P1 but for `partial_replica`, `p1-id` and `p1-ood` unchanged),
+  `tests/test_evaluate_partial_replica.py` (P1's `experiment` line unchanged and
+  `P1_PARTIAL`'s naming `partial_replica=true`),
   `tests/test_named_runs_slices.py` (the run names in order),
   `tests/test_datasets_diabetes_pinned.py`
 

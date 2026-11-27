@@ -46,6 +46,7 @@ ASSUMED: Final = MappingProxyType(
         "threshold": str(UNDERREPRESENTED_BELOW),
         "cutoff": str(THRESHOLD),
         "replica_rows": "none",
+        "partial_replica": "false",
         "flagged_cell": "none",
         "synthetic_share": "none",
         "quota_rule": str(QuotaRule.FILL_TO),
@@ -55,9 +56,9 @@ ASSUMED: Final = MappingProxyType(
 
 Each names a setting added after a run of record was scored, at the value that run used: UCI's
 frame, no removal, the whole training split, copies removed, E1's threshold, E1's cutoff, an
-uncapped replica, no cell flagged by name, no row replaced by a synthetic share and the fixed
-fill's quota rule. `seeds` is also read, as `0-<holdouts - 1>`. Any other key a line lacks is
-refused."""
+uncapped replica, a replica that refuses a shortfall, no cell flagged by name, no row replaced by
+a synthetic share and the fixed fill's quota rule. `seeds` is also read, as `0-<holdouts - 1>`.
+Any other key a line lacks is refused."""
 
 LINE: Final = re.compile(r"^\S+ \S+ [A-Z]+ [\w.]+: (?P<message>.*)$")
 ARM: Final = re.compile(

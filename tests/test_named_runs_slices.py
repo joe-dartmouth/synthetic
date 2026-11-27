@@ -419,13 +419,15 @@ KEYS = [
     ),
     "p1-id",
     "p1-ood",
+    "p1-id-partial",
+    "p1-ood-partial",
     "p2",
 ]
 """Every run's name in `RUNS`' order: the names before `_slices` replaced `_e6_runs`, with E9's,
 E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, the donor-limit runs E14, the
 tree-share runs E15, the conditional `is_a` runs E16, the coherent free-field runs E17, P3's
 removal fractions, the synthetic-share runs E18, the matched knowledge controls E19, the
-microaggregation runs E20, the quota sweep E21, P1's runs and P2's."""
+microaggregation runs E20, the quota sweep E21, P1's runs, P1's partial-replica runs and P2's."""
 
 
 def test_the_runs_keys_are_the_literal_list():

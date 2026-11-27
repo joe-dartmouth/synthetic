@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-05
-updated: 2026-11-06
+updated: 2026-11-26
 ---
 # A recorded run's rows are rebuilt once, checked against its log, and stored with their hash
 
@@ -57,6 +57,10 @@ sha256, so one rebuild can be checked against it and kept.
 - A hand check needs only `jq` and `shasum`:
   `jq -j 'select(.kind=="rows" and .holdout==0 and .arm=="ctgan") | .csv' rows.jsonl | shasum -a 256`
   prints the sha256 of the folder's `arm holdout=0 arm=ctgan` line.
+- A baseline's partial fill, a replica's under `Experiment.partial_replica` included (ADR
+  [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)), is re-drawn through the
+  harness's own fill, so its rows hash to its `arm` line's sha256 and its `shortfall` lines are
+  logged again.
 - The panel's shortfall WARNING lines are not reproduced, because a stored fill does not run the
   generator again.
 

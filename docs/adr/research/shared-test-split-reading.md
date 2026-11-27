@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-01
-updated: 2026-11-11
+updated: 2026-11-26
 ---
 # A run is read beside another on the test split neither copies, rescored from both runs' own files
 
@@ -114,7 +114,11 @@ cost, from files already on disk; the plain `--beside` reading stays beside it.
 not on one split; the rescore holds on one machine at the run's data, releases and a commit whose
 scoring writes the run's bytes, as replay does; a run whose candidates file lacks its kept rows
 cannot be rescored; nor can a run with a shortfall's partial fill, whose lines hold no returned
-attempt, so the file does not mark the rows the run kept.
+attempt, so the file does not mark the rows the run kept; nor, before the dataset is loaded, a
+folder or `--with` folder whose `experiment` line sets `partial_replica` and whose replica filled
+partially, since `shared` reads a replica as a copy of every training cell (ADR
+[`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)). A folder without the field is
+read as before.
 
 ## Ruled Out
 

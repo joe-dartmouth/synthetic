@@ -207,13 +207,17 @@ def shared(
     *others: Path,
     replicas: bool = False,
     experiment: Experiment | None = None,
+    arms: Mapping[str, Runner] | None = None,
 ) -> tuple[int, str]:
-    """Run `shared` over `folder` with `others` as `--with`; return its exit code and stdout."""
+    """Run `shared` over `folder` with `others` as `--with`; return its exit code and stdout.
+
+    `arms` replaces the context's runners.
+    """
     argv = ["shared", "--folder", str(folder), "--data-dir", str(tmp_path / "data")]
     for other in others:
         argv += ["--with", str(other)]
     out = io.StringIO()
-    ctx = rescorer(replicas=replicas, experiment=experiment)
+    ctx = rescorer(replicas=replicas, experiment=experiment, arms=arms)
     code = main(argv, context=ctx, out=out)
     return code, out.getvalue()
 

@@ -26,15 +26,21 @@ from bko.evaluate.run_context import named as named_run
 from bko.evaluate.run_context import runs_root
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir
-from bko.evaluate.shared import rescore
+from bko.evaluate.shared import refuse_partial_replica, rescore
 from bko.evaluate.truth import truth
 from bko.gaps.scope import load_scope
 
 
 def _shared(args: argparse.Namespace, context: Context) -> str:
-    """Rescore the folder's run less every `--with` folder's copies; read every file first."""
+    """Rescore the folder's run less every `--with` folder's copies; read every file first.
+
+    The folder, or a `--with` folder, whose replica filled partially is refused before the
+    dataset is loaded (`refuse_partial_replica`).
+    """
     named = named_run(args.run, context)
     folder, others = read_folder(args.folder), [read_folder(path) for path in args.others]
+    for each in (folder, *others):
+        refuse_partial_replica(each)
     data = load(named.dataset, data_dir(args), named)
     uci = named.dataset is Dataset.UCI
     return rescore(

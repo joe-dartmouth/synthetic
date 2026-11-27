@@ -231,6 +231,22 @@ whole-split AUC-PR sat near 0.91, which leaves a 10% gain no room.
   A refusal on the last attempt stops the run with no output; a method output that breaks its
   contract stops it at once. A call that gets no response stops the run at once, as do a failed
   gap query and a spend at the ceiling.
+- **A partial replica under a field.** `Experiment.partial_replica`, false by default, lets a
+  replica fill still short at its row limit on the last attempt fill partially as a gap fill does
+  (Rationale), with its `shortfall` lines and the `short` params in its `arm` line; attempts
+  before the last still retry, and a replica takes no partial fill on structural strata. Each such
+  fill writes a `replica-short` row in `scores.csv` (source `replica`, scope `all`, its value the
+  rows missing) on its holdout; a replica that completes writes none, and so does a replica of a
+  run without the field, even where a classifier-curated Messages arm's replica names `short` in
+  its params, so a run scored before the field reads and rescores as it did. A direct arm's short
+  replica refuses whatever the field says. Its readers: `compare` and `syntheval` log a
+  `replica-short` line per partial replica fill and score it as any; `rows` re-draws it through
+  the harness's own fill, and `panel` counts it among a holdout's partial fills; `trace` of a
+  partial baseline replica adds its `short` params; `merge` sets a replica arm's `replica-short`
+  key aside, since only a holdout whose replica filled partially holds one; `privacy` reads gap
+  fills alone, so a partial replica never enters it; and `shared` refuses a folder, or a `--with`
+  folder, whose `experiment` line sets the field and whose replica filled partially, since it reads
+  a replica as a copy of every training cell. `docs/DEVELOPMENT.md` holds the line formats.
 - **E3's additions.** `Experiment.removal`, `Experiment.decontaminate`, the `real` arm, whose
   added rows are the removed training rows, `pairable`'s `allow_copies` and holdout slices joined
   by `merge` exist for E3 (ADR [`research/synthea-downstream-design`](synthea-downstream-design.md));
@@ -362,10 +378,15 @@ holding fewer records than its method needs (ADR
 same way on attempt 1, since no later attempt changes it: on a gap fill, any arm's shortfall that
 falls on strata of fewer than 2 training records alone fills partially on the attempt that meets
 it, a rejection sampler's at its row limit included; a shortfall that also falls on another
-stratum, and a refusal that is not a shortfall, are retried as on any other fill. A replica fill still refuses, since
-its scores read it as a copy of every training cell. E4's fill targets of 40 and 80 ask TVAE for more rows of a
-2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
-not one holdout. Any other refusal on every attempt still stops the run.
+stratum, and a refusal that is not a shortfall, are retried as on any other fill. E4's fill
+targets of 40 and 80 ask TVAE for more rows of a 2-record cell than its draws reach (rehearsals of
+2026-10-31), and refusing would drop the dose run, not one holdout. A replica fill refuses by
+default, since its scores read it as a copy of every training cell. Under
+`Experiment.partial_replica` (Decision, a partial replica under a field) its replica utility and
+fidelity read the rows it kept instead, and its `replica-short` row says so; a reader that needs a
+copy of every training cell, `shared`, refuses it. A direct arm's short replica still refuses,
+since the arm refuses a short draw before the harness sees a shortfall. Any other refusal on every
+attempt still stops the run.
 
 Paid generation has copied archive records in every column: in the completeness run of 2026-10-19, 5
 of 20 records of one cell, 3 of them test records of that run's split. A copied test record would be
@@ -419,6 +440,7 @@ and holdout.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| A replica fill that always refuses | Stops P1's runs on holdout 0, where TVAE's replica lacks TableShift's rare cells after 1,000,000 drawn rows; under `Experiment.partial_replica` the fill keeps its rows and a `replica-short` row marks it | 2026-11-26 |
 | A partial fill on attempt 1 whenever the request asks a structural stratum | A shortfall that also falls on a stratum a retry can fill would keep fewer rows than the retry gives | 2026-11-02 |
 | Reporting a projection or ceiling stop rather than resuming it | Loses the holdouts a stopped run paid for; a resume under a raised ceiling recovers them and still stops at a ceiling | 2026-11-02 |
 | Raising a stopped run's ceiling in its named run | A commit changes the resumed run's `versions` line, so `merge` refuses it beside its sibling slices, and an E6 fraction's ceiling sets all 10 of its slices'; `--ceiling` raises one resume's alone | 2026-11-02 |
@@ -482,7 +504,12 @@ and holdout.
   `tests/test_evaluate_privacy.py`, `tests/test_evaluate_scores.py`, `tests/test_evaluate_cli.py`,
   `tests/test_evaluate_guided.py`, `tests/test_baselines_records.py`,
   `tests/test_evaluate_copies.py`, `tests/test_evaluate_validity.py`,
-  `tests/test_evaluate_bko_cli.py`
+  `tests/test_evaluate_bko_cli.py`, `tests/test_evaluate_partial_replica.py` (the partial
+  replica rule, its `replica-short` row, its `experiment` key, a non-bool refused and a
+  direct-style short replica refusing under it),
+  `tests/test_evaluate_partial_replica_readers.py` (`merge`, `compare`, `rows`, `panel`,
+  `shared`, `trace`, `privacy`, `syntheval`, `--replay` and `--rehearse` over a partial replica,
+  and a replica naming `short` without the field reading as before)
 
 ## Reversal Conditions
 

@@ -21,9 +21,9 @@ import logging
 import math
 import subprocess  # ruff: ignore[suspicious-subprocess-import]
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 from bko.datasets.errors import UnavailableError
 from bko.datasets.fetch import default_data_dir
@@ -36,6 +36,7 @@ from bko.evaluate.provenance import log_versions
 from bko.evaluate.rows_read import bind, read_rows
 from bko.evaluate.run_folder import read_folder
 from bko.evaluate.scoring import data_dir
+from bko.evaluate.shared import logged_params
 from bko.evaluate.syntheval_inputs import OUT, SynthevalFill, export, fills, score_argv
 
 
@@ -96,7 +97,9 @@ def run_syntheval(
     """The `syntheval` command over `context`, the context of the run `args.run`; the CSV.
 
     It logs the versions, `syntheval store=%s sha256=%s`, per fill
-    `syntheval start holdout=%d arm=%s`, per input file
+    `syntheval start holdout=%d arm=%s`, then, under `Experiment.partial_replica`, for a replica
+    that filled partially `replica-short holdout=%d arm=%s rows=%d` from its `arm` line's `short`
+    params, as `compare` logs it, per input file
     `syntheval input holdout=%d arm=%s file=%s sha256=%s`, then
     `syntheval holdout=%d arm=%s rows=%d metrics=%d`, and last `syntheval rows=%d sha256=%s`,
     the CSV's rows and sha256. The script runs from `args.bench_dir`, else `bench_dir()`.
@@ -104,7 +107,7 @@ def run_syntheval(
     Raises:
         UnavailableError: If the bench directory's `.venv` holds no interpreter, naming
             `make syntheval-env`, before any file is read.
-        IdentityError: As `bind` and `fills`.
+        IdentityError: As `bind`, `fills` and `_log_short`.
         EvaluationError: As `run_script`, or if the script exits non-zero, with the last `TAIL`
             lines of its stdout and its stderr, or writes no JSON object of metric name to number
             or null.
@@ -133,6 +136,8 @@ def run_syntheval(
     written = 0
     for fill in fills(folder, rows, data, context.experiment):
         logger.info("syntheval start holdout=%d arm=%s", fill.holdout, fill.arm)
+        if context.experiment.partial_replica:
+            _log_short(fill, folder.arms[fill.holdout, fill.arm])
         metrics = _scored(fill, runner, argv)
         for metric, value in metrics.items():
             writer.writerow((fill.holdout, fill.arm, metric, "" if value is None else repr(value)))
@@ -147,6 +152,20 @@ def run_syntheval(
     text = out.getvalue()
     logger.info("syntheval rows=%d sha256=%s", written, hashlib.sha256(text.encode()).hexdigest())
     return text
+
+
+def _log_short(fill: SynthevalFill, line: str) -> None:
+    """Log `replica-short holdout=%d arm=%s rows=%d` when the fill's `arm` line names a `short`.
+
+    The line is `compare`'s, the rows the sum of the `short` params; the fill is scored as any.
+
+    Raises:
+        IdentityError: As `bko.evaluate.shared.logged_params`.
+    """
+    short = logged_params(line).get("short")
+    if isinstance(short, Mapping) and short:
+        missing = sum(cast("Mapping[str, int]", short).values())
+        logger.info("replica-short holdout=%d arm=%s rows=%d", fill.holdout, fill.arm, missing)
 
 
 def _scored(

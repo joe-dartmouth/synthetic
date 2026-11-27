@@ -70,7 +70,7 @@ from bko.evaluate.runs_direct import (
     E20_THIN,
     E21,
 )
-from bko.evaluate.runs_published import P1, P2, P3
+from bko.evaluate.runs_published import P1, P1_PARTIAL, P2, P3
 from bko.generate.messages import LEVELS, SETTINGS, Level, Settings
 
 
@@ -331,6 +331,8 @@ RUNS: Final[Mapping[str, NamedRun]] = MappingProxyType(
         **{key: run for name, e21 in E21.items() for key, run in _slices("e21", name, e21).items()},
         "p1-id": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_ID),
         "p1-ood": NamedRun(P1, SETTINGS, Dataset.TABLESHIFT_OOD),
+        "p1-id-partial": NamedRun(P1_PARTIAL, SETTINGS, Dataset.TABLESHIFT_ID),
+        "p1-ood-partial": NamedRun(P1_PARTIAL, SETTINGS, Dataset.TABLESHIFT_OOD),
         "p2": NamedRun(P2, SETTINGS),
     }
 )
@@ -341,7 +343,8 @@ runs `e15-*` on `diabetes-codes`, the conditional `is_a` runs `e16-*`, the coher
 runs `e17-*`, Juwara et al.'s removal fractions `p3-*`, the synthetic-share sweep `e18-*`,
 the matched knowledge controls `e19-thin*`, `e19-empty*` and, on `diabetes-supported`,
 `e19-supported-*`, the microaggregation runs `e20-*`, the quota sweep `e21-*`, TableShift's
-`p1-id` and `p1-ood`, and SynthEval's `p2`, each family's experiment saying what it is. A
+`p1-id` and `p1-ood` and their partial-replica runs `p1-id-partial` and `p1-ood-partial`, and
+SynthEval's `p2`, each family's experiment saying what it is. A
 variant adds its own entry in its own change, with its arms, candidate, comparators and
 ceiling."""
 

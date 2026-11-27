@@ -56,7 +56,17 @@ from bko.evaluate.named_runs import DEFAULT_RUN
 from bko.evaluate.prepare import prepared, require_cells
 from bko.evaluate.provenance import experiment_line, log_experiment
 from bko.evaluate.run import score_holdout
-from bko.evaluate.run_folder import ARM, BKO, SCORES_LOG, SPLIT, Folder, Key, check_folders, fields
+from bko.evaluate.run_folder import (
+    ARM,
+    ASSUMED,
+    BKO,
+    SCORES_LOG,
+    SPLIT,
+    Folder,
+    Key,
+    check_folders,
+    fields,
+)
 from bko.evaluate.scores import Measure, Score, Source, render
 from bko.ontology.schema import FieldMapping
 from bko.validate.checks import validate
@@ -182,6 +192,36 @@ class StoredArm:
         """The fill's candidate counts, read from its lines."""
         lines = self._folder.lines.get((holdout, self.name, FILLS[source]), ())
         return tally(lines, self._template).measures()
+
+
+def refuse_partial_replica(folder: Folder) -> None:
+    """Refuse a folder whose replica fill filled partially, as `shared` reads no partial replica.
+
+    A BKO arm's partial gap fill is refused too, by `returned_attempt`, but for another reason: the
+    candidates file does not mark the rows it kept, so they cannot be rebuilt. A baseline's partial
+    replica is re-drawn as any baseline fill (`rows` and `panel` read it); `shared` refuses it
+    because it reads a replica as a copy of every training cell. Only a folder whose `experiment`
+    line sets `partial_replica` is read, since only that field lets a replica fill partially
+    (`Experiment.partial_replica`); its partial replica's `arm` line names the shortfall under
+    `short` in its params. A folder without the field is left to the rescore, as before the field
+    existed, even where a classifier-curated Messages arm's replica names its own `short`
+    (`bko.evaluate.guided`).
+
+    Raises:
+        IdentityError: If such a folder's replica `arm` line names a shortfall, or its params are
+            not a JSON object (`logged_params`).
+    """
+    if folder.experiment.get("partial_replica", ASSUMED["partial_replica"]) != "true":
+        return
+    for (holdout, arm), line in sorted(folder.arms.items()):
+        if not arm.endswith("-replica"):
+            continue
+        short = logged_params(line).get("short")
+        if short:
+            shown = json.dumps(short, sort_keys=True, separators=(",", ":"))
+            msg = f"{folder.path}'s holdout {holdout}'s {arm} fill is a partial replica, short"
+            msg += f" of {shown}, which a shared rescore does not read; `rows` or `panel` read it"
+            raise IdentityError(msg)
 
 
 def logged_params(line: str) -> dict[str, object]:
@@ -327,7 +367,9 @@ def rescore(  # ruff: ignore[too-many-arguments]  (panel's two keywords beside t
     A run scored before a held-out row joined the harness gains that row, so it reads false
     without failing. A given `after` is called with each holdout's seed, its `Logged` lines and
     its scores, once its checks pass; `calibration` is `score_holdout`'s, and `extend_models`
-    `check_folders`'.
+    `check_folders`'. `shared`'s partial-replica refusal (`refuse_partial_replica`) sits in its
+    command handler, not here, because `rows` and `panel` rescore through this function too and
+    read a partial replica.
 
     Raises:
         IdentityError: As `check_folders`, `excluded` and `_check_holdout`, or if `others` are

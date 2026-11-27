@@ -72,8 +72,9 @@ links to where its blocker is tracked.
 
   so a reader that parses `shortfall` lines by prefix meets two key sets. Deferred because no
   reader under `src/bko/` parses a `shortfall` line today; `panel` reads a shortfall from the
-  `arm` line's params. The `shortfall`-line tests of unit `evaluate-p1-partial-replicas` assert
-  one format, the `partial_fill` key set, and do not discharge this entry.
+  `arm` line's params. The `shortfall`-line tests of `tests/test_evaluate_partial_replica.py` and
+  `tests/test_evaluate_partial_replica_readers.py` assert one format, the `partial_fill` key set,
+  and do not discharge this entry.
 
   **What discharges it:** one of the two lines takes its own prefix, or a reader states which
   format it reads, with a test that a line of the other format is not misread.

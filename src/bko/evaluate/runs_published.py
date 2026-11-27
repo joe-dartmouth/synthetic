@@ -1,11 +1,11 @@
 """The experiments run beside published numbers: P1, P2 and P3.
 
 P1 is TableShift's readmission partition, P2 UCI Heart Disease under SynthEval's metrics, and P3
-Juwara et al.'s removal fractions on E6's cell. `bko.evaluate.named_runs.RUNS` names P1's two
-runs, `p1-id` and `p1-ood`, one per test split (ADR `research/tableshift-comparison`;
-`docs/EVIDENCE.md`, P1), P2's run `p2` (ADR `research/syntheval-reading`; `docs/EVIDENCE.md`, P2)
-and P3's runs `p3-<fraction>` with their slices (ADR `research/covariate-bias-comparison`;
-`docs/EVIDENCE.md`, P3).
+Juwara et al.'s removal fractions on E6's cell. `bko.evaluate.named_runs.RUNS` names P1's four
+runs, `p1-id` and `p1-ood`, one per test split, and their partial-replica runs `p1-id-partial` and
+`p1-ood-partial` (ADR `research/tableshift-comparison`; `docs/EVIDENCE.md`, P1), P2's run `p2`
+(ADR `research/syntheval-reading`; `docs/EVIDENCE.md`, P2) and P3's runs `p3-<fraction>` with
+their slices (ADR `research/covariate-bias-comparison`; `docs/EVIDENCE.md`, P3).
 """
 
 from __future__ import annotations
@@ -60,6 +60,10 @@ partition is TableShift's. Every holdout scores the same test records after the 
 records (`bko.evaluate.data.held_split`), so its intervals read the arms' draw variance only, and
 its held-out ratio is 0 (`bko.evaluate.prepare.held_out_ratio`): each interval is the plain t
 interval, with no Nadeau and Bengio test-overlap term."""
+
+P1_PARTIAL: Final = replace(P1, partial_replica=True)
+"""P1 with `partial_replica` set, as TVAE's replica of TableShift's rare cells needs (ADR
+`research/tableshift-comparison`); ADR `research/e1-evaluation-protocol` holds the rule."""
 
 P2: Final = replace(
     E1,

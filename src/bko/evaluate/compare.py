@@ -29,7 +29,7 @@ from bko.evaluate.errors import EvaluationError, ScoresFormatError
 from bko.evaluate.experiment import CRITERION_NAMES, PAID_ARMS, Experiment
 from bko.evaluate.fidelity import MEASURES as FIDELITY
 from bko.evaluate.logs import log_copies, log_means
-from bko.evaluate.scores import CALIBRATION_MEASURES, Score, Source, parse, suffixed
+from bko.evaluate.scores import CALIBRATION_MEASURES, Measure, Score, Source, parse, suffixed
 from bko.evaluate.unjudged import Unjudged, judged_of, models_in, unjudged
 from bko.evaluate.validity import Validity, reported, validity, verdict
 
@@ -67,6 +67,9 @@ def compare(
     hold a model outside `MODELS`, as a `panel` file does, each other model's unjudged lines
     follow the regression's, `model=` naming it, and a pair of arms either of which lacks its rows
     is logged as skipped; otherwise only the regression's are logged.
+
+    A `replica-short` line names each holdout and replica fill (`arm=<arm>-replica`) that filled
+    partially, with the rows it lacks, after the copies.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -123,6 +126,7 @@ def compare(
     out.write(table(contrasts))
     _log_validity(rows, experiment, candidate)
     log_copies(rows)
+    _log_replica_short(rows)
     log_means(rows, measures=MEANS)
     present = models_in(rows)
     others = [model for model in present if model is not Model.LR]
@@ -145,6 +149,21 @@ class _Reading:
     arm: str
     against: str
     pairing: Pairing
+
+
+def _log_replica_short(scores: Sequence[Score]) -> None:
+    """Log a `replica-short` line per partial replica: its holdout, fill and the rows it lacks.
+
+    `arm=` names the replica fill, `<arm>-replica`, as its `shortfall` and `arm` lines do.
+    """
+    for score in scores:
+        if score.measure is Measure.REPLICA_SHORT:
+            logger.info(
+                "replica-short holdout=%d arm=%s-replica rows=%d",
+                score.holdout,
+                score.arm,
+                score.value,
+            )
 
 
 def _text(data: bytes) -> str:
