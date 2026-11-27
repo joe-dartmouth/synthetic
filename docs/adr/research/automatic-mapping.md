@@ -112,8 +112,12 @@ pinned weights and the server's build, which its run logs name.
 
 ## Enforcement
 
-- Owner: `src/bko/ontology/`
-- Pinned by: nothing -- convention only
+- Owner: `src/bko/ontology/automatic.py`
+- Pinned by: `tests/test_ontology_automatic.py` (the cross-reference route and its candidates,
+  the threshold, negative and generic states, numeric columns, ties, no records taken, no import
+  of a later stage, the render under two hash seeds, the structural check, precision and recall,
+  the permuted control and the verdict table's rows) and `tests/test_ontology_obo.py`
+  (`Term.synonyms`)
 
 ## Reversal Conditions
 

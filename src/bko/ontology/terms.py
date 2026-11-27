@@ -45,6 +45,7 @@ class Term:
         annotations: `(predicate, literal)` for each literal `property_value` whose predicate the
             loader keeps (`bko.ontology.obo.ANNOTATION_PREDICATES`), such as
             `("OCCO:00000008", "11-1011.00")`.
+        synonyms: `(scope, text)` for each `synonym:` line, such as `("EXACT", "hypertension")`.
     """
 
     curie: str
@@ -56,6 +57,7 @@ class Term:
     replaced_by: tuple[str, ...]
     xref_qualifiers: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
     annotations: tuple[tuple[str, str], ...] = ()
+    synonyms: tuple[tuple[str, str], ...] = ()
 
     def xref_sources(self, xref: str) -> tuple[str, ...]:
         """The `source` qualifier values the stanza gives `xref`, sorted; empty if none."""
@@ -63,6 +65,10 @@ class Term:
             if held == xref:
                 return tuple(value for key, value in qualifiers if key == "source")
         return ()
+
+    def exact_synonyms(self) -> tuple[str, ...]:
+        """The texts of the stanza's EXACT synonyms, sorted; empty if none."""
+        return tuple(text for scope, text in self.synonyms if scope == "EXACT")
 
     def annotation(self, predicate: str) -> tuple[str, ...]:
         """The literals the stanza gives `predicate`, sorted; empty if none."""
