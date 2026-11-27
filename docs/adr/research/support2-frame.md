@@ -254,7 +254,7 @@ own name, `support2`, because no `bko.evaluate.named_runs.RUNS` entry reads it, 
 folder is re-read under the frame's identity checks; the `d1-4` and `d2-4` readings above are of
 the frame before the change.
 
-**The readings at tag `run/d1-12`**, commit `633c0cf`, the frame under the zero rule and the
+**The readings at tag `run/d1-15`**, commit `8aafa26`, the frame under the zero rule and the
 kept-record tertiles. The 9,104 records' digest is
 `4a24967bdbd09cdae8950ed8762a947c2170f5b22cd6d2e2d2c6d53f2b4aaeae` (each run's `data` line), where
 the frame before the change gave `69c36f36f1b63e083d4506c02c25ab87f5340d4d8a051d695773821f47310bcc`;
@@ -265,20 +265,19 @@ fingerprint stays `c076b78222bd9fc1021a0f7a4af77732b2f5b3229b897ef026875d171d64c
 `cohort` line stays `rows=9105 missing_scoma=1 records=9104 hospital_deaths=2359`. Each run ran
 from a detached worktree at the tag as `env PYTHONPATH=<worktree>/src .venv/bin/python -m
 <command> --data-dir data`, exit 0, each log's `versions` line reading `dirty=false`. The gap
-listing is run `d1-12`, `bko.gaps support2` into `runs/d1-12/gaps-support2.csv` and
-`runs/d1-12/gaps-support2.log`, closing `gaps rows=298
+listing is run `d1-15`, `bko.gaps support2` into `runs/d1-15/gaps-support2.csv` and
+`runs/d1-15/gaps-support2.log`, closing `gaps rows=298
 sha256=6dbe1c132a94640225fd0d74666a390d0b9b3537707b80feac67143154003d20`, byte for byte `d1-4`'s
-csv; its log sha256 is `34b5cd8996cd881f91b3382cb9a77f2b95e92e18af34bf1f922ace35e498203b` and
-holds the `zeros` and `tertile` lines of Decision 3. The census is run `d2-12`, `bko.evaluate
-contradictions --dataset support2` into `runs/d2-12/contradictions.csv` and
-`runs/d2-12/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and the 19
+csv; its log sha256 is `ab3a70b59e89b12b4843106f162143235ea82e64443ae219e30fadd015709041` and
+holds the `zeros` and `tertile` lines of Decision 3. The census is run `d2-15`, `bko.evaluate
+contradictions --dataset support2` into `runs/d2-15/contradictions.csv` and
+`runs/d2-15/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and the 19
 rows of `d2-4` (digest `3c818f27943faaf09b58a1ef9bf151f1b40e5f472a63e93af847795e76d5cecf`), the
 two `is_a` pairs shown by 733 and 411 records, none without cancer. Its csv sha256 is
 `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone) and its log
-sha256 `b7f9f26f828cc0d9776b1e08204fe6d9dc3a3ceb85dbbb0fecfc8e9360b0d204`. At the tag `uv run
---no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0 disagree`,
-and `tests/test_datasets_support2_pinned.py` passed with `--releases`, run from a worktree at the
-tag.
+sha256 `8bec866ec18ce12c7605884ca4b56de79e9c9ab15c8a105b5e0b62c6dbdaa9f5`. At commit `8aafa26`, the tag's commit, `uv run --no-sync python -m bko.ontology check` exited 0,
+its log ending `checked 821 rows: 0 disagree`, and `tests/test_datasets_support2_pinned.py` passed with
+`--releases` in a run together with the other two frames' pinned tests.
 
 **Gained**: a second positive dataset whose diagnoses and physiology reach MONDO and HPO through
 fixed rows. **Accepted**: one record leaves the cohort for a missing `scoma`. The originals of the

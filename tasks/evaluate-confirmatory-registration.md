@@ -62,7 +62,7 @@ readings are fixed before any score exists on the new datasets.
     ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) Configurations.
 - `tests/test_unrun_frames.py` loses each dataset this unit's `RUNS` entries read, and is deleted
-  once it names none. Three frames changed under their own names at tag `run/d1-12`: ADR
+  once it names none. Three frames changed under their own names, read at tag `run/d1-15`: ADR
   [`research/support2-frame`](../docs/adr/research/support2-frame.md) records SUPPORT2's zero
   rule and its tertiles over the kept records, ADR
   [`research/nhanes-frame`](../docs/adr/research/nhanes-frame.md) NHANES's `BMXBMI` tertiles

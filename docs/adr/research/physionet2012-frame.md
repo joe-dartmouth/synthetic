@@ -301,7 +301,7 @@ both whose lowest `NIMAP` is the lower (`map_min_nimap_lower`) and the records w
 | `map_min_nimap_lower` | 3,136 |
 | `map_unmeasured` | 181 |
 
-**The readings at tag `run/d1-12`**, commit `633c0cf`, the frame under the zero rule and
+**The readings at tag `run/d1-15`**, commit `8aafa26`, the frame under the zero rule and
 `map_min` over both readings. The 11,988 records' digest is
 `4361361dc2ebaeca5c53d246302012dad3ea5407eeb612133986dfff93943187` (each run's `data` line), where
 the frame before the change gave `5ca824f645d6a37af0aa99c29d37556f8994ba3cde2941cdac61b807b0678f48`;
@@ -314,20 +314,19 @@ those of `d1-11` but `measured_bilirubin_max=5210`, one fewer, the stay whose on
 reading is 0, and the three counts above in place of `map_from_nimap`. Each run ran from a
 detached worktree at the tag as `env PYTHONPATH=<worktree>/src .venv/bin/python -m <command>
 --data-dir data`, exit 0, each log's `versions` line reading `dirty=false`. The gap listing is run
-`d1-14`, `bko.gaps physionet2012` into `runs/d1-14/gaps-physionet2012.csv` and
-`runs/d1-14/gaps-physionet2012.log`, closing `gaps rows=42
+`d1-17`, `bko.gaps physionet2012` into `runs/d1-17/gaps-physionet2012.csv` and
+`runs/d1-17/gaps-physionet2012.log`, closing `gaps rows=42
 sha256=28756461746301bf969283d95d5a6e9cd24db5ccb110a64b961a19a38b4a4235`, byte for byte `d1-11`'s
-csv; its log sha256 is `dd04ec4d2a9e20a6985f0505b7ad695c373506c66ce54914fca29a186b8b4dd8` and
-holds the `zeros` lines of Decision 4. The census is run `d2-14`, `bko.evaluate contradictions
---dataset physionet2012` into `runs/d2-14/contradictions.csv` and
-`runs/d2-14/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and 11 field
+csv; its log sha256 is `df9496e68cda8f6456cbae3b48fadfd287dd48ca472417ba646604b124f5cc37` and
+holds the `zeros` lines of Decision 4. The census is run `d2-17`, `bko.evaluate contradictions
+--dataset physionet2012` into `runs/d2-17/contradictions.csv` and
+`runs/d2-17/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and 11 field
 rows, digest `35ec7b22d0d590d4a61065fc323df434bfdf5430ca127a07ff269b6b849dd5e1`, where `d2-11`'s
 was `8a8af228c9304a1440f4f0182720cb9c05aa1f8e5335d7b138855a44a2129c62`, no `is_a` pair. Its csv
 sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone)
-and its log sha256 `a08d6c6d3ede0d1a460e91b472c29b9fee2b7d70d6e200b23d024fd50aa3f0c5`. At the tag
-`uv run --no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0
-disagree`, and `tests/test_datasets_physionet2012_pinned.py` passed with `--releases`, run from a
-worktree at the tag.
+and its log sha256 `a9f5381114435f3e8af04cbcd7a56c3522514b11e9bf79a26ba4ca76d7248878`. At commit `8aafa26`, the tag's commit, `uv run --no-sync python -m bko.ontology check` exited 0,
+its log ending `checked 821 rows: 0 disagree`, and `tests/test_datasets_physionet2012_pinned.py` passed with
+`--releases` in a run together with the other two frames' pinned tests.
 
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
