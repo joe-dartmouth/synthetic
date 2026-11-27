@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-11-24
-updated: 2026-11-24
+updated: 2026-11-26
 ---
 # TableShift's readmission split, rebuilt in numpy on the pinned Diabetes 130 archive as two datasets
 
@@ -77,7 +77,15 @@ split per run.
    `(<1, female, 0)` holds 20 (measured 2026-11-24).
 9. **Runs.** Experiment P1, runs `p1-id` and `p1-ood`, with `decontaminate=False`, since the
    partition is TableShift's. Accuracy at the 0.5 cutoff is derived from recall, precision and the
-   test prevalence.
+   test prevalence. A replica fill under P1 refuses a shortfall, so `p1-id` and `p1-ood` stop on
+   holdout 0, where TVAE's replica lacks rows of the rare cells after 1,000,000 drawn rows (runs
+   `p1-1` and `p1-2` in `docs/EVIDENCE.md`, P1). `P1_PARTIAL` is P1 with
+   `Experiment.partial_replica` set, run as `p1-id-partial` on `tableshift-id` and
+   `p1-ood-partial` on `tableshift-ood`: a replica a generator cannot complete on its last attempt
+   is scored on the rows it kept, and each such holdout and arm holds a `replica-short` row (ADR
+   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)). A short `bko-direct` replica
+   still refuses. The partial runs are the ones to run; `p1-id` and `p1-ood` stay registered as
+   they are.
 
 **Differences from TableShift.** No tuning on validation; our classifiers and encodings; one-hot
 coding without its 0.01 frequency floor (`PreprocessorConfig(min_frequency=0.01)`); partition
@@ -113,6 +121,8 @@ variance. The diagnosis columns carry no ontology concept.
 | `DIABETES_FRAME` | Its cohort (first encounters, adults, no hospice) does not give Table 12's counts | 2026-11-24 |
 | One dataset with two test sets | The harness scores one test split per run | 2026-11-24 |
 | The code rows of `diabetes-codes` as field rows | `bko-direct` finds no donor for a draw naming two codes for one field | 2026-11-24 |
+| Partial replicas under the names `p1-id` and `p1-ood` | An existing `RUNS` entry never changes, so a folder scored under a name keeps its identity checks; the rule runs under new names | 2026-11-26 |
+| Dropping `tvae` from P1's replica arms | Changes P1's arms and loses TVAE's replica reading on every holdout to save the rare cells' rows | 2026-11-26 |
 | A new accuracy `Measure` | Accuracy at the cutoff follows from recall, precision and the test prevalence | 2026-11-24 |
 
 ## Enforcement

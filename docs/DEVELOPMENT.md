@@ -883,7 +883,11 @@ start or the supervisor cannot run.
   scope, empty where the scope holds one label; no other run writes it. The replica
   arms also fill the training split's own cell counts, or, when `Experiment.replica_rows` is set, that
   many rows split across the cells in proportion to those counts; those rows alone train a
-  classifier and are compared with the training split for fidelity. A replica holding rows of fewer
+  classifier and are compared with the training split for fidelity. A replica fill short of its
+  request on every attempt stops the run, unless the run's `Experiment.partial_replica` is set:
+  then it fills partially on its last attempt as a gap fill does and is scored on the rows it
+  kept, while a direct arm's short replica still refuses (ADR
+  [`research/e1-evaluation-protocol`](adr/research/e1-evaluation-protocol.md)). A replica holding rows of fewer
   than two labels, or none, scores its classifier measures undefined, a replica of no rows its
   fidelity too, and the run goes on. It writes one row per holdout, arm, source, measure
   and scope to stdout as CSV; a measure a scope cannot define is empty. Each BKO arm reads the
@@ -990,6 +994,9 @@ start or the supervisor cannot run.
   ` replica_rows=<rows>` follows `replica=` only when the run's `Experiment.replica_rows` caps the
   replica fill near that many rows in all: each cell asks its `kept_count` at the share
   `replica_rows` over the training rows, so the rounded cells may sum to a few rows off it;
+  ` partial_replica=true` follows `replica=` and `replica_rows=` only when the run's
+  `Experiment.partial_replica` lets a replica fill partially on its last attempt (P1's partial
+  runs);
   `cutoff=<probability>` follows `fill_to=` only when the run's `Experiment.cutoff` is not E1's
   0.5, the probability at which utility calls a record positive; `quota_rule=<rule>` follows
   `fill_to=` and `cutoff=` only when the run's `Experiment.quota_rule` is not `fill-to`, the rule
@@ -1035,7 +1042,9 @@ start or the supervisor cannot run.
   shortfall that falls on such cells alone fills partially on the attempt that meets it, with no
   retry, and one that also falls on another cell is retried (its `arm` line then names the cell's
   missing rows under `short` in the params, and the arm scores the rows it kept; a short replica
-  fill still refuses,
+  fill still refuses, unless the run sets `Experiment.partial_replica`, when a replica fill short
+  on its last attempt fills partially the same way, `arm=` naming `<arm>-replica`, and takes no
+  partial fill on structural cells,
   and the BKO arms' own `shortfall arm=` line below is a different line), and a
   `holdout` line with the progress and seconds, then the CSV's row count and sha256 and a
   `candidates path=%s lines=%d sha256=%s` line for the candidates file it wrote, read in chunks
@@ -1272,7 +1281,10 @@ start or the supervisor cannot run.
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm
   and the candidate, no criterion and test copies kept, every holdout on TableShift's fixed test
-  split; ADR [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)). It holds
+  split; ADR [`research/tableshift-comparison`](adr/research/tableshift-comparison.md)), then
+  `p1-id-partial` and `p1-ood-partial` on the same datasets
+  (`bko.evaluate.runs_published.P1_PARTIAL`: P1 with `partial_replica` set, so a replica a
+  generator cannot complete is scored on the rows it kept). It holds
   P2's run, `p2` (`bko.evaluate.runs_published.P2`: E1 on UCI Heart Disease with P1's arms, the
   candidate `bko-direct`, a replica for every row-adding arm and the candidate and no criterion),
   whose replica fills `syntheval` scores (ADR

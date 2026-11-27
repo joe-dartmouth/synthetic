@@ -362,9 +362,18 @@ holding fewer records than its method needs (ADR
 same way on attempt 1, since no later attempt changes it: on a gap fill, any arm's shortfall that
 falls on strata of fewer than 2 training records alone fills partially on the attempt that meets
 it, a rejection sampler's at its row limit included; a shortfall that also falls on another
-stratum, and a refusal that is not a shortfall, are retried as on any other fill. A replica fill still refuses, since
-its scores read it as a copy of every training cell. E4's fill targets of 40 and 80 ask TVAE for more rows of a
-2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
+stratum, and a refusal that is not a shortfall, are retried as on any other fill. A replica fill refuses
+by default, since its scores read it as a copy of every training cell. An experiment that sets
+`Experiment.partial_replica` reads it on fewer rows instead: a replica fill still short at its row
+limit on the last attempt fills partially as a gap fill does, with its `shortfall` lines and the
+`short` params in its `arm` line, while attempts before the last still retry and a replica takes
+no partial fill on structural strata. Its replica utility and fidelity then read the rows it kept,
+not a copy of every training cell, so `scores.csv` marks each such fill with a `replica-short`
+row (source `replica`, scope `all`, its value the rows missing) on its holdout, and a run whose
+replicas all complete writes none. A direct arm's short replica still refuses whatever the field
+says, since the arm refuses a short draw before the harness sees a shortfall. The field is set by
+P1's partial runs alone (ADR [`research/tableshift-comparison`](tableshift-comparison.md)).
+E4's fill targets of 40 and 80 ask TVAE for more rows of a 2-record cell than its draws reach (rehearsals of 2026-10-31), and refusing would drop the dose run,
 not one holdout. Any other refusal on every attempt still stops the run.
 
 Paid generation has copied archive records in every column: in the completeness run of 2026-10-19, 5
@@ -419,6 +428,7 @@ and holdout.
 
 | Idea | Why ruled out | When |
 |------|---------------|------|
+| A replica fill that always refuses | Stops P1's runs on holdout 0, where TVAE's replica lacks TableShift's rare cells after 1,000,000 drawn rows; under `Experiment.partial_replica` the fill keeps its rows and a `replica-short` row marks it | 2026-11-26 |
 | A partial fill on attempt 1 whenever the request asks a structural stratum | A shortfall that also falls on a stratum a retry can fill would keep fewer rows than the retry gives | 2026-11-02 |
 | Reporting a projection or ceiling stop rather than resuming it | Loses the holdouts a stopped run paid for; a resume under a raised ceiling recovers them and still stops at a ceiling | 2026-11-02 |
 | Raising a stopped run's ceiling in its named run | A commit changes the resumed run's `versions` line, so `merge` refuses it beside its sibling slices, and an E6 fraction's ceiling sets all 10 of its slices'; `--ceiling` raises one resume's alone | 2026-11-02 |
