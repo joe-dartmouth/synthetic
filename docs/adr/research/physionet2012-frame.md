@@ -113,7 +113,37 @@ dataset=physionet2012 field=<variable> readings=<n> records=<n>` line per listed
 its `cohort` line, a variable with no zero logging 0. These variables are
 `bko.datasets.physionet2012.IMPLAUSIBLE_ZERO`. A 0 of `RespRate` stays a reading, since a patient
 on a ventilator can record no breath of their own, and `MechVent` is a flag. A stay with no
-reading of a variable did not measure it.
+reading of a variable did not measure it. The zeros over the 11,988 kept stays, the last column
+counting the stays whose every reading of the variable is 0, which the rule leaves with none:
+
+| Variable | Zero lines | Stays holding one | Stays with no other reading |
+|---|---|---|---|
+| `HR` | 45 | 35 | 0 |
+| `Temp` | 104 | 102 | 0 |
+| `WBC` | 1 | 1 | 0 |
+| `MAP` | 86 | 73 | 2 |
+| `NIMAP` | 115 | 103 | 1 |
+| `Creatinine` | 0 | 0 | 0 |
+| `Bilirubin` | 1 | 1 | 1 |
+| `Platelets` | 0 | 0 | 0 |
+| `GCS` | 0 | 0 | 0 |
+
+This command counted them, printing each variable, its zero lines, the stays holding one and the
+stays with no other reading:
+
+    uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import IMPLAUSIBLE_ZERO, SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/[0-9]+\.txt"), s)]; kept = [s for s in stays if -1.0 not in (s.age, s.gender)]; [print(v, sum(s.zeros.get(v, 0) for s in kept), sum(v in s.zeros for s in kept), sum(v in s.zeros and not s.values[v] for s in kept)) for v in IMPLAUSIBLE_ZERO]' </dev/null
+
+At tag `run/d1-12` it printed:
+
+    HR 45 35 0
+    Temp 104 102 0
+    WBC 1 1 0
+    MAP 86 73 2
+    NIMAP 115 103 1
+    Creatinine 0 0 0
+    Bilirubin 1 1 1
+    Platelets 0 0 0
+    GCS 0 0 0
 
 **5. The fields.** `age`, `sex`, `ICUType` (its four codes, as the page gives them), then these
 coded states (`bko.datasets.states.coded`, `0` = not measured), each cutoff as Singer et al.
@@ -202,13 +232,9 @@ of them in-hospital deaths, an in-hospital death rate of 0.1422, beside the chal
 "The overall mortality rate was 14.2%." over all 12,000 stays (`silva-2012b`). The split is above
 the 5,000 records condition 5 of ADR `research/confirmatory-dataset-selection` asks.
 
-The frame these first readings read took a recorded 0 as a reading. Over its 11,988 records, 102
-stays had a lowest `Temp` of 0, so showed Hypothermia; 108 a lowest mean arterial pressure of 0,
-so showed Hypotension; one a lowest `WBC` of 0, so showed Decreased total leukocyte count; one a
-highest `Bilirubin` of 0; and none a highest `HR` or `RespRate` of 0. This command counted them on
-that frame's code, where `Stay.reduced` took one variable's name:
-
-    uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/\d+\.txt"), s)]; kept = [s for s in stays if -1.0 not in (s.age, s.gender)]; [print(v, h, sum(s.reduced(v, h) == 0 for s in kept)) for v, h in (("Temp", "min"), ("MAP", "min"), ("HR", "max"), ("RespRate", "max"), ("WBC", "min"), ("Bilirubin", "max"))]' </dev/null
+The frame these first readings read took a recorded 0 as a reading, so each of the 102 stays
+holding a `Temp` of 0 showed Hypothermia, each of the 73 holding a `MAP` of 0 Hypotension, and
+the one holding a `WBC` of 0 Decreased total leukocyte count (Decision 4's table).
 
 **The readings, at `258b3b6`, after the count.** `uv run --no-sync python -m bko.ontology check`
 exited 0, its log ending `checked 821 rows: 0 disagree`. The gap listing is run `d1-10`, `uv run
@@ -259,21 +285,55 @@ frame before the change, and the readings after it are recorded beside the `run/
 which it changed. The loader's `cohort` line counts, in place of `map_from_nimap`, the records
 whose `map_min` is a `NIMAP` reading with no `MAP` reading (`map_min_nimap`), the records holding
 both whose lowest `NIMAP` is the lower (`map_min_nimap_lower`) and the records with no `MAP` or
-`NIMAP` reading (`map_unmeasured`).
+`NIMAP` reading (`map_unmeasured`). Over the 11,988 records, from the `cohort` line of run
+`d1-14`:
+
+| Count | Records |
+|---|---|
+| `map_min_nimap` | 3,408 |
+| `map_min_nimap_lower` | 3,136 |
+| `map_unmeasured` | 181 |
+
+**The readings at tag `run/d1-12`**, commit `633c0cf`, the frame under the zero rule and
+`map_min` over both readings. The 11,988 records' digest is
+`4361361dc2ebaeca5c53d246302012dad3ea5407eeb612133986dfff93943187` (each run's `data` line), where
+the frame before the change gave `5ca824f645d6a37af0aa99c29d37556f8994ba3cde2941cdac61b807b0678f48`;
+the training split's 9,590 records' digest is
+`44566e0ef8113eaa9c230d5db93d0de0214a7ce995abb4541ed926253822a814` (the census's `census data`
+line), where it was `b99bf9acdc084ad965060ed868b24db828fe216bc08260c45544536a203b72e2`, with
+1,364 in-hospital deaths as before. The test fingerprint stays
+`0974dd102fc84ae567c22dda7061f5127ec5c0bb23a1ceb31db18734b402b4be`. The `cohort` line's counts are
+those of `d1-11` but `measured_bilirubin_max=5210`, one fewer, the stay whose only `Bilirubin`
+reading is 0, and the three counts above in place of `map_from_nimap`. Each run ran from a
+detached worktree at the tag as `env PYTHONPATH=<worktree>/src .venv/bin/python -m <command>
+--data-dir data`, exit 0, each log's `versions` line reading `dirty=false`. The gap listing is run
+`d1-14`, `bko.gaps physionet2012` into `runs/d1-14/gaps-physionet2012.csv` and
+`runs/d1-14/gaps-physionet2012.log`, closing `gaps rows=42
+sha256=28756461746301bf969283d95d5a6e9cd24db5ccb110a64b961a19a38b4a4235`, byte for byte `d1-11`'s
+csv; its log sha256 is `dd04ec4d2a9e20a6985f0505b7ad695c373506c66ce54914fca29a186b8b4dd8` and
+holds the `zeros` lines of Decision 4. The census is run `d2-14`, `bko.evaluate contradictions
+--dataset physionet2012` into `runs/d2-14/contradictions.csv` and
+`runs/d2-14/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and 11 field
+rows, digest `35ec7b22d0d590d4a61065fc323df434bfdf5430ca127a07ff269b6b849dd5e1`, where `d2-11`'s
+was `8a8af228c9304a1440f4f0182720cb9c05aa1f8e5335d7b138855a44a2129c62`, no `is_a` pair. Its csv
+sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone)
+and its log sha256 `a08d6c6d3ede0d1a460e91b472c29b9fee2b7d70d6e200b23d024fd50aa3f0c5`. At the tag
+`uv run --no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0
+disagree`.
 
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
 of, so a single spurious reading can show a finding, and an artifact of either pressure line
 above 0 can show Hypotension. A `GCS` below 15 under sedation reads as Reduced consciousness, as
-SOFA reads it. Of the 11,988 records, 7,049 hold values of both `MAP` and `NIMAP` at or above 0:
-653 of them have a lowest `MAP` of 70 or more but a lowest `NIMAP` below 70, which `map_min` over
-both readings shows as Hypotension; 67 have a lowest `MAP` of 0, likely an arterial-line
-artifact, which the zero rule reads as no reading. This command counted them over values at or
-above 0:
+SOFA reads it. Of the 11,988 records, 7,046 hold readings of both `MAP` and `NIMAP`: 659 of them
+have a lowest `MAP` of 70 or more but a lowest `NIMAP` below 70, which `map_min` over both
+readings shows as Hypotension. A `MAP` of 0, likely an arterial-line artifact, is no reading
+under the zero rule (Decision 4's table). This command counted them over the readings the zero
+rule keeps:
 
-    uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/[0-9]+\.txt"), s)]; both = [(min(s.values["MAP"]), min(s.values["NIMAP"])) for s in stays if -1.0 not in (s.age, s.gender) and s.values["MAP"] and s.values["NIMAP"]]; print(len(both), sum(m >= 70 > n for m, n in both), sum(m == 0 < n for m, n in both))' </dev/null
+    uv run --no-sync python -c 'import re; from bko.datasets.archive import members, tar_members; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.physionet2012 import SETS, TARRED, parse_stay; from bko.datasets.sources import PHYSIONET2012; stays = [parse_stay(n, t) for label, s in zip(SETS, PHYSIONET2012) for n, t in (tar_members if label in TARRED else members)(read_verified(s, default_data_dir()), re.compile(rf"set-{label}/[0-9]+\.txt"), s)]; both = [(min(s.values["MAP"]), min(s.values["NIMAP"])) for s in stays if -1.0 not in (s.age, s.gender) and s.values["MAP"] and s.values["NIMAP"]]; print(len(both), sum(m >= 70 > n for m, n in both))' </dev/null
 
-It printed `7049 653 67` at `4c0f6c5`.
+At tag `run/d1-12` it printed `7046 659`.
 
 ## Ruled Out
 
@@ -288,7 +348,7 @@ It printed `7049 653 67` at `4c0f6c5`.
 | The SIRS alternatives PaCO2 below 32 and over 10% immature bands, and SOFA's PaO2/FiO2 | The frame names neither `PaCO2` nor a ratio; band counts are no variable of the files | 2026-11-25 |
 | Refusing the empty-`Parameter` lines of set C | They are part of the published bytes; refusing them would refuse the set; they are skipped and counted | 2026-11-25 |
 | Reading a recorded 0 as a valid value | A 0 of a listed variable is no physiological reading, and it would show Hypothermia or Hypotension from no measurement (Rationale) | 2026-11-26 |
-| Reading `NIMAP` only where the stay has no `MAP` | It leaves 653 stays without Hypotension though a cuff reading fell below 70; the criterion holds when any reading crosses it (Rationale) | 2026-11-26 |
+| Reading `NIMAP` only where the stay has no `MAP` | It leaves 659 stays without Hypotension though a cuff reading fell below 70; the criterion holds when any reading crosses it (Rationale) | 2026-11-26 |
 
 ## Enforcement
 

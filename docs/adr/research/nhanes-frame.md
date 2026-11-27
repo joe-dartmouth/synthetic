@@ -121,11 +121,23 @@ is coded at the tertiles of its measured values over the records the frame keeps
 tertile an "at or above" cutoff. BMX_L's codebook gives `BMXBMI` from age 2, and its children's
 values stay out of the tertiles. `bko.datasets.nhanes.tertile_base` returns the kept records'
 measured `BMXBMI` values, and the loader logs one `tertile dataset=nhanes field=BMXBMI low=<c>
-high=<c> base=<n>` line before its `cohort` line, `base` the kept records measured in it. Over
-every record of BMX_L the tertiles are 23.4 and 29.6; this command derived those from the pinned
-file in the data root:
+high=<c> base=<n>` line before its `cohort` line, `base` the kept records measured in it:
+
+| Field | Lower tertile | Upper tertile | Base |
+|---|---|---|---|
+| `BMXBMI` | 25.9 | 31.6 | 5,946 |
+
+This command derived them from the pinned files in the data root, printing each field, its base
+count and its two tertiles:
+
+    uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.nhanes import COMPONENTS, DECIMALS, read_component, tertile_base; from bko.datasets.sources import NHANES; from bko.datasets.states import tertiles; base = tertile_base({name: read_component(read_verified(source, default_data_dir()), name) for name, source in zip(COMPONENTS, NHANES, strict=True)}); [print(name, len(values), *(round(c, DECIMALS) for c in tertiles(values))) for name, values in base.items()]' </dev/null
+
+At tag `run/d1-12` it printed `BMXBMI 5946 25.9 31.6`. Over every record of BMX_L, children
+included, the tertiles would be 23.4 and 29.6; this command derived those from the pinned file:
 
     uv run --no-sync python -c 'from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.nhanes import DECIMALS, TERTILES, measured, read_component; from bko.datasets.sources import NHANES_BMX_L; from bko.datasets.states import tertiles; raw = read_component(read_verified(NHANES_BMX_L, default_data_dir()), "BMX_L"); [print(name, *(round(c, DECIMALS) for c in tertiles(measured(raw[name])))) for name in TERTILES]' </dev/null
+
+At the tag it printed `BMXBMI 23.4 29.6`.
 
 `pandas.read_sas` reads a stored 0 as 5.397605346934028e-79: DEMO_L holds 189 such ages, the
 infants of age 0, and reading at 2 decimals turns each back to 0. An `LBXGH` of 0, the codebook's
@@ -220,8 +232,28 @@ from a tree holding one untracked file; [`EVIDENCE.md`](../../EVIDENCE.md) keeps
 
 **The kept-record tertiles change the frame under its own name**, `nhanes`, because no
 `bko.evaluate.named_runs.RUNS` entry reads it, so no scored run folder is re-read under the
-frame's identity checks. The `d1` and `d2` readings above are of the frame before the change, and
-the readings after it are recorded beside the `run/<id>` tag at which it changed.
+frame's identity checks. The `d1-7` and `d2-7` readings above are of the frame before the change.
+
+**The readings at tag `run/d1-12`**, commit `633c0cf`, the frame under the kept-record tertiles.
+The 7,769 records' digest is `c2da01f35b27b47ca2421b64705bcf7fab64b0079de6a794fea32815248174b6`
+(each run's `data` line), where the frame before the change gave
+`602b6ed761f5afe22b0ce58d95c3c987a75d6d0834dbabdba268bace5b3e11ad`; the training split's 6,215
+records' digest is `f823ce4fc0902aadfc9aafb622ed92bd48498524491490af63c34403e8c4a7ed` (the
+census's `census data` line), where it was
+`9b1553fa494ea6d9d10b6f2f115837714523cc10819c738efc6ceaad2c00163c`. The test fingerprint stays
+`66905e31f88bee07a0ee5586d12b50b6d3876fe05ac29136e9b20bb0a81bd510` and the `cohort` line is the
+one quoted above. Each run ran from a detached worktree at the tag as `env
+PYTHONPATH=<worktree>/src .venv/bin/python -m <command> --data-dir data`, exit 0, each log's
+`versions` line reading `dirty=false`. The gap listing is run `d1-13`, `bko.gaps nhanes` into
+`runs/d1-13/gaps-nhanes.csv` and `runs/d1-13/gaps-nhanes.log`, closing `gaps rows=63
+sha256=9e86c72e13a9a51081505de299539f102cdd7da48e48d65a89aa9a8e934b1979`, byte for byte `d1-7`'s
+csv; its log sha256 is `31ad134a2e4e19e032dbb840b95473350e8163e08119c92af861bd82fadcd6a8` and
+holds the `tertile` line of Decision 5. The census is run `d2-13`, `bko.evaluate contradictions
+--dataset nhanes` into `runs/d2-13/contradictions.csv` and `runs/d2-13/contradictions.log`: every
+`census kind=` count is 0, over 12 of 12 cells and the 5 rows of `d2-7` (digest
+`5f59a89da7abd9f31ea8c62d1b2563616ca66d9fc85f8368a3aca2cb5224284d`), no `is_a` pair. Its csv
+sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone)
+and its log sha256 `41dfd891b152f390e67867a859cff9b5ebf2a75d12856b08edd8dd704fb6bff1`.
 
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
 lipids reach HPO through cutoffs read in their sources. **Accepted**: two of the three guideline

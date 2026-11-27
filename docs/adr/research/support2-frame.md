@@ -92,20 +92,30 @@ values, and the loader logs one `tertile dataset=support2 field=<f> low=<c> high
 line per tertile field before its `cohort` line, `base` the kept records measured in it. Each
 tertile is an "at or above" cutoff:
 
-| Field | Lower tertile | Upper tertile |
-|---|---|---|
-| `edu` | 11 | 12 |
-| `sod` | 135 | 140 |
-| `alb` | 2.5 | 3.3 |
-| `ph` | 7.4 | 7.45 |
-| `glucose` | 111 | 166.33 |
-| `bun` | 17 | 33 |
-| `urine` | 1430 | 2595 |
+| Field | Lower tertile | Upper tertile | Base |
+|---|---|---|---|
+| `edu` | 11 | 12 | 7,470 |
+| `sod` | 135 | 140 | 9,103 |
+| `alb` | 2.5 | 3.3 | 5,733 |
+| `ph` | 7.4 | 7.45 | 6,821 |
+| `glucose` | 111 | 166 | 4,603 |
+| `bun` | 17 | 33 | 4,752 |
+| `urine` | 1428.33 | 2595 | 4,242 |
 
-This command derived them from the pinned archive in the data root, printing each field and its
-two tertiles:
+This command derived them from the pinned archive in the data root, printing each field, its base
+count and its two tertiles:
 
-    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.states import tertiles; from bko.datasets.support2 import DECIMALS, MEMBER, TERTILES, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, *(round(c, DECIMALS) for c in tertiles(measured(raw[name])))) for name in TERTILES]' </dev/null
+    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.states import tertiles; from bko.datasets.support2 import DECIMALS, MEMBER, parse_support2, tertile_base; base = tertile_base(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, len(values), *(round(c, DECIMALS) for c in tertiles(values))) for name, values in base.items()]' </dev/null
+
+At tag `run/d1-12` it printed:
+
+    edu 7470 11.0 12.0
+    sod 9103 135.0 140.0
+    alb 5733 2.5 3.3
+    ph 6821 7.4 7.45
+    glucose 4603 111.0 166.0
+    bun 4752 17.0 33.0
+    urine 4242 1428.33 2595.0
 
 A physiologically implausible recorded 0 is not measured: a 0 in `hrt`, `temp`, `wblc`,
 `meanbp`, `crea`, `bili` or `pafi` of the cited fields, or in `sod`, `alb`, `ph`, `glucose` or
@@ -114,11 +124,41 @@ shows no concept. These fields are `bko.datasets.support2.IMPLAUSIBLE_ZERO`. A 0
 value where it is plausible: `resp`, which a patient on a ventilator can record with no breath of
 their own; `urine`, an anuric day; `edu`, no schooling; and `scoma`, whose 0 is the score's
 normal. The loader logs one `zeros dataset=support2 field=<f> readings=<n> records=<n>` line per
-listed field before its `cohort` line, a field with no zero logging 0. The published file holds
-51 zeros in `meanbp`, 83 in `hrt`, 65 in `resp` and 10 in `wblc`, over its 9,105 rows. This
-command counted them:
+listed field before its `cohort` line, a field with no zero logging 0. The zeros, over the
+published file's 9,105 rows and the 9,104 records the frame keeps:
 
-    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.support2 import MEMBER, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); [print(name, int((measured(raw[name]) == 0).sum())) for name in ("meanbp", "hrt", "resp", "wblc")]' </dev/null
+| Field | Zeros in the file | Zeros in the kept records | Coded |
+|---|---|---|---|
+| `hrt` | 83 | 83 | not measured |
+| `wblc` | 10 | 10 | not measured |
+| `meanbp` | 51 | 51 | not measured |
+| `glucose` | 1 | 1 | not measured |
+| `temp`, `crea`, `bili`, `pafi`, `sod`, `alb`, `ph`, `bun` | 0 | 0 | not measured |
+| `resp` | 65 | 65 | measured |
+| `urine` | 93 | 93 | measured |
+| `edu` | 43 | 43 | measured |
+
+This command counted them, printing each field and its zeros in the file and in the kept records:
+
+    uv run --no-sync python -c 'import io, zipfile; from bko.datasets.fetch import default_data_dir, read_verified; from bko.datasets.sources import SUPPORT2; from bko.datasets.support2 import IMPLAUSIBLE_ZERO, MEMBER, checked, measured, parse_support2; raw = checked(parse_support2(zipfile.ZipFile(io.BytesIO(read_verified(SUPPORT2, default_data_dir()))).read(MEMBER).decode("utf-8"))); kept = raw.loc[raw["scoma"] != ""]; [print(name, int((measured(raw[name]) == 0).sum()), int((measured(kept[name]) == 0).sum())) for name in (*IMPLAUSIBLE_ZERO, "resp", "urine", "edu")]' </dev/null
+
+At tag `run/d1-12` it printed:
+
+    hrt 83 83
+    temp 0 0
+    wblc 10 10
+    meanbp 51 51
+    crea 0 0
+    bili 0 0
+    pafi 0 0
+    sod 0 0
+    alb 0 0
+    ph 0 0
+    glucose 1 1
+    bun 0 0
+    resp 65 65
+    urine 93 93
+    edu 43 43
 
 **4. The rows.** One `Codes` row per mapped state, labels the pinned releases' names:
 
@@ -209,9 +249,32 @@ module beside the loader, which keeps the loader under the 500-line cap. The cen
 SUPPORT2 through `--dataset support2`, which keeps the default census's three frames and its
 recorded bytes (Ruled Out). The zero rule and the kept-record tertiles change the frame under its
 own name, `support2`, because no `bko.evaluate.named_runs.RUNS` entry reads it, so no scored run
-folder is re-read under the frame's identity checks; the `d1` and `d2` readings above are of the
-frame before the change, and the readings after it are recorded beside the `run/<id>` tag at
-which it changed.
+folder is re-read under the frame's identity checks; the `d1-4` and `d2-4` readings above are of
+the frame before the change.
+
+**The readings at tag `run/d1-12`**, commit `633c0cf`, the frame under the zero rule and the
+kept-record tertiles. The 9,104 records' digest is
+`4a24967bdbd09cdae8950ed8762a947c2170f5b22cd6d2e2d2c6d53f2b4aaeae` (each run's `data` line), where
+the frame before the change gave `69c36f36f1b63e083d4506c02c25ab87f5340d4d8a051d695773821f47310bcc`;
+the training split's 7,282 records' digest is
+`f82a8bc67f036f1580fdd99ce8dbbccdd63bfc633cd1ab4f52876e19ee8e2b6b` (the census's `census data`
+line), where it was `a9231c19529069a9bd0cc94a02209bac5c1242baf8da610f4dc93eca868347e7`. The test
+fingerprint stays `c076b78222bd9fc1021a0f7a4af77732b2f5b3229b897ef026875d171d64cae6` and the
+`cohort` line stays `rows=9105 missing_scoma=1 records=9104 hospital_deaths=2359`. Each run ran
+from a detached worktree at the tag as `env PYTHONPATH=<worktree>/src .venv/bin/python -m
+<command> --data-dir data`, exit 0, each log's `versions` line reading `dirty=false`. The gap
+listing is run `d1-12`, `bko.gaps support2` into `runs/d1-12/gaps-support2.csv` and
+`runs/d1-12/gaps-support2.log`, closing `gaps rows=298
+sha256=6dbe1c132a94640225fd0d74666a390d0b9b3537707b80feac67143154003d20`, byte for byte `d1-4`'s
+csv; its log sha256 is `34b5cd8996cd881f91b3382cb9a77f2b95e92e18af34bf1f922ace35e498203b` and
+holds the `zeros` and `tertile` lines of Decision 3. The census is run `d2-12`, `bko.evaluate
+contradictions --dataset support2` into `runs/d2-12/contradictions.csv` and
+`runs/d2-12/contradictions.log`: every `census kind=` count is 0, over 16 of 16 cells and the 19
+rows of `d2-4` (digest `3c818f27943faaf09b58a1ef9bf151f1b40e5f472a63e93af847795e76d5cecf`), the
+two `is_a` pairs shown by 733 and 411 records, none without cancer. Its csv sha256 is
+`b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone) and its log
+sha256 `b7f9f26f828cc0d9776b1e08204fe6d9dc3a3ceb85dbbb0fecfc8e9360b0d204`. At the tag `uv run
+--no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0 disagree`.
 
 **Gained**: a second positive dataset whose diagnoses and physiology reach MONDO and HPO through
 fixed rows. **Accepted**: one record leaves the cohort for a missing `scoma`. The originals of the
