@@ -184,8 +184,8 @@ row on both upper states keeps the row a finding, not a diagnosis: the ADA asks 
 results before diabetes is diagnosed, and the file holds one.
 
 Taking `BMXBMI`'s tertiles over the records the frame keeps cuts it where the coded adults' values
-fall, so each tertile state holds a third of the records it codes; over every record of BMX_L,
-children's lower values would pull both cuts down.
+fall, so each tertile state holds about a third of the records it codes, short of ties; over every
+record of BMX_L, children's lower values would pull both cuts down.
 
 ## Consequences
 
@@ -253,7 +253,10 @@ holds the `tertile` line of Decision 5. The census is run `d2-13`, `bko.evaluate
 `census kind=` count is 0, over 12 of 12 cells and the 5 rows of `d2-7` (digest
 `5f59a89da7abd9f31ea8c62d1b2563616ca66d9fc85f8368a3aca2cb5224284d`), no `is_a` pair. Its csv
 sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone)
-and its log sha256 `41dfd891b152f390e67867a859cff9b5ebf2a75d12856b08edd8dd704fb6bff1`.
+and its log sha256 `41dfd891b152f390e67867a859cff9b5ebf2a75d12856b08edd8dd704fb6bff1`. At the tag
+`uv run --no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0
+disagree`, and `tests/test_datasets_nhanes_pinned.py` passed with `--releases`, run from a
+worktree at the tag.
 
 **Gained**: a general-population health frame whose blood pressure, glycated haemoglobin and
 lipids reach HPO through cutoffs read in their sources. **Accepted**: two of the three guideline
@@ -286,6 +289,10 @@ label leaves out adults whose answers cannot settle it. Age 80 means 80 and over
   `tests/test_datasets_nhanes.py::test_each_cited_field_is_coded_at_its_cutoffs`,
   `tests/test_datasets_nhanes.py::test_a_missing_value_shows_no_concept`,
   `tests/test_datasets_nhanes.py::test_bmi_tertile_base_is_the_kept_adults`,
+  `tests/test_datasets_nhanes.py::test_each_bmi_tertile_takes_the_upper_state_at_its_cutoff`,
+  `tests/test_datasets_nhanes.py::test_each_loader_logs_each_tertile_fields_cuts_and_base`,
+  `tests/test_datasets_nhanes.py::test_a_tertile_field_no_kept_record_measures_logs_none`,
+  `tests/test_datasets_states.py::test_log_tertile_logs_the_cuts_at_the_decimals_and_the_base`,
   `tests/test_evaluate_nhanes.py::test_the_rows_map_these_bands_to_these_concepts`,
   `tests/test_evaluate_nhanes.py::test_every_cutoff_row_cites_a_registered_source_and_names_its_original`,
   `tests/test_datasets_nhanes_pinned.py` (with `--releases`)

@@ -110,11 +110,14 @@ range. A 0 of `HR`, `Temp`, `WBC`, `MAP`, `NIMAP`, `Creatinine`, `Bilirubin`, `P
 `GCS`, whose scale runs from 3, is physiologically implausible and is not a reading either:
 `parse_stay` does not append it and counts it in `Stay.zeros`, and the loader logs one `zeros
 dataset=physionet2012 field=<variable> readings=<n> records=<n>` line per listed variable before
-its `cohort` line, a variable with no zero logging 0. These variables are
+its `cohort` line, a variable with no zero logging 0. `field` names the raw variable, `readings`
+its 0 lines and `records` the stays holding one, each counted over every stay read, as the
+`cohort` line's `missing` and `below_zero` are. These variables are
 `bko.datasets.physionet2012.IMPLAUSIBLE_ZERO`. A 0 of `RespRate` stays a reading, since a patient
 on a ventilator can record no breath of their own, and `MechVent` is a flag. A stay with no
-reading of a variable did not measure it. The zeros over the 11,988 kept stays, the last column
-counting the stays whose every reading of the variable is 0, which the rule leaves with none:
+reading of a variable did not measure it. The 12 stays left out hold no 0, so the zeros over the
+12,000 stays are those over the 11,988 kept, the last column counting the stays whose every
+reading of the variable is 0, which the rule leaves with none:
 
 | Variable | Zero lines | Stays holding one | Stays with no other reading |
 |---|---|---|---|
@@ -174,7 +177,11 @@ below 4 Decreased total leukocyte count; `map_min` below 70 Hypotension; `creati
 above Elevated circulating creatinine concentration; `bilirubin_max` 1.2 and above
 Hyperbilirubinemia; `platelets_min` below 150 Thrombocytopenia; `gcs_min` below 15 Reduced
 consciousness. Each row's source is `singer-2016`, its limits naming the original and saying the
-cutoff was read in Singer et al.'s reproduction. `ICUType` and `mechvent` map nothing.
+cutoff was read in Singer et al.'s reproduction. Each row's limits name the variables its field
+reduces: `map_min`'s say "the stay's lowest MAP and NIMAP over its first 48 hours", where before
+`map_min` read both they said "the stay's lowest MAP over its first 48 hours". That text is the
+rows' one change under the zero rule and `map_min` over both readings, and it is why the rows'
+digest moved from `d2-11`'s to `d2-14`'s (Consequences). `ICUType` and `mechvent` map nothing.
 
 **7. What never enters.** `SAPS-I`, `SOFA`, `Length_of_stay` and `Survival`, which are outcome-
 related, and every descriptor and time series the fields above do not name, `Height` and `Weight`
@@ -319,7 +326,8 @@ was `8a8af228c9304a1440f4f0182720cb9c05aa1f8e5335d7b138855a44a2129c62`, no `is_a
 sha256 is `b8fbd7f8c95b38fa93262f7e8f92dfd28ed305a3e784342d1b32db9707aa0056` (the header alone)
 and its log sha256 `a08d6c6d3ede0d1a460e91b472c29b9fee2b7d70d6e200b23d024fd50aa3f0c5`. At the tag
 `uv run --no-sync python -m bko.ontology check` exited 0, its log ending `checked 821 rows: 0
-disagree`.
+disagree`, and `tests/test_datasets_physionet2012_pinned.py` passed with `--releases`, run from a
+worktree at the tag.
 
 **Gained**: a second intensive-care frame beside SUPPORT2's, with the same SIRS and SOFA rows read
 from a 48-hour window. **Accepted**: the minimum and the maximum follow the outliers the page warns
@@ -359,6 +367,13 @@ At tag `run/d1-12` it printed `7046 659`.
   `tests/test_datasets_physionet2012.py::test_map_min_reads_map_and_nimap_together`,
   `tests/test_datasets_physionet2012.py::test_a_zero_in_each_listed_field_codes_not_measured`,
   `tests/test_datasets_physionet2012.py::test_a_stay_whose_only_reading_is_zero_is_not_measured`,
+  `tests/test_datasets_physionet2012.py::test_the_zero_list_is_the_variables_whose_0_is_implausible`,
+  `tests/test_datasets_physionet2012.py::test_a_zero_in_an_unlisted_field_still_codes_as_measured`,
+  `tests/test_datasets_physionet2012.py::test_a_listed_zero_is_counted_on_its_stay`,
+  `tests/test_datasets_physionet2012.py::test_a_listed_zero_is_neither_missing_nor_below_zero`,
+  `tests/test_datasets_physionet2012.py::test_each_loader_logs_a_zero_count_per_listed_field_over_every_stay`,
+  `tests/test_datasets_physionet2012.py::test_the_cohort_line_counts_the_three_map_cases`,
+  `tests/test_datasets_physionet2012.py::test_equal_arterial_and_cuff_minima_are_not_counted_as_the_cuff_lower`,
   `tests/test_datasets_physionet2012.py::test_mechvent_is_any_1`,
   `tests/test_datasets_physionet2012.py::test_a_stay_with_unknown_age_or_gender_is_left_out_and_counted`,
   `tests/test_datasets_physionet2012.py::test_the_severity_scores_never_enter_the_frame`,
