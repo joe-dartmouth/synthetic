@@ -10,16 +10,21 @@ import logging
 import re
 from typing import Final
 
+import pandas as pd
 import pytest
 
-from bko.baselines.errors import ShortfallError
+from bko.baselines.errors import BaselineError, ShortfallError
+from bko.baselines.records import Baseline
+from bko.baselines.request import Request
 from bko.datasets.uci import UCI_FRAME
 from bko.evaluate.experiment import E1
+from bko.evaluate.filling import fill_arm
 from bko.evaluate.provenance import experiment_line
 from bko.evaluate.run import run
 from bko.evaluate.run_folder import ASSUMED
 from bko.evaluate.runs_published import P1, P1_PARTIAL
 from bko.evaluate.scores import Measure, Scope, Source, render
+from bko.evaluate.trace_lines import Fill, trace_baseline
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 from tests.test_evaluate_run import ONE_RECORD, ONLY_SMOTE, shorting
 from tests.test_evaluate_shared import edit_log, refused, run_folder, shared
@@ -202,3 +207,44 @@ def test_a_partial_replica_without_replica_arms_is_refused():
 def test_a_partial_replica_that_is_not_a_bool_is_refused(value):
     with pytest.raises(TypeError, match=r"^partial_replica \S+ must be a bool$"):
         dataclasses.replace(REPLICA, partial_replica=value)
+
+
+def test_a_direct_style_short_replica_still_refuses_under_the_field(caplog):
+    """A plain `BaselineError`, as `DirectArm` raises for a short draw, is never a partial fill."""
+    train = GRADED.iloc[:4]
+    request = Request(seed=7, quota={("<55", "female", 0): 1}, frame=UCI_FRAME)
+    calls: list[int] = []
+
+    def refusing(_train: pd.DataFrame, asked: Request) -> Baseline:
+        calls.append(asked.seed)
+        msg = "a draw left cells short"
+        raise BaselineError(msg)
+
+    with (
+        caplog.at_level(logging.INFO, logger="bko.evaluate"),
+        pytest.raises(BaselineError, match="a draw left cells short"),
+    ):
+        fill_arm(
+            refusing,
+            train,
+            request,
+            holdout=0,
+            attempts=3,
+            name="bko-direct-replica",
+            kind="replica",
+            partial=True,
+        )
+    assert len(calls) == 3
+    assert "refused holdout=0 arm=bko-direct-replica attempts=3" in caplog.messages
+    assert not any(m.startswith(("shortfall ", "arm holdout=")) for m in caplog.messages)
+
+
+def test_a_partial_baseline_gap_fills_trace_holds_only_its_method_and_seed(caplog):
+    line = (
+        "arm holdout=0 arm=smote attempt=5 seed=42 added=3 sha256=abc"
+        ' params={"neighbors": 5, "short": {"<55/female/1": 4}}'
+    )
+    with caplog.at_level(logging.INFO, logger="bko.evaluate"):
+        (traced,) = trace_baseline(Fill(0, "smote", line))
+    assert traced.request == {"method": "smote", "seed": 42}
+    assert not any(m.startswith("trace replica-short ") for m in caplog.messages)
