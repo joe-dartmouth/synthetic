@@ -1868,15 +1868,15 @@ inside `.venv`:
   builder refuses a code field. It reads no record-level statistic; `diabetes-codes`' codebook is
   the codes its cohort holds. Two runs over the same releases write the same bytes. `uci` is kept
   for that check on a frame with no code field.
-- **The mapping measures**: `bko.ontology.auto_measures` writes one CSV line per committed
-  automatic or permuted table of `bko.ontology.auto_tables` against the hand rows: its rows,
-  precision and recall over exact (field, code, concept) atoms, the exact matches, the hierarchy
-  hits (a built atom naming a strict `is_a` ancestor or descendant of the hand concept of its
-  state), the rows a permutation cannot move for a permuted table, and the states judged and
+- **The mapping measures**: `bko.ontology.auto_measures` writes to stdout one CSV line per
+  committed automatic or permuted table of `bko.ontology.auto_tables` against the hand rows: its
+  rows, precision and recall over exact (field, code, concept) atoms, the exact matches, the
+  hierarchy hits (a built atom naming a strict `is_a` ancestor or descendant of the hand
+  concept of its state), the rows a permutation cannot move for a permuted table, and the states judged and
   accepted for an `auto-local` table. It reads the pinned releases, fetching them into the data
   root if absent, and makes no API call:
 
-      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/measures.csv && uv run --no-sync python -m bko.ontology.auto_measures > runs/<run-id>/measures.csv 2> runs/<run-id>/measures.log </dev/null
+      uv run --no-sync python -m bko.ontology.auto_measures </dev/null
 
 ### ELK comparison
 

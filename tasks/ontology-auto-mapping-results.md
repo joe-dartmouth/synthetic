@@ -27,7 +27,7 @@ holds them (`bko.evaluate.runs_direct.E22` and `E22_FAMILIES`).
 Each table's precision, recall, exact matches, hierarchy hits, unmovable rows and judged counts
 against the hand rows come from
 
-    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/measures.csv && uv run --no-sync python -m bko.ontology.auto_measures > runs/<run-id>/measures.csv 2> runs/<run-id>/measures.log </dev/null
+    uv run --no-sync python -m bko.ontology.auto_measures </dev/null
 
 which reads the committed tables of `bko.ontology.auto_tables` and the pinned releases, and makes
 no API call.
