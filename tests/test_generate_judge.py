@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import hashlib
 import io
 import json
 from fractions import Fraction
@@ -12,22 +13,26 @@ from pathlib import Path
 import pytest
 
 import bko.generate.judge as judge_module
+from bko.datasets.errors import ContractError
 from bko.generate.errors import GenerationError
 from bko.generate.judge import (
     MODEL,
     PARTS,
     SPLIT,
+    SYSTEM,
     Judged,
     in_part,
     judge,
     main,
+    read_verdict,
     render_verdicts,
     verdict_call,
     verdict_payload,
 )
 from bko.generate.local import payload
 from bko.generate.messages import Call, Reply, Usage
-from bko.ontology.automatic import NONE, TOP, Candidate, Option, candidates, rows_from_verdicts
+from bko.ontology.automatic import NONE, TOP, Candidate, candidates, rows_from_verdicts
+from bko.ontology.lexical import Option
 from bko.ontology.terms import Ontology
 from tests._automatic_fixtures import BRONCHITIS, FRAME, PNEUMONIA, automatic_ontologies
 
@@ -185,6 +190,19 @@ def test_a_reply_that_is_not_a_verdict_is_refused(ontologies, text):
         asyncio.run(judge(FRAME, ontologies, send, model=MODEL, codes=("diag",)))
 
 
+def _command(monkeypatch, ontologies, send: FakeSend, checked: list[str] | None = None) -> None:
+    """Point `main` at the fixture frame, a fake server check and `send`."""
+    monkeypatch.setattr(
+        judge_module, "inputs", lambda dataset, data_dir: (FRAME, ontologies, ("diag",))
+    )
+    monkeypatch.setattr(
+        judge_module,
+        "check_server",
+        lambda model, port: (checked if checked is not None else []).append(model),
+    )
+    monkeypatch.setattr(judge_module, "local_send", lambda model, *, url, build: send)
+
+
 def test_the_command_writes_the_verdict_module(ontologies, monkeypatch, caplog):
     caplog.set_level("INFO")
     sent: list[object] = []
@@ -193,25 +211,114 @@ def test_the_command_writes_the_verdict_module(ontologies, monkeypatch, caplog):
         sent.append((model, url, build))
         return FakeSend()
 
-    monkeypatch.setattr(
-        judge_module, "inputs", lambda dataset, data_dir: (FRAME, ontologies, ("diag",))
-    )
+    _command(monkeypatch, ontologies, FakeSend())
     monkeypatch.setattr(judge_module, "local_send", fake_local_send)
-    out = io.StringIO()
-    assert main(["diabetes-codes", "--model", MODEL], out=out) == 0
+    out = io.BytesIO()
+    assert main(["diabetes-codes"], out=out) == 0
     assert sent == [(MODEL, judge_module.LOCAL_URL, verdict_payload)]
-    assert "VERDICTS" in out.getvalue()
-    assert any(
-        m.startswith(f"judge dataset=diabetes-codes model={MODEL} ") for m in caplog.messages
-    )
-    assert any(m.startswith("verdict field=glucose code=2 ") for m in caplog.messages)
+    data = out.getvalue()
+    assert b"VERDICTS" in data
+    calls = len(candidates(FRAME, ontologies, codes=("diag",)))
+    assert f"judge start dataset=diabetes-codes part=all calls={calls}" in caplog.messages
+    assert any(m.startswith(f"verdict i=1/{calls} field=") for m in caplog.messages)
+    assert any(" seconds=" in m for m in caplog.messages if m.startswith("verdict "))
+    (closing,) = [m for m in caplog.messages if m.startswith("judge dataset=")]
+    assert f" calls={calls} elapsed=" in closing
+    assert closing.endswith(f"sha256={hashlib.sha256(data).hexdigest()}")
+
+
+def test_the_command_checks_the_server_before_reading_the_releases(ontologies, monkeypatch):
+    order: list[str] = []
+
+    def refuse(model: str, port: int) -> None:
+        order.append("check")
+        raise GenerationError("the local server serves another alias")
+
+    monkeypatch.setattr(judge_module, "check_server", refuse)
+    monkeypatch.setattr(judge_module, "inputs", lambda dataset, data_dir: order.append("inputs"))
+    assert main(["diabetes"], out=io.BytesIO()) == 2
+    assert order == ["check"]
 
 
 def test_the_command_exits_two_when_the_judge_fails(ontologies, monkeypatch):
-    monkeypatch.setattr(
-        judge_module, "inputs", lambda dataset, data_dir: (FRAME, ontologies, ("diag",))
+    _command(monkeypatch, ontologies, FakeSend(answer="HP:1"))
+    out = io.BytesIO()
+    assert main(["diabetes", "--model", MODEL], out=out) == 2
+    assert out.getvalue() == b""
+
+
+def test_the_command_returns_a_dataset_errors_code(monkeypatch):
+    def refuse(dataset: str, data_dir: Path | None) -> None:
+        raise ContractError("the archive contradicts its pin")
+
+    monkeypatch.setattr(judge_module, "check_server", lambda model, port: None)
+    monkeypatch.setattr(judge_module, "inputs", refuse)
+    assert main(["diabetes"], out=io.BytesIO()) == ContractError.exit_code == 3
+
+
+def test_a_run_with_no_candidate_is_refused(ontologies, monkeypatch, tmp_path):
+    frame = dataclasses.replace(
+        FRAME,
+        features=("age", "sex"),
+        categorical=("sex",),
+        codebook={"sex": FRAME.codebook["sex"]},
+        descriptions={"age": "a", "sex": "sex", "target": "t"},
+        label_meanings={0: "no", 1: "zzz"},
     )
-    monkeypatch.setattr(
-        judge_module, "local_send", lambda model, *, url, build: FakeSend(answer="HP:1")
-    )
-    assert main(["diabetes", "--model", MODEL], out=io.StringIO()) == 2
+    with pytest.raises(ValueError, match="no candidate state"):
+        asyncio.run(judge(frame, ontologies, FakeSend(), model=MODEL))
+    monkeypatch.setattr(judge_module, "inputs", lambda dataset, data_dir: (frame, ontologies, ()))
+    monkeypatch.setattr(judge_module, "check_server", lambda model, port: None)
+    assert main(["diabetes"], out=io.BytesIO()) == 2
+
+
+def test_a_part_is_only_for_the_split_dataset_and_a_thinking_model_is_refused():
+    for argv in (["diabetes", "--part", "low"], ["diabetes", "--model", f"{MODEL}-thinking"]):
+        with pytest.raises(SystemExit) as exited:
+            main(argv, out=io.BytesIO())
+        assert exited.value.code == 2
+
+
+def test_a_failed_call_names_its_candidate_and_place(ontologies):
+    async def send(call: Call) -> Reply:
+        raise GenerationError("the server closed the connection", retryable=True)
+
+    states = candidates(FRAME, ontologies, codes=("diag",))
+    with pytest.raises(GenerationError, match=rf"{states[0].key} \(1/{len(states)}\)") as raised:
+        asyncio.run(judge(FRAME, ontologies, send, model=MODEL, codes=("diag",)))
+    assert raised.value.retryable
+
+
+def test_the_split_field_opens_the_high_part():
+    assert in_part(SPLIT, "high")
+    assert not in_part(SPLIT, "low")
+    assert in_part("diag_2", "low")
+
+
+def test_only_the_verdict_concepts_label_is_recorded(ontologies):
+    judged = asyncio.run(judge(FRAME, ontologies, FakeSend(), model=MODEL, codes=("diag",)))
+    offered = {o.curie for c in candidates(FRAME, ontologies, codes=("diag",)) for o in c.options}
+    chosen = {c for c in judged.verdicts.values() if c != NONE}
+    assert set(judged.labels) == chosen
+    assert offered - chosen
+
+
+PAYLOAD_SHA256 = "943d2236b0497b24470d6a6d0db9a6b48ef0de8120d70b8522c999a7f7c97eb3"
+"""The sha256 of a three-option verdict call's request body, as `local_send` posts it."""
+
+SYSTEM_SHA256 = "74d84b79b97e5ca61278d8d7bf1257b7959471e9c5f2b2cb0e6202cf4d7bc6e5"
+"""The sha256 of the verdict calls' system turn."""
+
+
+def test_the_verdict_request_bytes_and_system_turn_are_pinned():
+    body = verdict_payload(verdict_call(_candidate(3), FRAME, model=MODEL))
+    assert hashlib.sha256(json.dumps(body).encode()).hexdigest() == PAYLOAD_SHA256
+    assert hashlib.sha256(SYSTEM.encode()).hexdigest() == SYSTEM_SHA256
+
+
+def test_the_eleventh_option_is_refused():
+    candidate = _candidate(TOP + 2)
+    beyond = candidate.options[TOP].curie
+    with pytest.raises(GenerationError, match=beyond):
+        read_verdict(_reply(beyond), candidate)
+    assert read_verdict(_reply(candidate.options[TOP - 1].curie), candidate)

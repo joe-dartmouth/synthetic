@@ -8,10 +8,11 @@ is refused. The verdict table holds every state the cross-reference route maps b
 ones, so `bko.ontology.automatic.rows_from_verdicts` of the committed table gives the `auto-local`
 rows (ADR `research/automatic-mapping`).
 
-A table too long for one module is written as two, `--part low` and `--part high`, split at the
-field `SPLIT`.
+A table too long for one module, `diabetes-codes`', is written as two, `--part low` and
+`--part high`, split at the field `SPLIT`. `--model` takes a local model with thinking off, since a
+verdict's `MAX_TOKENS` leaves no room for reasoning; it defaults to `MODEL`.
 
-    python -m bko.generate.judge <dataset> --model <model> [--part {low,high}] [--data-dir <dir>]
+    python -m bko.generate.judge <dataset> [--model <model>] [--part {low,high}] [--data-dir <dir>]
         [--url <url>]
 """
 
@@ -23,20 +24,23 @@ import hashlib
 import json
 import logging
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, TextIO
+from typing import BinaryIO, Final
 
 from bko.core.logs import configure
 from bko.datasets.errors import DatasetError
 from bko.datasets.frames import FrameSpec
 from bko.generate.errors import GenerationError
-from bko.generate.local import LOCAL_URL, local_send, payload
+from bko.generate.local import LOCAL_URL, check_server, local_send, loopback, payload
 from bko.generate.messages import AsyncSend, Call, Level, Reply, Settings
 from bko.generate.weights import LOCAL_MODELS
-from bko.ontology.automatic import NONE, TOP, Candidate, build_lexical, candidates, state
+from bko.ontology.automatic import NONE, TOP, Candidate, state, survey
 from bko.ontology.automatic_inputs import DATASETS, inputs
+from bko.ontology.code_frames import DIABETES_CODES_NAME
+from bko.ontology.codes import literal
 from bko.ontology.terms import Ontology
 
 
@@ -52,7 +56,10 @@ SPLIT: Final = "diag_3"
 """The first field of a split table's `high` part."""
 
 MAX_TOKENS: Final = 256
-"""The output limit of one verdict call, room for one curie in JSON."""
+"""The output limit of one verdict call, room for one curie in JSON and no reasoning."""
+
+JUDGES: Final = tuple(sorted(model for model, pin in LOCAL_MODELS.items() if not pin.thinking))
+"""The local models `--model` takes: those served with thinking off."""
 
 SYSTEM: Final = (
     "You map one coded state of a tabular dataset to an ontology concept. A state shows a concept "
@@ -70,10 +77,12 @@ class Judged:
         verdicts: Each `<field>=<code>` state's concept or `NONE`, in (field, code) order: the
             cross-reference states, then the judged ones.
         labels: Each verdict concept's name in its release.
+        calls: How many states the model was asked about.
     """
 
     verdicts: Mapping[str, str]
     labels: Mapping[str, str]
+    calls: int = 0
 
 
 def verdict_schema(candidate: Candidate) -> dict[str, object]:
@@ -148,42 +157,59 @@ async def judge(
     model: str,
     codes: Sequence[str] = (),
     part: str | None = None,
+    dataset: str | None = None,
 ) -> Judged:
     """The verdict table of `frame`: the cross-reference states, then one call per candidate.
 
+    Logs a `judge start` line with the calls to make, then one `verdict i=<i>/<n>` line per call
+    with its seconds.
+
     Args:
-        frame: The frame whose codebook is read.
+        frame: The frame whose codebook is read, surveyed once.
         ontologies: Each release prefix's parsed release.
         send: Answers each verdict call, in candidate order, one at a time.
         model: The model each call names.
         codes: As `bko.ontology.automatic.build_lexical` takes them.
         part: One of `PARTS`: only the states of that part's fields; None for every state.
+        dataset: The name the start line gives; `frame`'s name when None.
 
     Raises:
-        GenerationError: As `send`, or `read_verdict` for a reply that is not a verdict.
+        GenerationError: As `send`, or `read_verdict` for a reply that is not a verdict, its
+            message naming the candidate and its place, `i/n`.
+        ValueError: As `bko.ontology.automatic.survey`, or if no candidate state is in `part`.
     """
-    crossed = [
-        row
-        for row in build_lexical(frame, ontologies, codes=codes)
-        if state(row)[0] in codes and in_part(state(row)[0], part)
-    ]
+    found = survey(frame, ontologies, codes)
+    crossed = [row for row in found.rows if state(row)[0] in codes and in_part(state(row)[0], part)]
+    asked = [c for c in found.candidates if in_part(c.field, part)]
+    if not asked:
+        msg = f"no candidate state of {frame.name} in part {part or 'all'}: nothing to judge"
+        raise ValueError(msg)
+    logger.info(
+        "judge start dataset=%s part=%s calls=%d", dataset or frame.name, part or "all", len(asked)
+    )
     verdicts = {"{}={}".format(*state(row)): row.concept for row in crossed}
     labels = {row.concept: row.label for row in crossed}
-    for candidate in candidates(frame, ontologies, codes=codes):
-        if not in_part(candidate.field, part):
-            continue
-        reply = await send(verdict_call(candidate, frame, model=model))
-        concept = read_verdict(reply, candidate)
+    for i, candidate in enumerate(asked, start=1):
+        started = time.monotonic()
+        try:
+            reply = await send(verdict_call(candidate, frame, model=model))
+            concept = read_verdict(reply, candidate)
+        except GenerationError as exc:
+            msg = f"{candidate.key} ({i}/{len(asked)}): {exc}"
+            raise GenerationError(msg, retryable=exc.retryable) from exc
         logger.info(
-            "verdict field=%s code=%d concept=%s options=%d",
+            "verdict i=%d/%d field=%s code=%d concept=%s options=%d seconds=%.3f",
+            i,
+            len(asked),
             candidate.field,
             candidate.code,
             concept,
             min(len(candidate.options), TOP),
+            time.monotonic() - started,
         )
         verdicts[candidate.key] = concept
         labels.update((o.curie, o.label) for o in candidate.options if o.curie == concept)
-    return Judged(verdicts=verdicts, labels=dict(sorted(labels.items())))
+    return Judged(verdicts=verdicts, labels=dict(sorted(labels.items())), calls=len(asked))
 
 
 def in_part(field: str, part: str | None) -> bool:
@@ -213,37 +239,50 @@ def render_verdicts(judged: Judged, *, dataset: str, model: str, part: str | Non
         "VERDICTS: Final[Mapping[str, str]] = {\n",
     ]
     lines.extend(
-        f"    {_literal(key)}: {_literal(judged.verdicts[key])},\n"
+        f"    {literal(key)}: {literal(judged.verdicts[key])},\n"
         for key in sorted(judged.verdicts, key=_state_order)
     )
     lines.append("}\n\nLABELS: Final[Mapping[str, str]] = {\n")
-    lines.extend(
-        f"    {_literal(c)}: {_literal(judged.labels[c])},\n" for c in sorted(judged.labels)
-    )
+    lines.extend(f"    {literal(c)}: {literal(judged.labels[c])},\n" for c in sorted(judged.labels))
     lines.append("}\n# fmt: on\n")
     return "".join(lines)
 
 
-def main(argv: Sequence[str] | None = None, *, out: TextIO | None = None) -> int:
-    """Write `<dataset>`'s verdict module to `out` (stdout when omitted).
+def main(argv: Sequence[str] | None = None, *, out: BinaryIO | None = None) -> int:
+    """Write `<dataset>`'s verdict module to `out` (stdout when omitted) as UTF-8 bytes.
+
+    The server is checked (`bko.generate.local.check_server`) before the releases are read. The
+    closing `judge` line logs the calls, the seconds elapsed and the sha256 of the bytes written.
 
     Returns:
-        0 done; a `DatasetError`'s exit code when a snapshot cannot be read; 2 a failed call, a
-        reply that is not a verdict, or another I/O failure.
+        0 done; a `DatasetError`'s exit code when a snapshot cannot be read; 2 a refused server, a
+        failed call, a reply that is not a verdict, no candidate state, or another I/O failure.
     """
     parser = argparse.ArgumentParser(prog="python -m bko.generate.judge", description=__doc__)
     parser.add_argument("dataset", choices=DATASETS)
-    parser.add_argument("--model", required=True, choices=sorted(LOCAL_MODELS))
+    parser.add_argument("--model", default=MODEL, choices=JUDGES)
     parser.add_argument("--data-dir", type=Path, default=None)
     parser.add_argument("--url", default=LOCAL_URL)
     parser.add_argument("--part", choices=PARTS, default=None)
     args = parser.parse_args(argv)
+    if args.part is not None and args.dataset != DIABETES_CODES_NAME:
+        parser.error(f"--part splits only {DIABETES_CODES_NAME}'s table")
+    started = time.monotonic()
     try:
+        check_server(args.model, loopback(args.url))
         data_dir = None if args.data_dir is None else args.data_dir.resolve()
         frame, ontologies, codes = inputs(args.dataset, data_dir)
         send = local_send(args.model, url=args.url, build=verdict_payload)
         judged = asyncio.run(
-            judge(frame, ontologies, send, model=args.model, codes=codes, part=args.part)
+            judge(
+                frame,
+                ontologies,
+                send,
+                model=args.model,
+                codes=codes,
+                part=args.part,
+                dataset=args.dataset,
+            )
         )
     except DatasetError as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
@@ -251,27 +290,27 @@ def main(argv: Sequence[str] | None = None, *, out: TextIO | None = None) -> int
     except (GenerationError, OSError, ValueError) as exc:
         logger.error("%s", exc)  # ruff: ignore[error-instead-of-exception]
         return 2
-    text = render_verdicts(judged, dataset=args.dataset, model=args.model, part=args.part)
+    data = render_verdicts(judged, dataset=args.dataset, model=args.model, part=args.part).encode()
     logger.info(
-        "judge dataset=%s model=%s part=%s states=%d mapped=%d sha256=%s",
+        "judge dataset=%s model=%s part=%s states=%d mapped=%d calls=%d elapsed=%.1f sha256=%s",
         args.dataset,
         args.model,
         args.part or "all",
         len(judged.verdicts),
         sum(concept != NONE for concept in judged.verdicts.values()),
-        hashlib.sha256(text.encode()).hexdigest(),
+        judged.calls,
+        time.monotonic() - started,
+        hashlib.sha256(data).hexdigest(),
     )
-    (sys.stdout if out is None else out).write(text)
+    sink = sys.stdout.buffer if out is None else out
+    sink.write(data)
+    sink.flush()
     return 0
 
 
 def _state_order(key: str) -> tuple[str, int]:
     field, _, code = key.partition("=")
     return field, int(code)
-
-
-def _literal(text: str) -> str:
-    return json.dumps(text, ensure_ascii=False)
 
 
 _HEADER: Final = '''"""Local judge verdicts, written by `python -m bko.generate.judge`.
