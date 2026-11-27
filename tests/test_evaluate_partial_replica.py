@@ -18,7 +18,7 @@ from bko.evaluate.experiment import E1
 from bko.evaluate.provenance import experiment_line
 from bko.evaluate.run import run
 from bko.evaluate.run_folder import ASSUMED
-from bko.evaluate.runs_published import P1
+from bko.evaluate.runs_published import P1, P1_PARTIAL
 from bko.evaluate.scores import Measure, Scope, Source, render
 from tests._evaluate_fixtures import FAST_ARMS, GRADED, SMALL
 from tests.test_evaluate_run import ONE_RECORD, ONLY_SMOTE, shorting
@@ -166,6 +166,11 @@ def test_the_experiment_line_names_partial_replica_only_when_set():
     assert " replica=smote replica_rows=40 partial_replica=true threshold=" in experiment_line(
         "x", capped, ["lr"], frame="uci"
     )
+    line = experiment_line("p1-id-partial", P1_PARTIAL, ["lr", "hgb"], frame="tableshift")
+    assert line.replace("partial_replica=true ", "") == P1_LINE.replace(
+        "run=p1-id ", "run=p1-id-partial "
+    )
+    assert line != P1_LINE.replace("run=p1-id ", "run=p1-id-partial ")
 
 
 def test_an_older_experiment_line_reads_at_the_assumed_partial_replica(tmp_path, caplog):

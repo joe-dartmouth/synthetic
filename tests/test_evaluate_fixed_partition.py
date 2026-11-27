@@ -42,9 +42,10 @@ from bko.evaluate.guided import Knowledge
 from bko.evaluate.holdout_candidates import CandidateFile
 from bko.evaluate.named_runs import RUNS
 from bko.evaluate.prepare import held_out_ratio, prepared
+from bko.evaluate.provenance import experiment_line
 from bko.evaluate.rehearse import safe_ranges
 from bko.evaluate.run import run
-from bko.evaluate.runs_published import P1
+from bko.evaluate.runs_published import P1, P1_PARTIAL
 from bko.evaluate.scores import Measure, Score
 from bko.ontology.frames import LAB_FIELD_ROWS
 from tests._diabetes_fixtures import pin, text
@@ -160,7 +161,25 @@ def test_p1_names_the_stated_configuration():
     assert RUNS["p1-ood"].experiment == P1
     assert RUNS["p1-id"].dataset is Dataset.TABLESHIFT_ID
     assert RUNS["p1-ood"].dataset is Dataset.TABLESHIFT_OOD
-    assert list(RUNS)[-3:-1] == ["p1-id", "p1-ood"]
+    assert list(RUNS)[-5:-1] == ["p1-id", "p1-ood", "p1-id-partial", "p1-ood-partial"]
+
+
+def test_p1_partial_with_the_field_at_its_default_equals_p1():
+    assert P1_PARTIAL.partial_replica is True
+    assert dataclasses.replace(P1_PARTIAL, partial_replica=False) == P1
+    assert RUNS["p1-id-partial"].experiment == P1_PARTIAL
+    assert RUNS["p1-ood-partial"].experiment == P1_PARTIAL
+    assert RUNS["p1-id-partial"].dataset is Dataset.TABLESHIFT_ID
+    assert RUNS["p1-ood-partial"].dataset is Dataset.TABLESHIFT_OOD
+    assert RUNS["p1-id-partial"].settings == RUNS["p1-id"].settings
+
+
+def test_the_p1_runs_are_unchanged():
+    assert P1.partial_replica is False
+    for name, dataset in (("p1-id", Dataset.TABLESHIFT_ID), ("p1-ood", Dataset.TABLESHIFT_OOD)):
+        assert RUNS[name].experiment == P1
+        assert RUNS[name].dataset is dataset
+        assert "partial_replica" not in experiment_line(name, P1, ["lr", "hgb"], frame="tableshift")
 
 
 def _held(records: pd.DataFrame) -> frozenset[int]:

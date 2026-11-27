@@ -9,13 +9,14 @@ unit's `milestone` is `direct-method-research`, the
 ## Order of work
 
 1. Code units, in landing order:
-   [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) unblocks the TableShift runs;
    [`ontology-auto-mapping`](ontology-auto-mapping.md) unblocks its results unit.
 2. Free runs that need no code:
    [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and
    [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) both gate the
-   registration, and [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) runs the
-   E14 to E17 and E20 families, which are in `RUNS`.
+   registration, [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) runs the
+   E14 to E17 and E20 families, which are in `RUNS`, and
+   [`evaluate-tableshift-results`](evaluate-tableshift-results.md) runs `p1-id-partial` and
+   `p1-ood-partial`.
 3. After this batch: [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) lands
    alone; then [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md),
    [`slm-lora-day-budget`](slm-lora-day-budget.md),
@@ -26,8 +27,7 @@ unit's `milestone` is `direct-method-research`, the
 
 Landing-order constraints that are not dependencies:
 
-- A unit that adds `RUNS` entries inserts them before `p1-id`, except
-  `evaluate-p1-partial-replicas`, which inserts its two entries between `p1-ood` and `p2`.
+- A unit that adds `RUNS` entries inserts them before `p1-id`.
 - `bko.gaps.quota.expected_size` reads the second cell axis by position, which
   `datasets-generalised-cell-axes` must keep.
 
@@ -60,8 +60,7 @@ Landing-order constraints that are not dependencies:
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
 | [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) | ready | -- | direct-method-research |
-| [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) | ready | -- | direct-method-research |
-| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | blocked | evaluate-p1-partial-replicas | direct-method-research |
+| [`evaluate-tableshift-results`](evaluate-tableshift-results.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md) | ready | -- | direct-method-research |
 | [`evaluate-crc-acs-results`](evaluate-crc-acs-results.md) | blocked | evaluate-crc-acs-benchmark, evaluate-confirmatory-results | direct-method-research |
 | [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md) | ready | -- | direct-method-research |
@@ -127,7 +126,6 @@ flowchart LR
     u8[evaluate-synthea-direct-results] --> u30
     u29 --> u30
     u30 --> u31[evaluate-confirmatory-results]
-    u54[evaluate-p1-partial-replicas] --> u55[evaluate-tableshift-results]
     u41[evaluate-crc-acs-benchmark] --> u42[evaluate-crc-acs-results]
     u31 --> u42
     u32[ontology-auto-mapping] --> u33[ontology-auto-mapping-results]

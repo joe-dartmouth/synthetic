@@ -140,7 +140,10 @@ variance. The diagnosis columns carry no ontology concept.
   `run`, `run_direct`, `score` and the rehearsal's ranges, the seed-based split unchanged without
   held ids, a missing held id, a duplicate index and an empty held set refused, the digest over
   the held ids, a held-out ratio of 0 and the plain t interval, `load` holding each domain's
-  test split, `bko-direct` drawing on the lab rows, P1's stated configuration),
+  test split, `bko-direct` drawing on the lab rows, P1's stated configuration, `P1_PARTIAL` equal
+  to P1 but for `partial_replica`, `p1-id` and `p1-ood` unchanged),
+  `tests/test_evaluate_partial_replica.py` (P1's `experiment` line unchanged and
+  `P1_PARTIAL`'s naming `partial_replica=true`),
   `tests/test_named_runs_slices.py` (the run names in order),
   `tests/test_datasets_diabetes_pinned.py`
 
