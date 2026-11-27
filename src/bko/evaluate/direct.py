@@ -326,6 +326,10 @@ def run_direct(  # ruff: ignore[too-many-arguments]  (`run`'s keywords beside th
 def _check_draw(spec: DrawSpec, knowledge: Knowledge, frame: FrameSpec) -> None:
     """Build what a draw at `spec` reads before any arm fits.
 
+    The tree check overlaps `bko.evaluate.run`'s per-holdout `_require_tree`, which every caller of
+    `run` meets; this one reads the trees as the arm builds them (`column_trees`) and fires before
+    any direct arm is built, so a direct run refuses here first.
+
     Raises:
         ValueError: As `run_direct` names its refusals.
     """
@@ -337,7 +341,7 @@ def _check_draw(spec: DrawSpec, knowledge: Knowledge, frame: FrameSpec) -> None:
     if spec.conditional:
         plan_hierarchy(rows, knowledge.ontologies, frame, spec)
     if spec.tree and not column_trees(rows, frame, knowledge.ontologies):
-        msg = f"the field rows of {frame.name} hold no tree field"
+        msg = f"the field rows of dataset {knowledge.name} hold no tree field of frame {frame.name}"
         raise ValueError(msg)
 
 

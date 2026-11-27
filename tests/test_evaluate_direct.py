@@ -381,4 +381,6 @@ def test_a_hierarchy_the_rows_cannot_build_is_refused_before_any_arm_fits(tmp_pa
 
 def test_a_tree_the_rows_cannot_build_is_refused_before_any_arm_fits(tmp_path, caplog):
     _refused_before_any_arm_fits(tmp_path, caplog, TREE_ARM)
-    assert "the field rows of uci hold no tree field" in caplog.text
+    assert (
+        "the field rows of dataset uci-heart-disease hold no tree field of frame uci" in caplog.text
+    )

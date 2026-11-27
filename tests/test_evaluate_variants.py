@@ -23,10 +23,10 @@ from bko.evaluate.data import (
     frame,
     held_split,
     load,
-    supported_frame,
 )
 from bko.evaluate.direct_arms import DIRECT_ARMS, HIER_W_ARM
 from bko.evaluate.runs_diabetes import E6_CELL
+from bko.evaluate.supported import supported_frame
 from bko.generate.direct import plan_hierarchy, sample
 from bko.ontology.auto_tables import (
     AUTO_LEXICAL_CODES_ROWS,

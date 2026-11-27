@@ -282,13 +282,16 @@ E22_HIER_ARMS: Final[tuple[str, ...]] = ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM
 """The arms of E22's families on E6's frame: `bko-direct`, `bko-nomap` and `bko-hier-w`, the arm
 that reads the mapping's `is_a` hierarchy."""
 
+E22_FLAT_ARMS: Final[tuple[str, ...]] = ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM)
+"""The arms of an E22 family on E6's frame whose rows build no `is_a` pair: no `bko-hier-w`."""
+
 E22_TREE_ARMS: Final[tuple[str, ...]] = ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM, TREE_ARM)
 """The arms of E22's families on `diabetes-codes`: `bko-tree` in place of `bko-hier-w`."""
 
 E22_FAMILIES: Final[Mapping[str, tuple[Dataset, tuple[str, ...]]]] = MappingProxyType(
     {
         "hand": (Dataset.DIABETES, E22_HIER_ARMS),
-        "auto-lexical": (Dataset.DIABETES_AUTO_LEXICAL, E22_HIER_ARMS[:-1]),
+        "auto-lexical": (Dataset.DIABETES_AUTO_LEXICAL, E22_FLAT_ARMS),
         "auto-local": (Dataset.DIABETES_AUTO_LOCAL, E22_HIER_ARMS),
         "permuted": (Dataset.DIABETES_PERMUTED, E22_HIER_ARMS),
         "codes-hand": (Dataset.DIABETES_CODES, E22_TREE_ARMS),

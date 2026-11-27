@@ -41,9 +41,9 @@ from bko.baselines.methods import augment
 from bko.baselines.request import Method, Request
 from bko.datasets.cells import LABEL
 from bko.datasets.frames import FrameSpec, RangeConstraint
-from bko.evaluate.data import supported_frame
 from bko.evaluate.direct_arms import DIRECT_ARM, DIRECT_ARMS, KB_ARM
 from bko.evaluate.named_runs import RUNS
+from bko.evaluate.supported import supported_frame
 from bko.gaps.observe import Cell
 from bko.generate.direct import Draw, sample
 from bko.generate.errors import SamplingError

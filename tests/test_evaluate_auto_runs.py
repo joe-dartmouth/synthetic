@@ -53,7 +53,7 @@ def test_the_families_of_one_frame_differ_only_in_dataset_and_gated_arms(fractio
     tree = ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM, TREE_ARM)
     arms = {
         "hand": hier,
-        "auto-lexical": hier[:-1],
+        "auto-lexical": ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM),
         "auto-local": hier,
         "permuted": hier,
         "codes-hand": tree,
