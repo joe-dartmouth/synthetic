@@ -417,6 +417,21 @@ KEYS = [
         for fraction in ("thin", "empty")
         for letter in ("", *LETTERS)
     ),
+    *(
+        f"e22-{family}-{fraction}{letter}"
+        for family in (
+            "hand",
+            "auto-lexical",
+            "auto-local",
+            "permuted",
+            "codes-hand",
+            "codes-auto-lexical",
+            "codes-auto-local",
+            "codes-permuted",
+        )
+        for fraction in ("thin", "empty")
+        for letter in ("", *LETTERS)
+    ),
     "p1-id",
     "p1-ood",
     "p1-id-partial",
@@ -427,7 +442,8 @@ KEYS = [
 E10's pilots, E10's PRAM-only runs, the control runs E12 and E13, the donor-limit runs E14, the
 tree-share runs E15, the conditional `is_a` runs E16, the coherent free-field runs E17, P3's
 removal fractions, the synthetic-share runs E18, the matched knowledge controls E19, the
-microaggregation runs E20, the quota sweep E21, P1's runs, P1's partial-replica runs and P2's."""
+microaggregation runs E20, the quota sweep E21, the automatic-mapping runs E22, P1's runs, P1's
+partial-replica runs and P2's."""
 
 
 def test_the_runs_keys_are_the_literal_list():
@@ -457,6 +473,19 @@ def test_the_runs_keys_are_the_literal_list():
                 "coverage-eight",
                 "expected-size",
                 "recommended",
+            )
+        ),
+        *(
+            f"e22-{family}"
+            for family in (
+                "hand",
+                "auto-lexical",
+                "auto-local",
+                "permuted",
+                "codes-hand",
+                "codes-auto-lexical",
+                "codes-auto-local",
+                "codes-permuted",
             )
         ),
     ],

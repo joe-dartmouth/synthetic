@@ -140,7 +140,11 @@ for `bko-tree`.
   `45caeb10a710164738fb6f28eccbd811dbcd78e991c9fcb0ac8f5da3293a3a63`) and
   `tests/test_evaluate_auto_draws_pinned.py` (which variants build `bko-hier-w`'s hierarchy and
   `bko-tree`'s trees, the Consequences' refusal included); `tests/test_evaluate_direct.py`
-  (a hierarchy or a tree the rows cannot build, refused before any arm fits)
+  (a hierarchy or a tree the rows cannot build, refused before any arm fits);
+  `tests/test_evaluate_auto_runs.py` (E22's sixteen runs and their slices, each family's dataset,
+  the families of one frame differing only in dataset and the gated `bko-hier-w`, and the
+  reference arm `bko-direct`) and `tests/test_named_runs_slices.py` (E22's names in `RUNS`'
+  order)
 
 ## Reversal Conditions
 

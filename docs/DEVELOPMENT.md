@@ -1301,13 +1301,16 @@ start or the supervisor cannot run.
   (`bko.evaluate.runs_direct.E21` and `E21_NAMES`: `E12_THIN` and `E12_EMPTY` with `quota_rule`
   set to the rule, the ceiling inert, `REFERENCE` `real`) and their slices `e21-<word>-thina`
   to `e21-<word>-emptyj`, sliced as E6's are; `docs/EVIDENCE.md`, E21,
-  describes them. `RUNS` holds E22's runs, eight families each in a thin and an empty run sliced
-  as E6's are: `e22-hand-*`, `e22-auto-lexical-*`, `e22-auto-local-*` and `e22-permuted-*` on
-  `diabetes` and its three mapping variants with `none`, `real`, `bko-direct`, `bko-nomap` and
-  `bko-hier-w`, `e22-auto-lexical-*` without `bko-hier-w`, and `e22-codes-hand-*`, `e22-codes-auto-lexical-*`, `e22-codes-auto-local-*` and
-  `e22-codes-permuted-*` on `diabetes-codes` and its three with `bko-tree` in place of
-  `bko-hier-w`, candidate `bko-direct`, `REFERENCE` `bko-direct`; `docs/EVIDENCE.md`, E22,
-  describes them. `RUNS` also holds P1's runs,
+  describes them. `RUNS` holds E22's runs, eight families each in a thin and an empty run
+  (`bko.evaluate.runs_direct.E22` and `E22_FAMILIES`: `E9_THIN` and `E9_EMPTY` with the family's
+  arms, candidate `bko-direct` against `bko-nomap` and `none`, no replica, the ceiling inert,
+  `REFERENCE` `bko-direct`): `e22-hand-<fraction>`, `e22-auto-lexical-<fraction>`,
+  `e22-auto-local-<fraction>` and `e22-permuted-<fraction>` on `diabetes` and its three mapping
+  variants with `none`, `real`, `bko-direct`, `bko-nomap` and `bko-hier-w`, `e22-auto-lexical-*`
+  without `bko-hier-w`, and `e22-codes-hand-<fraction>`, `e22-codes-auto-lexical-<fraction>`,
+  `e22-codes-auto-local-<fraction>` and `e22-codes-permuted-<fraction>` on `diabetes-codes` and
+  its three with `bko-tree` in place of `bko-hier-w`, `<fraction>` `thin` or `empty`, and their
+  slices `<run>a` to `<run>j`, sliced as E6's are; `docs/EVIDENCE.md`, E22, describes them. `RUNS` also holds P1's runs,
   `p1-id` on `tableshift-id` and `p1-ood` on `tableshift-ood` (`bko.evaluate.runs_published.P1`: E1
   on ten holdouts with the comparison set, the classical synthesizers, the Bayesian network,
   TabDDPM, the label bootstrap and the candidate `bko-direct`, a replica for every row-adding arm

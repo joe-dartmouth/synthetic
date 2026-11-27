@@ -5,8 +5,8 @@
 `E16_THIN` and `E16_EMPTY` the three `bko-hier` arms, `E17_THIN` and `E17_EMPTY`
 `bko-coherent`, `E18` the synthetic-share sweep, `E19_THIN`, `E19_EMPTY`, `E19_SUPPORTED_THIN`
 and `E19_SUPPORTED_EMPTY` the matched knowledge controls, `E20_THIN` and `E20_EMPTY`
-`bko-micro`, and `E21` the quota sweep. `bko.evaluate.named_runs.RUNS` names them
-(`docs/EVIDENCE.md`, E12 to E21).
+`bko-micro`, `E21` the quota sweep, and `E22` the automatic-mapping runs.
+`bko.evaluate.named_runs.RUNS` names them (`docs/EVIDENCE.md`, E12 to E22).
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from types import MappingProxyType
 from typing import Final
 
 from bko.baselines.request import Method
+from bko.evaluate.data import Dataset
 from bko.evaluate.direct_arms import (
     CAPPED_ARM,
     COHERENT_ARM,
@@ -275,3 +276,41 @@ E21: Final[Mapping[str, Experiment]] = MappingProxyType(
 `E12_EMPTY` with `quota_rule` set to each rule but `fill-to`, so each flagged cell is asked its
 rule's count (ADR `research/share-based-quota`). The fixed fill is E12's own runs. No arm calls
 the API, so the ceiling is inert."""
+
+
+E22_HIER_ARMS: Final[tuple[str, ...]] = ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM, HIER_W_ARM)
+"""The arms of E22's families on E6's frame: `bko-direct`, `bko-nomap` and `bko-hier-w`, the arm
+that reads the mapping's `is_a` hierarchy."""
+
+E22_TREE_ARMS: Final[tuple[str, ...]] = ("none", REAL_ARM, DIRECT_ARM, NOMAP_ARM, TREE_ARM)
+"""The arms of E22's families on `diabetes-codes`: `bko-tree` in place of `bko-hier-w`."""
+
+E22_FAMILIES: Final[Mapping[str, tuple[Dataset, tuple[str, ...]]]] = MappingProxyType(
+    {
+        "hand": (Dataset.DIABETES, E22_HIER_ARMS),
+        "auto-lexical": (Dataset.DIABETES_AUTO_LEXICAL, E22_HIER_ARMS[:-1]),
+        "auto-local": (Dataset.DIABETES_AUTO_LOCAL, E22_HIER_ARMS),
+        "permuted": (Dataset.DIABETES_PERMUTED, E22_HIER_ARMS),
+        "codes-hand": (Dataset.DIABETES_CODES, E22_TREE_ARMS),
+        "codes-auto-lexical": (Dataset.DIABETES_CODES_AUTO_LEXICAL, E22_TREE_ARMS),
+        "codes-auto-local": (Dataset.DIABETES_CODES_AUTO_LOCAL, E22_TREE_ARMS),
+        "codes-permuted": (Dataset.DIABETES_CODES_PERMUTED, E22_TREE_ARMS),
+    }
+)
+"""Each E22 family by the word its runs are named with: the dataset it reads and its arms.
+`diabetes-auto-lexical` holds no row, so it builds no `is_a` pair and its family runs without
+`bko-hier-w` (ADR `research/automatic-mapping`, Consequences)."""
+
+E22: Final[Mapping[str, tuple[Experiment, Dataset]]] = MappingProxyType(
+    {
+        f"{family}-{fraction}": (
+            replace(e9, arms=arms, candidate=DIRECT_ARM, comparators=(NOMAP_ARM, "none")),
+            dataset,
+        )
+        for family, (dataset, arms) in E22_FAMILIES.items()
+        for fraction, e9 in (("thin", E9_THIN), ("empty", E9_EMPTY))
+    }
+)
+"""E22's runs, by `<family>-<fraction>`, each with the dataset it reads: `E9_THIN` and
+`E9_EMPTY` with its family's arms, `bko-direct` the candidate against `bko-nomap` and `none`, and
+no replica (ADR `research/automatic-mapping`). No arm calls the API, so the ceiling is inert."""

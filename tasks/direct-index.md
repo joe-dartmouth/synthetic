@@ -8,21 +8,21 @@ unit's `milestone` is `direct-method-research`, the
 
 ## Order of work
 
-1. Code units, in landing order:
-   [`ontology-auto-mapping`](ontology-auto-mapping.md) unblocks its results unit.
-2. Free runs that need no code:
+1. Free runs that need no code:
    [`evaluate-diabetes-control-results`](evaluate-diabetes-control-results.md) and
    [`evaluate-synthea-direct-results`](evaluate-synthea-direct-results.md) both gate the
    registration, [`evaluate-variant-dev-results`](evaluate-variant-dev-results.md) runs the
    E14 to E17 and E20 families, which are in `RUNS`, and
    [`evaluate-tableshift-results`](evaluate-tableshift-results.md) runs `p1-id-partial` and
-   `p1-ood-partial`.
-3. After this batch: [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) lands
+   `p1-ood-partial`, and [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md)
+   runs E22's families, which are in `RUNS`, and
+   [`paper-control-results`](paper-control-results.md) runs E19's families, which are in `RUNS`.
+2. After this batch: [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) lands
    alone; then [`evaluate-crc-acs-benchmark`](evaluate-crc-acs-benchmark.md),
    [`slm-lora-day-budget`](slm-lora-day-budget.md),
    [`evaluate-covariate-bias-results`](evaluate-covariate-bias-results.md) and
    [`evaluate-synthetic-share-results`](evaluate-synthetic-share-results.md).
-4. After the results: [`paper-novelty`](paper-novelty.md), whose edges in the graph name the
+3. After the results: [`paper-novelty`](paper-novelty.md), whose edges in the graph name the
    results units it waits for.
 
 Landing-order constraints that are not dependencies:
@@ -78,8 +78,7 @@ Landing-order constraints that are not dependencies:
 
 | Unit | Status | Depends on | Milestone |
 |---|---|---|---|
-| [`ontology-auto-mapping`](ontology-auto-mapping.md) | ready | -- | direct-method-research |
-| [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | blocked | ontology-auto-mapping | direct-method-research |
+| [`ontology-auto-mapping-results`](ontology-auto-mapping-results.md) | ready | -- | direct-method-research |
 | [`slm-lora-day-budget`](slm-lora-day-budget.md) | ready | -- | direct-method-research |
 | [`slm-lora-results`](slm-lora-results.md) | blocked | evaluate-composite-dev-results, slm-lora-day-budget | direct-method-research |
 
@@ -104,7 +103,7 @@ composite chain.
 | [`paper-novelty`](paper-novelty.md) | blocked | evaluate-diabetes-control-results, evaluate-quota-sweep-results, evaluate-tableshift-results, evaluate-variant-dev-results, ontology-auto-mapping-results, paper-control-results | direct-method-research |
 | [`paper-control-results`](paper-control-results.md) | ready | -- | direct-method-research |
 | [`paper-baselines`](paper-baselines.md) | blocked | paper-control-results | direct-method-research |
-| [`paper-scarcity`](paper-scarcity.md) | blocked | evaluate-confirmatory-registration, ontology-auto-mapping, paper-baselines | direct-method-research |
+| [`paper-scarcity`](paper-scarcity.md) | blocked | evaluate-confirmatory-registration, paper-baselines | direct-method-research |
 | [`paper-scarcity-results`](paper-scarcity-results.md) | blocked | paper-scarcity, evaluate-confirmatory-results | direct-method-research |
 | [`paper-manuscript`](paper-manuscript.md) | blocked | paper-novelty, paper-scarcity-results | direct-method-research |
 
@@ -128,13 +127,11 @@ flowchart LR
     u30 --> u31[evaluate-confirmatory-results]
     u41[evaluate-crc-acs-benchmark] --> u42[evaluate-crc-acs-results]
     u31 --> u42
-    u32[ontology-auto-mapping] --> u33[ontology-auto-mapping-results]
     u29 --> u36[slm-lora-results]
     u51[slm-lora-day-budget] --> u36
     u7[evaluate-diabetes-control-results] --> u21[evaluate-quota-sweep-results]
     p2[paper-control-results] --> u30[evaluate-confirmatory-registration]
     p2[paper-control-results] --> p0[paper-novelty]
-    u32[ontology-auto-mapping] --> p4[paper-scarcity]
     u7[evaluate-diabetes-control-results] --> p0[paper-novelty]
     u19[evaluate-variant-dev-results] --> p0[paper-novelty]
     u21[evaluate-quota-sweep-results] --> p0[paper-novelty]
