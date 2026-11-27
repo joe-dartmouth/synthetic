@@ -63,8 +63,10 @@ identity checks working as they do for every other dataset.
 **Gained**: a projection or a mapping change runs under the existing run, split and logging code;
 existing datasets and their runs stay as they are.
 **Accepted**: each variant is a `Dataset` member, a `VARIANTS` entry and a case in each reader's
-match that defers to the entry; a variant's digest differs
-from its base's whenever its records do, so its folders never merge with the base's.
+match that defers to the entry. A variant's digest differs from its base's whenever its records
+do, so a projection's folders never merge with the base's. A row-swap variant reads its base's
+records unchanged, so it shares the base's digest; its folders are kept apart by the `data`
+line's `dataset=` key, which names the variant, and its `mapping` line names its rows' digest.
 
 ## Ruled Out
 

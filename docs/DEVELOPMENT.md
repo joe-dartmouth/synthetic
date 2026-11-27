@@ -1857,11 +1857,26 @@ inside `.venv`:
 
       mkdir -p scratchpad && uv run --no-sync python -m bko.ontology.automatic lexical diabetes > scratchpad/auto_lexical_diabetes_rows.py && mv scratchpad/auto_lexical_diabetes_rows.py src/bko/ontology/auto_lexical_diabetes_rows.py
 
-  then `make format`. The command fetches the releases, and for `diabetes-codes` the archive,
-  into the data root if absent, writes nothing to stdout until the module text is complete, and
-  logs a closing `lexical dataset=... rows=N candidates=C sha256=...` line, `C` the states the
-  local judge would be asked about. It reads no record-level statistic; `diabetes-codes`' codebook
-  is the codes its cohort holds. Two runs over the same releases write the same bytes.
+  then `make format`. The command fetches the releases, and for `diabetes-codes` the Diabetes 130
+  archive, into the data root if absent, writes nothing to stdout until the module text is
+  complete, and writes it as UTF-8 bytes. For `diabetes-codes` it logs one `lexical dropped
+  reason=... states=N` line per reason of `bko.ontology.codes.REASONS`, the code states that get
+  no row and no candidate (V and E codes, codes whose exact holders do not nest, codes no live
+  term holds), then a closing `lexical dataset=... rows=N candidates=C sha256=...` line, `C` the
+  states the local judge would be asked about and its sha256 that of the module bytes written,
+  not the rows' `rows_digest` the ADR and a variant's `mapping` line state. It exits 2 when the
+  builder refuses a code field. It reads no record-level statistic; `diabetes-codes`' codebook is
+  the codes its cohort holds. Two runs over the same releases write the same bytes. `uci` is kept
+  for that check on a frame with no code field.
+- **The mapping measures**: `bko.ontology.auto_measures` writes one CSV line per committed
+  automatic or permuted table of `bko.ontology.auto_tables` against the hand rows: its rows,
+  precision and recall over exact (field, code, concept) atoms, the exact matches, the hierarchy
+  hits (a built atom naming a strict `is_a` ancestor or descendant of the hand concept of its
+  state), the rows a permutation cannot move for a permuted table, and the states judged and
+  accepted for an `auto-local` table. It reads the pinned releases, fetching them into the data
+  root if absent, and makes no API call:
+
+      mkdir -p runs/<run-id> && test ! -e runs/<run-id>/measures.csv && uv run --no-sync python -m bko.ontology.auto_measures > runs/<run-id>/measures.csv 2> runs/<run-id>/measures.log </dev/null
 
 ### ELK comparison
 
@@ -2267,26 +2282,6 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   reasoning and no content. A replay logs no `reasoning` line, as it logs no `local server` line.
   A local run keeps at most four calls in flight (`bko.generate.local.SLOTS`), logging
   `local in_flight=` when `--in-flight` asked for more.
-- **The mapping judge**: `bko.generate.judge` asks a served local model which concept each
-  candidate state of a frame's automatic mapping shows (ADR
-  [`research/automatic-mapping`](adr/research/automatic-mapping.md)), one call per state, and
-  writes the `auto-local` module text: `VERDICTS`, each state's concept or `none` keyed
-  `"<field>=<code>"`, the states the cross-reference route maps included, and `LABELS`, each
-  verdict concept's name. With the model served as above, for `diabetes` (and
-  `diabetes-codes --part low` into `auto_local_codes_rows_low.py` and `--part high` into
-  `auto_local_codes_rows_high.py`, the table split at the field `diag_3` to keep each module under
-  the size cap):
-
-      mkdir -p scratchpad && uv run --no-sync python -m bko.generate.judge diabetes --model gemma-4-26b-a4b-q8_0 > scratchpad/auto_local_diabetes_rows.py && mv scratchpad/auto_local_diabetes_rows.py src/bko/ontology/auto_local_diabetes_rows.py
-
-  then `make format`. `--data-dir` and `--url` default to the data root and the server above; the
-  calls go one at a time, in (field, code) order. Each payload is a run's but for three values:
-  temperature 0, `seed` 0 and a strict `json_schema` named `verdict` whose one property,
-  `concept`, is an enum of the state's top ten options and `none`. A reply outside the enum, or
-  not JSON, fails the command, exit 2. It
-  logs the `local server` line, one `verdict field=... code=... concept=... options=N` line per
-  call and a closing `judge dataset=... model=... part=... states=N mapped=M sha256=...` line,
-  `part=all` for an unsplit table.
 - **Option order**: the definition or `direct` comes first and its options follow it, as in
   `per-subgroup --guidance summary --log ...`; an option before it is refused, exit 2.
 - **Guidance levels**: `cell`, `coherent`, `findings`, `ontology`, `profile` and
@@ -2369,6 +2364,37 @@ with `make setup`'s `llm` extra and an Anthropic credential the SDK can resolve:
   the schema or the call, into a `--basetemp` that does not exist yet, since pytest wipes it:
 
       test ! -e runs/<run-id>/pytest && mkdir -p runs/<run-id> && uv run --no-sync pytest tests/test_generate_live.py --live --basetemp=runs/<run-id>/pytest -q -p no:cacheprovider --no-cov -o log_cli=true --log-cli-level=INFO
+
+- **The mapping judge**: `bko.generate.judge` asks a served local model which concept each
+  candidate state of a frame's automatic mapping shows (ADR
+  [`research/automatic-mapping`](adr/research/automatic-mapping.md)), one call per state, and
+  writes the `auto-local` module text: `VERDICTS`, each state's concept or `none` keyed
+  `"<field>=<code>"`, the states the cross-reference route maps included, and `LABELS`, each
+  verdict concept's name. It calls `local_send` directly, outside `bko.generate.flight`, so it
+  writes no call log; the committed module is its record. With the model served as in Local
+  models above, for `diabetes`:
+
+      mkdir -p scratchpad && uv run --no-sync python -m bko.generate.judge diabetes > scratchpad/auto_local_diabetes_rows.py && mv scratchpad/auto_local_diabetes_rows.py src/bko/ontology/auto_local_diabetes_rows.py
+
+  then `make format`; for `diabetes-codes`, `--part low` into `auto_local_codes_rows_low.py` and
+  `--part high` into `auto_local_codes_rows_high.py`, the table split at the field `diag_3` to
+  keep each module under the size cap. `--part` is refused for any other dataset, exit 2.
+  `--model` defaults to `gemma-4-26b-a4b-q8_0` and takes only a local model served with thinking
+  off; `--data-dir` and `--url` default to the data root and the server above. It checks the
+  server before it reads or fetches anything, the releases and, for `diabetes-codes`, the
+  Diabetes 130 archive, which it fetches into the data root if absent; the first call checks the
+  server again, so the `local server` line appears twice. The calls go one at a time, in
+  (field, code) order. Each payload is a run's but for three values: temperature 0, `seed` 0 and
+  a strict `json_schema` named `verdict` whose one property, `concept`, is an enum of the state's
+  top ten options and `none`. It writes nothing to stdout until the module text is complete, and
+  writes it as UTF-8 bytes. It logs `judge start dataset=... part=... calls=N`, one
+  `verdict i=<i>/<N> field=... code=... concept=... options=K seconds=S` line per call, and a
+  closing `judge dataset=... model=... part=... states=N mapped=M calls=C elapsed=S sha256=...`
+  line, `part=all` for an unsplit table, its sha256 that of the module bytes written, not the
+  rows' `rows_digest` the ADR and a variant's `mapping` line state. Exit codes: 0 written; 2 a
+  refused server, a failed call (its message naming the state and its `i/N`), a reply outside the
+  enum or not JSON, a run with no candidate state, or another I/O failure; 3 the data or a
+  release contradicts its pin.
 
 ## Gap closure
 

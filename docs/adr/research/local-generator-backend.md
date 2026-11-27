@@ -2,7 +2,7 @@
 status: accepted
 topic: research
 created: 2026-10-29
-updated: 2026-11-11
+updated: 2026-11-26
 ---
 # On-device generators: a llama.cpp server on the loopback interface, weights fixed by digest
 
@@ -43,10 +43,15 @@ with the same structured-output schema, and the run's spend gates still have to 
   repository, file, byte count, sha256 and path under `data/models/`, and fetching it fetches
   nothing when the base's file is present. Olmo 3 7B Instruct has no variant. A base id's argv and
   payload are independent of its variant.
-- **Send.** `bko.generate.local.local_send(model)` posts each call to `/v1/chat/completions` with its
-  system and user turns, its `max_tokens`, `temperature` 1.0 and `top_p` 1.0 (the Messages API's
-  default temperature), the call's `record_schema` as a strict `json_schema` response format, and
-  `chat_template_kwargs.enable_thinking` false, or true for a `-thinking` id. It uses stdlib
+- **Send.** `bko.generate.local.local_send(model, build=payload)` posts each call's `build` body
+  to `/v1/chat/completions`. The default, `payload`, a run's body, holds the call's system and user
+  turns, its `max_tokens`, `temperature` 1.0 and `top_p` 1.0 (the Messages API's default
+  temperature), the call's `record_schema` as a strict `json_schema` response format, and
+  `chat_template_kwargs.enable_thinking` false, or true for a `-thinking` id. The mapping judge,
+  `bko.generate.judge`, passes its own builder and calls `local_send` directly, outside
+  `bko.generate.flight`, so its calls have no call log and no replay; its committed verdict table
+  is its record (ADR [`research/automatic-mapping`](automatic-mapping.md)). The server check's
+  pre-flight is always `payload`'s. It uses stdlib
   `http.client` in `asyncio.to_thread`, so no proxy setting and no redirect applies, and refuses
   any address but a bare `http://127.0.0.1:<port>` (`loopback`). A cancelled call, by the idle
   rule or an interrupt, posts nothing more, even once a check it waited on finishes, and shuts its

@@ -21,48 +21,25 @@ An automatic BKO matters only if its rows are as useful as the hand-built one's.
 ADR [`research/automatic-mapping`](../docs/adr/research/automatic-mapping.md) records the
 builders, the measures and the permuted control, and the
 [E22 entry](../docs/EVIDENCE.md#e22-automatic-mappings-on-the-diabetes-130-removal) of
-`docs/EVIDENCE.md` holds the Configuration. `RUNS` holds E22's sixteen runs
-(`bko.evaluate.runs_direct.E22` and `E22_FAMILIES`), each `<family>-thin` or `<family>-empty`
-with slices `<run>a` to `<run>j`:
+`docs/EVIDENCE.md` holds the Configuration: the runs, their families, datasets and arms. `RUNS`
+holds them (`bko.evaluate.runs_direct.E22` and `E22_FAMILIES`).
 
-| Family | Dataset | Arms |
-|---|---|---|
-| `e22-hand` | `diabetes` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-hier-w` |
-| `e22-auto-lexical` | `diabetes-auto-lexical` | `none`, `real`, `bko-direct`, `bko-nomap` |
-| `e22-auto-local` | `diabetes-auto-local` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-hier-w` |
-| `e22-permuted` | `diabetes-permuted` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-hier-w` |
-| `e22-codes-hand` | `diabetes-codes` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-tree` |
-| `e22-codes-auto-lexical` | `diabetes-codes-auto-lexical` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-tree` |
-| `e22-codes-auto-local` | `diabetes-codes-auto-local` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-tree` |
-| `e22-codes-permuted` | `diabetes-codes-permuted` | `none`, `real`, `bko-direct`, `bko-nomap`, `bko-tree` |
+Each table's precision, recall, exact matches, hierarchy hits, unmovable rows and judged counts
+against the hand rows come from
 
-Every run is `bko-direct` against `bko-nomap` and `none`, with no replica, no paid arm and
-`REFERENCE` `bko-direct`. `diabetes-auto-lexical` holds no row, so its family has no
-`bko-hier-w` (ADR, Consequences). Each variant's load logs
-`mapping dataset=%s rows=%d sha256=%s`.
+    mkdir -p runs/<run-id> && test ! -e runs/<run-id>/measures.csv && uv run --no-sync python -m bko.ontology.auto_measures > runs/<run-id>/measures.csv 2> runs/<run-id>/measures.log </dev/null
 
-Precision and recall come from `bko.ontology.automatic.precision_recall(built, hand)`, over
-(field, code, concept) atoms with an exact curie, each `None` on an empty denominator. Measured
-on the committed tables against the hand rows (`bko.ontology.auto_tables` against
-`DIABETES_FIELD_ROWS` and `DIABETES_CODES_FIELD_ROWS`):
-
-| Table | Rows | Precision | Recall |
-|---|---|---|---|
-| `diabetes-auto-lexical` | 0 | `None` | 0 |
-| `diabetes-auto-local` | 10 | 1 | 5/7 |
-| `diabetes-permuted` | 12 | 1/2 | 1/2 |
-| `diabetes-codes-auto-lexical` | 96 | 1 | 24/25 |
-| `diabetes-codes-auto-local` | 154 | 48/77 | 24/25 |
-| `diabetes-codes-permuted` | 98 | 7/100 | 7/100 |
+which reads the committed tables of `bko.ontology.auto_tables` and the pinned releases, and makes
+no API call.
 
 ## Scope
 
 **In.**
 
-- The sixteen E22 runs and their slices, as above.
-- Each mapping's precision and recall against the hand tables, as above. An exact match is
-  reported apart from a hit on an ancestor or a descendant of the hand concept, which
-  `precision_recall` counts as a miss.
+- The sixteen E22 runs and their slices.
+- Each mapping's measures against the hand tables, from the command above: exact matches
+  reported apart from `hierarchy_hits`, a hit on an ancestor or a descendant of the hand concept,
+  which `precision_recall` counts as a miss.
 - Automatic minus `bko-nomap`, and automatic minus hand under the registered margin.
 - The permuted-hierarchy control.
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) entry's Runs, Result and Read against.
