@@ -195,14 +195,17 @@ class StoredArm:
 
 
 def refuse_partial_replica(folder: Folder) -> None:
-    """Refuse a folder whose replica fill filled partially, as a partial gap fill is refused.
+    """Refuse a folder whose replica fill filled partially, as `shared` reads no partial replica.
 
-    Only a folder whose `experiment` line sets `partial_replica` is read, since only that field
-    lets a replica fill partially (`Experiment.partial_replica`); its partial replica's `arm` line
-    names the shortfall under `short` in its params. `shared` reads a replica as a copy of every
-    training cell, so it does not rescore one; `rows` and `panel` read it. A folder without the
-    field is left to the rescore, as before the field existed, even where a classifier-curated
-    Messages arm's replica names its own `short` (`bko.evaluate.guided`).
+    A BKO arm's partial gap fill is refused too, by `returned_attempt`, but for another reason: the
+    candidates file does not mark the rows it kept, so they cannot be rebuilt. A baseline's partial
+    replica is re-drawn as any baseline fill (`rows` and `panel` read it); `shared` refuses it
+    because it reads a replica as a copy of every training cell. Only a folder whose `experiment`
+    line sets `partial_replica` is read, since only that field lets a replica fill partially
+    (`Experiment.partial_replica`); its partial replica's `arm` line names the shortfall under
+    `short` in its params. A folder without the field is left to the rescore, as before the field
+    existed, even where a classifier-curated Messages arm's replica names its own `short`
+    (`bko.evaluate.guided`).
 
     Raises:
         IdentityError: If such a folder's replica `arm` line names a shortfall, or its params are

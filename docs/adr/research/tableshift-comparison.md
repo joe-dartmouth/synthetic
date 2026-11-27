@@ -78,14 +78,10 @@ split per run.
 9. **Runs.** Experiment P1, runs `p1-id` and `p1-ood`, with `decontaminate=False`, since the
    partition is TableShift's. Accuracy at the 0.5 cutoff is derived from recall, precision and the
    test prevalence. A replica fill under P1 refuses a shortfall, so `p1-id` and `p1-ood` stop on
-   holdout 0, where TVAE's replica lacks rows of the rare cells after 1,000,000 drawn rows (runs
-   `p1-1` and `p1-2` in `docs/EVIDENCE.md`, P1). `P1_PARTIAL` is P1 with
-   `Experiment.partial_replica` set, run as `p1-id-partial` on `tableshift-id` and
-   `p1-ood-partial` on `tableshift-ood`: a replica a generator cannot complete on its last attempt
-   is scored on the rows it kept, and each such holdout and arm holds a `replica-short` row (ADR
-   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)). A short `bko-direct` replica
-   still refuses. The partial runs are the ones to run; `p1-id` and `p1-ood` stay registered as
-   they are.
+   holdout 0, where TVAE's replica lacks rows of the rare cells after 1,000,000 drawn rows
+   (`docs/EVIDENCE.md`, P1). `P1_PARTIAL` is P1 with `Experiment.partial_replica` set, run as
+   `p1-id-partial` on `tableshift-id` and `p1-ood-partial` on `tableshift-ood`, under ADR
+   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)'s partial-replica rule.
 
 **Differences from TableShift.** No tuning on validation; our classifiers and encodings; one-hot
 coding without its 0.01 frequency floor (`PreprocessorConfig(min_frequency=0.01)`); partition

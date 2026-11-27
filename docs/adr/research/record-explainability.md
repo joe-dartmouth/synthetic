@@ -86,7 +86,11 @@ is not. A baseline fits a method at a seed. A run folder keeps the call log, the
    direct fill whose `arm` line's params are not a JSON object or whose logged spec fields are
    not its arm's, and a perturbation fill whose rebuilt rows miss its `arm` sha256, whose returned
    attempt is not one line per draw, or whose unperturbed columns differ from the re-draw. It
-   writes `trace.jsonl` with sorted keys, one line per record, one per fill for a baseline.
+   writes `trace.jsonl` with sorted keys, one line per record, one per fill for a baseline. A
+   baseline's line names its method and seed with no re-draw; for a replica that filled
+   partially (`Experiment.partial_replica`, ADR
+   [`research/e1-evaluation-protocol`](e1-evaluation-protocol.md)) its request also holds the
+   `arm` line's `short` params.
    `Draw.sources` carries the source ids out of the draw (ADR `research/bkb-direct-generation`).
 4. **Readers.** The app reads only `trace.jsonl` and a Demo fill's own run folder
    (`bko.app.provenance_frames` builds the frames); a Demo fill of a Messages arm is traced from

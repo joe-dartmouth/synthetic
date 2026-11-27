@@ -25,15 +25,11 @@ and records what they show beside TableShift's published baselines.
 `tableshift-ood`), both `bko.evaluate.runs_published.P1_PARTIAL`, P1 with
 `Experiment.partial_replica` set. The registered runs `p1-id` and `p1-ood` cannot complete: runs
 `p1-1` and `p1-2` each exit 2 on holdout 0, when TVAE's replica fill falls short of TableShift's
-rare cells on all 5 attempts and is refused (P1 Runs). Under `P1_PARTIAL`, a baseline replica
-still short on its last attempt is scored on the rows it kept: its `arm` line names the missing
-rows under `short`, each short cell logs a
-`shortfall holdout=%d arm=<arm>-replica attempt=5 cell=%s short=%d quota=%d` line, and
-`scores.csv` holds a `replica-short` row (source `replica`, scope `all`, its value the rows
-missing) for each partial holdout and arm, which `compare` logs as
-`replica-short holdout=%d arm=%s rows=%d`. A short `bko-direct` replica still refuses and stops
-the run. `shared` refuses a folder with a partial replica; `rows`, `panel` and `trace` read it
-(ADR [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md)).
+rare cells on all 5 attempts and is refused (P1 Runs). ADR
+[`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) holds the
+partial-replica rule and what each reader does with a partial replica, and
+[`docs/DEVELOPMENT.md`](../docs/DEVELOPMENT.md#evaluation) the `shortfall` and `replica-short`
+line formats.
 
 ## Scope
 

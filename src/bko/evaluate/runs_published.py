@@ -62,10 +62,8 @@ its held-out ratio is 0 (`bko.evaluate.prepare.held_out_ratio`): each interval i
 interval, with no Nadeau and Bengio test-overlap term."""
 
 P1_PARTIAL: Final = replace(P1, partial_replica=True)
-"""P1 with `partial_replica` set: a replica fill a generator cannot complete on its last attempt is
-scored on the rows it kept and marked by a `replica-short` row, as TVAE's replica of TableShift's
-rare cells needs (ADR `research/tableshift-comparison`); a short `bko-direct` replica still
-refuses."""
+"""P1 with `partial_replica` set, as TVAE's replica of TableShift's rare cells needs (ADR
+`research/tableshift-comparison`); ADR `research/e1-evaluation-protocol` holds the rule."""
 
 P2: Final = replace(
     E1,
