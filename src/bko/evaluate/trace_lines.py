@@ -329,7 +329,8 @@ def trace_baseline(fill: Fill) -> list[Trace]:
     """A baseline fill's one line: its method and its seed, with no re-draw.
 
     A replica that filled partially (`Experiment.partial_replica`) adds its `arm` line's `short`
-    params and logs a `trace replica-short` line.
+    params and logs a WARNING `trace replica-short` line, its `cells=` those params, as `trace
+    partial` warns of a partial gap fill.
 
     Raises:
         IdentityError: As `bko.evaluate.shared.logged_params`, for a replica fill.
@@ -338,8 +339,8 @@ def trace_baseline(fill: Fill) -> list[Trace]:
     short = logged_params(fill.line).get("short") if fill.kind == "replica" else None
     if short:
         request["short"] = short
-        logger.info(
-            "trace replica-short holdout=%d arm=%s short=%s",
+        logger.warning(
+            "trace replica-short holdout=%d arm=%s cells=%s",
             fill.holdout,
             fill.arm,
             json.dumps(short, sort_keys=True, separators=(",", ":")),

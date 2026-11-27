@@ -122,8 +122,8 @@ def test_compare_prints_each_partial_holdout_and_arm(tmp_path, caplog):
         write(tmp_path, "scores.csv", [*scores(panel=False), *short]), UNJUDGED, caplog
     )
     assert [m for m in lines if m.startswith("replica-short ")] == [
-        "replica-short holdout=0 arm=smote rows=12",
-        "replica-short holdout=1 arm=smote rows=7",
+        "replica-short holdout=0 arm=smote-replica rows=12",
+        "replica-short holdout=1 arm=smote-replica rows=7",
     ]
     plain = compared(write(tmp_path, "plain.csv", scores(panel=False)), UNJUDGED, caplog)
     assert not any(m.startswith("replica-short ") for m in plain)
@@ -297,7 +297,9 @@ def test_trace_writes_a_partial_baseline_replicas_shortfall(tmp_path, caplog):
     assert found["request"] == {"method": "smote", "seed": seed, "short": logged["short"]}
     assert calls == []
     short = json.dumps(logged["short"], sort_keys=True, separators=(",", ":"))
-    assert f"trace replica-short holdout=0 arm={REPLICA_ARM} short={short}" in caplog.messages
+    (warned,) = [r for r in caplog.records if r.getMessage().startswith("trace replica-short ")]
+    assert warned.levelno == logging.WARNING
+    assert warned.getMessage() == f"trace replica-short holdout=0 arm={REPLICA_ARM} cells={short}"
 
 
 GUIDED: Final = dataclasses.replace(

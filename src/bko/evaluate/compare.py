@@ -68,8 +68,8 @@ def compare(
     follow the regression's, `model=` naming it, and a pair of arms either of which lacks its rows
     is logged as skipped; otherwise only the regression's are logged.
 
-    A `replica-short` line names each holdout and arm whose replica filled partially, with the
-    rows it lacks, after the copies.
+    A `replica-short` line names each holdout and replica fill (`arm=<arm>-replica`) that filled
+    partially, with the rows it lacks, after the copies.
 
     The table goes out first, so scores whose validity cannot be read keep it. With `beside`, the
     reading beside the other file's arm is checked before the table, so a reading it refuses leaves
@@ -152,11 +152,17 @@ class _Reading:
 
 
 def _log_replica_short(scores: Sequence[Score]) -> None:
-    """Log a `replica-short` line per partial replica: its holdout, arm and the rows it lacks."""
+    """Log a `replica-short` line per partial replica: its holdout, fill and the rows it lacks.
+
+    `arm=` names the replica fill, `<arm>-replica`, as its `shortfall` and `arm` lines do.
+    """
     for score in scores:
         if score.measure is Measure.REPLICA_SHORT:
             logger.info(
-                "replica-short holdout=%d arm=%s rows=%d", score.holdout, score.arm, score.value
+                "replica-short holdout=%d arm=%s-replica rows=%d",
+                score.holdout,
+                score.arm,
+                score.value,
             )
 
 
