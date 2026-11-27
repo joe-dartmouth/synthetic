@@ -2,7 +2,7 @@
 id: evaluate-confirmatory-registration
 title: Register the confirmatory runs, endpoint and contrasts on the new datasets and tag the commit
 status: blocked
-depends_on: datasets-frame-rule-revisions, evaluate-composite-dev-results, evaluate-diabetes-control-results, evaluate-synthea-direct-results, paper-control-results
+depends_on: evaluate-composite-dev-results, evaluate-diabetes-control-results, evaluate-synthea-direct-results, paper-control-results
 blocks: evaluate-confirmatory-results, paper-scarcity
 parallel_safe: false
 milestone: direct-method-research
@@ -62,9 +62,12 @@ readings are fixed before any score exists on the new datasets.
     ([`docs/EVIDENCE.md`](../docs/EVIDENCE.md#e6-diabetes-130-subgroup-removal)).
 - The [`docs/EVIDENCE.md`](../docs/EVIDENCE.md) Configurations.
 - `tests/test_unrun_frames.py` loses each dataset this unit's `RUNS` entries read, and is deleted
-  once it names none: unit [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md)
-  has changed those frames under their own names, and the exception of `direct-index.md`, What
-  every unit relies on, ends with this unit's entries.
+  once it names none. ADRs [`research/support2-frame`](../docs/adr/research/support2-frame.md),
+  [`research/nhanes-frame`](../docs/adr/research/nhanes-frame.md) and
+  [`research/physionet2012-frame`](../docs/adr/research/physionet2012-frame.md) record the zero
+  and kept-record tertile rules, under which those frames changed under their own names at tag
+  `run/d1-12`; the exception of `direct-index.md`, What every unit relies on, ends with this
+  unit's entries.
 - A signed tag.
 - ADR [`research/e1-evaluation-protocol`](../docs/adr/research/e1-evaluation-protocol.md) revised
   in place.

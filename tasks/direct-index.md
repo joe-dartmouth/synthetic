@@ -9,7 +9,6 @@ unit's `milestone` is `direct-method-research`, the
 ## Order of work
 
 1. Code units, in landing order:
-   [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) gates the registration;
    [`evaluate-p1-partial-replicas`](evaluate-p1-partial-replicas.md) unblocks the TableShift runs;
    [`ontology-auto-mapping`](ontology-auto-mapping.md) unblocks its results unit.
 2. Free runs that need no code:
@@ -55,7 +54,6 @@ Landing-order constraints that are not dependencies:
 | [`datasets-generalised-cell-axes`](datasets-generalised-cell-axes.md) | ready | -- | direct-method-research |
 | [`datasets-nvd-frame`](datasets-nvd-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
 | [`datasets-vcdb-frame`](datasets-vcdb-frame.md) | blocked | datasets-generalised-cell-axes | direct-method-research |
-| [`datasets-frame-rule-revisions`](datasets-frame-rule-revisions.md) | ready | -- | direct-method-research |
 
 ### Published comparisons
 
@@ -74,7 +72,7 @@ Landing-order constraints that are not dependencies:
 |---|---|---|---|
 | [`evaluate-composite-arm`](evaluate-composite-arm.md) | blocked | evaluate-variant-dev-results, evaluate-quota-sweep-results | direct-method-research |
 | [`evaluate-composite-dev-results`](evaluate-composite-dev-results.md) | blocked | evaluate-composite-arm | direct-method-research |
-| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | datasets-frame-rule-revisions, evaluate-composite-dev-results, evaluate-diabetes-control-results, evaluate-synthea-direct-results, paper-control-results | direct-method-research |
+| [`evaluate-confirmatory-registration`](evaluate-confirmatory-registration.md) | blocked | evaluate-composite-dev-results, evaluate-diabetes-control-results, evaluate-synthea-direct-results, paper-control-results | direct-method-research |
 | [`evaluate-confirmatory-results`](evaluate-confirmatory-results.md) | blocked | evaluate-confirmatory-registration | direct-method-research |
 
 ### Follow-ups
@@ -128,7 +126,6 @@ flowchart LR
     u7[evaluate-diabetes-control-results] --> u30[evaluate-confirmatory-registration]
     u8[evaluate-synthea-direct-results] --> u30
     u29 --> u30
-    u56[datasets-frame-rule-revisions] --> u30
     u30 --> u31[evaluate-confirmatory-results]
     u54[evaluate-p1-partial-replicas] --> u55[evaluate-tableshift-results]
     u41[evaluate-crc-acs-benchmark] --> u42[evaluate-crc-acs-results]
